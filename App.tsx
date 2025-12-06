@@ -2,6 +2,7 @@ import React from 'react';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
 import Footer from './components/Footer';
+import RevealOnScroll from './components/RevealOnScroll';
 import { ArrowRight } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -37,16 +38,20 @@ const App: React.FC = () => {
         {/* Simple CTA Section - Pricing Text Removed */}
         <section className="py-32 bg-white/50 backdrop-blur-sm">
           <div className="container mx-auto px-6 text-center">
-              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-                Start managing your queue today.
-              </h2>
-              <div className="flex justify-center mt-12">
-                <button 
-                  className="group flex items-center gap-2 px-10 py-5 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all hover:gap-4 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
-                >
-                  Create my Queue <ArrowRight size={20} />
-                </button>
-              </div>
+              <RevealOnScroll>
+                <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                  Start managing your queue today.
+                </h2>
+                <div className="flex justify-center mt-12">
+                  <button 
+                    className="group flex items-center gap-2 px-10 py-5 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all hover:gap-4 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 relative overflow-hidden"
+                  >
+                     {/* Shimmer overlay */}
+                     <div className="absolute inset-0 -translate-x-full group-hover:animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent z-0"></div>
+                    <span className="relative z-10 flex items-center gap-2">Create my Queue <ArrowRight size={20} /></span>
+                  </button>
+                </div>
+              </RevealOnScroll>
           </div>
         </section>
       </main>

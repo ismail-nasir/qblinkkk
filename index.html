@@ -33,6 +33,9 @@
             animation: {
               blob: "blob 7s infinite",
               float: "float 6s ease-in-out infinite",
+              "fade-in-up": "fadeInUp 0.8s ease-out forwards",
+              "pop-in": "popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards",
+              shimmer: "shimmer 2.5s linear infinite",
             },
             keyframes: {
               blob: {
@@ -45,6 +48,18 @@
                 "0%, 100%": { transform: "translateY(0)" },
                 "50%": { transform: "translateY(-20px)" },
               },
+              fadeInUp: {
+                "0%": { opacity: "0", transform: "translateY(20px)" },
+                "100%": { opacity: "1", transform: "translateY(0)" },
+              },
+              popIn: {
+                "0%": { opacity: "0", transform: "scale(0.8)" },
+                "100%": { opacity: "1", transform: "scale(1)" },
+              },
+              shimmer: {
+                "0%": { backgroundPosition: "-200% 0" },
+                "100%": { backgroundPosition: "200% 0" },
+              }
             },
           }
         }
@@ -62,15 +77,14 @@
       .perspective-1000 {
         perspective: 1000px;
       }
-      .animation-delay-2000 {
-        animation-delay: 2s;
-      }
-      .animation-delay-3000 {
-        animation-delay: 3s;
-      }
-      .animation-delay-4000 {
-        animation-delay: 4s;
-      }
+      .animation-delay-100 { animation-delay: 100ms; }
+      .animation-delay-200 { animation-delay: 200ms; }
+      .animation-delay-300 { animation-delay: 300ms; }
+      .animation-delay-400 { animation-delay: 400ms; }
+      .animation-delay-500 { animation-delay: 500ms; }
+      .animation-delay-2000 { animation-delay: 2s; }
+      .animation-delay-3000 { animation-delay: 3s; }
+      .animation-delay-4000 { animation-delay: 4s; }
     </style>
   <script type="importmap">
 {

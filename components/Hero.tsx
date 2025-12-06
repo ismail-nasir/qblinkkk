@@ -9,21 +9,26 @@ const Hero: React.FC = () => {
         
         {/* Text Content */}
         <div className="lg:w-1/2 text-center lg:text-left z-10 mb-20 lg:mb-0">
-          <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight text-gray-900 mb-8 leading-[1.1]">
+          <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight text-gray-900 mb-8 leading-[1.1] opacity-0 animate-fade-in-up">
             Queueing, <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600">
               reimagined for humans.
             </span>
           </h1>
-          <p className="text-xl text-gray-600 mb-10 max-w-lg mx-auto lg:mx-0 leading-relaxed">
+          <p className="text-xl text-gray-600 mb-10 max-w-lg mx-auto lg:mx-0 leading-relaxed opacity-0 animate-fade-in-up animation-delay-200">
             No apps to install. No hardware to buy. Just a smooth, transparent flow that respects your customers' time.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start opacity-0 animate-fade-in-up animation-delay-300">
             <button 
-              className="group relative inline-flex items-center justify-center px-8 py-4 bg-gray-900 text-white font-semibold rounded-full transition-all hover:bg-gray-800 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 shadow-lg"
+              className="group relative inline-flex items-center justify-center px-8 py-4 bg-gray-900 text-white font-semibold rounded-full transition-all hover:bg-gray-800 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 shadow-lg overflow-hidden"
             >
-              Start for Free
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              {/* Shimmer effect overlay */}
+              <div className="absolute inset-0 -translate-x-full group-hover:animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent z-0"></div>
+              
+              <span className="relative z-10 flex items-center">
+                Start for Free
+                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </span>
             </button>
             {/* Watch Demo button removed */}
           </div>
