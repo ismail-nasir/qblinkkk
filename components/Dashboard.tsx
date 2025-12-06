@@ -50,7 +50,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
         <div className="container mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" onClick={onBack}>
              <div className="w-8 h-8 bg-indigo-600 rounded-lg shadow-sm"></div>
-             <span className="font-bold text-xl tracking-tight">Q-Flow</span>
+             <span className="font-bold text-xl tracking-tight">Q-Blink</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="hidden md:block text-sm text-gray-500">Logged in as <strong>Main Clinic</strong></span>
@@ -91,7 +91,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
                         <div className="flex-1">
                             <h4 className="font-bold text-gray-900 mb-1 flex items-center gap-2">
                               <span className="sm:hidden text-indigo-500"><Sparkles size={16} /></span>
-                              Q-Flow Assistant
+                              Q-Blink Assistant
                             </h4>
                             <p className="text-gray-600 text-base md:text-lg leading-relaxed">"{aiInsight}"</p>
                         </div>

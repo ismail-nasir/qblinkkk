@@ -25,7 +25,7 @@ const App: React.FC = () => {
               <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
                 <div className="w-3 h-3 bg-white rounded-full"></div>
               </div>
-              <span className="font-bold text-xl tracking-tight text-gray-900">Q-Flow</span>
+              <span className="font-bold text-xl tracking-tight text-gray-900">Q-Blink</span>
           </div>
           {/* Nav links and Login button removed as requested */}
         </div>

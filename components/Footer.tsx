@@ -8,9 +8,9 @@ const Footer: React.FC = () => {
             <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center">
                 <div className="w-2 h-2 bg-white rounded-full"></div>
             </div>
-            <span className="text-2xl font-bold tracking-tight text-gray-900">Q-Flow</span>
+            <span className="text-2xl font-bold tracking-tight text-gray-900">Q-Blink</span>
         </div>
-        <p className="text-gray-500">© 2024 Q-Flow Systems. All rights reserved.</p>
+        <p className="text-gray-500">© 2024 Q-Blink Systems. All rights reserved.</p>
       </div>
     </footer>
   );
