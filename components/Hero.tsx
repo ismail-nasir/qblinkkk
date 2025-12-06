@@ -2,11 +2,7 @@ import React from 'react';
 import PhoneMockup from './PhoneMockup';
 import { ArrowRight, QrCode, Clock, CheckCircle } from 'lucide-react';
 
-interface HeroProps {
-  onStart: () => void;
-}
-
-const Hero: React.FC<HeroProps> = ({ onStart }) => {
+const Hero: React.FC = () => {
   return (
     <section className="relative w-full overflow-hidden pt-32 pb-32">
       <div className="container mx-auto px-6 lg:px-12 flex flex-col lg:flex-row items-center">
@@ -24,15 +20,12 @@ const Hero: React.FC<HeroProps> = ({ onStart }) => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
             <button 
-              onClick={onStart}
-              className="group relative inline-flex items-center justify-center px-8 py-4 bg-gray-900 text-white font-semibold rounded-full transition-all hover:bg-gray-800 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900"
+              className="group relative inline-flex items-center justify-center px-8 py-4 bg-gray-900 text-white font-semibold rounded-full transition-all hover:bg-gray-800 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 shadow-lg"
             >
               Start for Free
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
-            <button className="px-8 py-4 bg-white/50 backdrop-blur-sm text-gray-700 font-semibold rounded-full border border-gray-200 hover:border-indigo-200 transition-colors">
-              Watch Demo
-            </button>
+            {/* Watch Demo button removed */}
           </div>
         </div>
 

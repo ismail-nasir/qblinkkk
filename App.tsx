@@ -1,16 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
-import Dashboard from './components/Dashboard';
 import Footer from './components/Footer';
-import { AppView } from './types';
 import { ArrowRight } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<AppView>(AppView.LANDING);
-
   return (
-    <div className="min-h-screen flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900 relative overflow-hidden">
+    <div className="min-h-screen flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900 relative overflow-hidden text-gray-900">
       
       {/* Global Background Gradient Mesh */}
       <div className="fixed inset-0 w-full h-full pointer-events-none -z-10">
@@ -21,60 +17,41 @@ const App: React.FC = () => {
         <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px]"></div>
       </div>
 
-      {currentView === AppView.DASHBOARD ? (
-        <Dashboard onBack={() => setCurrentView(AppView.LANDING)} />
-      ) : (
-        <>
-          {/* Navbar for Landing */}
-          <nav className="fixed w-full z-50 transition-all duration-300 bg-white/70 backdrop-blur-lg border-b border-white/20">
-            <div className="container mx-auto px-6 h-20 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                    <div className="w-3 h-3 bg-white rounded-full"></div>
-                 </div>
-                 <span className="font-bold text-xl tracking-tight text-gray-900">Q-Flow</span>
+      {/* Simplified Navbar - Logo Only */}
+      <nav className="fixed w-full z-50 transition-all duration-300 bg-white/70 backdrop-blur-lg border-b border-white/20">
+        <div className="container mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                <div className="w-3 h-3 bg-white rounded-full"></div>
               </div>
-              <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
-                <a href="#" className="hover:text-indigo-600 transition-colors">Features</a>
-                <a href="#" className="hover:text-indigo-600 transition-colors">Pricing</a>
-                <a href="#" className="hover:text-indigo-600 transition-colors">Support</a>
-              </div>
-              <button 
-                 onClick={() => setCurrentView(AppView.DASHBOARD)}
-                 className="px-6 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-full hover:bg-gray-800 transition-colors"
-              >
-                 Login
-              </button>
-            </div>
-          </nav>
+              <span className="font-bold text-xl tracking-tight text-gray-900">Q-Flow</span>
+          </div>
+          {/* Nav links and Login button removed as requested */}
+        </div>
+      </nav>
 
-          <main className="flex-grow">
-            <Hero onStart={() => setCurrentView(AppView.DASHBOARD)} />
-            <HowItWorks />
-            
-            {/* Simple CTA Section */}
-            <section className="py-32 bg-white/50 backdrop-blur-sm">
-              <div className="container mx-auto px-6 text-center">
-                 <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-                   Start managing your queue today.
-                   <br />
-                   <span className="text-gray-400">Free forever for small businesses.</span>
-                 </h2>
-                 <div className="flex justify-center mt-12">
-                   <button 
-                     onClick={() => setCurrentView(AppView.DASHBOARD)}
-                     className="group flex items-center gap-2 px-10 py-5 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all hover:gap-4"
-                   >
-                     Create my Queue <ArrowRight size={20} />
-                   </button>
-                 </div>
+      <main className="flex-grow">
+        <Hero />
+        <HowItWorks />
+        
+        {/* Simple CTA Section - Pricing Text Removed */}
+        <section className="py-32 bg-white/50 backdrop-blur-sm">
+          <div className="container mx-auto px-6 text-center">
+              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                Start managing your queue today.
+              </h2>
+              <div className="flex justify-center mt-12">
+                <button 
+                  className="group flex items-center gap-2 px-10 py-5 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all hover:gap-4 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+                >
+                  Create my Queue <ArrowRight size={20} />
+                </button>
               </div>
-            </section>
-          </main>
+          </div>
+        </section>
+      </main>
 
-          <Footer />
-        </>
-      )}
+      <Footer />
     </div>
   );
 };
