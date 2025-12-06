@@ -4,23 +4,23 @@ import { ArrowRight, QrCode, Clock, CheckCircle } from 'lucide-react';
 
 const Hero: React.FC = () => {
   return (
-    <section className="relative w-full overflow-hidden pt-32 pb-32">
-      <div className="container mx-auto px-6 lg:px-12 flex flex-col lg:flex-row items-center">
+    <section className="relative w-full overflow-hidden pt-24 pb-16 md:pt-32 md:pb-32">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-12 flex flex-col lg:flex-row items-center">
         
         {/* Text Content */}
-        <div className="lg:w-1/2 text-center lg:text-left z-10 mb-20 lg:mb-0">
-          <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight text-gray-900 mb-8 leading-[1.1] opacity-0 animate-fade-in-up">
+        <div className="lg:w-1/2 text-center lg:text-left z-10 mb-16 lg:mb-0">
+          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight text-gray-900 mb-6 md:mb-8 leading-[1.1] opacity-0 animate-fade-in-up">
             Queueing, <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600">
               reimagined for humans.
             </span>
           </h1>
-          <p className="text-xl text-gray-600 mb-10 max-w-lg mx-auto lg:mx-0 leading-relaxed opacity-0 animate-fade-in-up animation-delay-200">
+          <p className="text-lg md:text-xl text-gray-600 mb-8 md:mb-10 max-w-lg mx-auto lg:mx-0 leading-relaxed opacity-0 animate-fade-in-up animation-delay-200">
             No apps to install. No hardware to buy. Just a smooth, transparent flow that respects your customers' time.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start opacity-0 animate-fade-in-up animation-delay-300">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start opacity-0 animate-fade-in-up animation-delay-300 w-full sm:w-auto">
             <button 
-              className="group relative inline-flex items-center justify-center px-8 py-4 bg-gray-900 text-white font-semibold rounded-full transition-all hover:bg-gray-800 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 shadow-lg overflow-hidden"
+              className="group relative inline-flex items-center justify-center w-full sm:w-auto px-8 py-4 bg-gray-900 text-white font-semibold rounded-full transition-all hover:bg-gray-800 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 shadow-lg overflow-hidden"
             >
               {/* Shimmer effect overlay */}
               <div className="absolute inset-0 -translate-x-full group-hover:animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent z-0"></div>
@@ -35,11 +35,16 @@ const Hero: React.FC = () => {
         </div>
 
         {/* Isometric 3D Visuals */}
-        <div className="lg:w-1/2 flex justify-center items-center perspective-1000">
-          <div className="relative w-full max-w-[600px] h-[600px] flex items-center justify-center">
+        <div className="lg:w-1/2 flex justify-center items-center perspective-1000 w-full">
+          {/* 
+              Mobile Scale Fix:
+              Scaled down on mobile (scale-75) to fit two phones side-by-side/overlapping without overflow.
+              Restored to scale-100 on sm+ screens.
+          */}
+          <div className="relative w-full max-w-[320px] sm:max-w-[600px] h-[450px] sm:h-[600px] flex items-center justify-center transform scale-[0.8] sm:scale-100 origin-top lg:origin-center">
             
             {/* Phone 1: Scan Screen */}
-            <div className="absolute left-4 lg:left-0 z-10 animate-float">
+            <div className="absolute left-1/2 -translate-x-[60%] lg:left-0 lg:translate-x-0 z-10 animate-float top-0 lg:top-auto">
               <PhoneMockup variant="left">
                 <div className="flex flex-col h-full items-center justify-center bg-gray-50 p-6">
                   <div className="w-20 h-20 bg-indigo-100 rounded-2xl flex items-center justify-center mb-6 text-indigo-600">
@@ -55,7 +60,7 @@ const Hero: React.FC = () => {
             </div>
 
             {/* Phone 2: Notification Screen */}
-            <div className="absolute right-4 lg:right-0 z-20 mt-24 lg:mt-32 animate-float animation-delay-3000">
+            <div className="absolute left-1/2 translate-x-[10%] lg:left-auto lg:right-0 z-20 mt-16 lg:mt-32 animate-float animation-delay-3000">
               <PhoneMockup variant="right">
                 <div className="flex flex-col h-full bg-white relative">
                   <div className="bg-emerald-500 h-1/2 w-full flex flex-col items-center justify-center text-white p-6 rounded-b-[40px] shadow-lg">

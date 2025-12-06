@@ -20,7 +20,7 @@ const App: React.FC = () => {
 
       {/* Simplified Navbar - Logo Only */}
       <nav className="fixed w-full z-50 transition-all duration-300 bg-white/70 backdrop-blur-lg border-b border-white/20">
-        <div className="container mx-auto px-6 h-20 flex items-center justify-between">
+        <div className="container mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
                 <div className="w-3 h-3 bg-white rounded-full"></div>
@@ -35,16 +35,16 @@ const App: React.FC = () => {
         <Hero />
         <HowItWorks />
         
-        {/* Simple CTA Section - Pricing Text Removed */}
-        <section className="py-32 bg-white/50 backdrop-blur-sm">
-          <div className="container mx-auto px-6 text-center">
+        {/* Simple CTA Section */}
+        <section className="py-20 md:py-32 bg-white/50 backdrop-blur-sm">
+          <div className="container mx-auto px-4 md:px-6 text-center">
               <RevealOnScroll>
-                <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-6">
                   Start managing your queue today.
                 </h2>
-                <div className="flex justify-center mt-12">
+                <div className="flex justify-center mt-8 md:mt-12">
                   <button 
-                    className="group flex items-center gap-2 px-10 py-5 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all hover:gap-4 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 relative overflow-hidden"
+                    className="group w-full sm:w-auto flex items-center justify-center gap-2 px-10 py-5 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all hover:gap-4 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 relative overflow-hidden"
                   >
                      {/* Shimmer overlay */}
                      <div className="absolute inset-0 -translate-x-full group-hover:animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent z-0"></div>
