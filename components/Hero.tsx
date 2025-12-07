@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Play, Zap } from 'lucide-react';
+import { ArrowRight, Play, Zap, LogOut } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
 
 interface HeroProps {
@@ -117,7 +117,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
                              
                              <span className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-3">Number</span>
-                             <div className="text-6xl font-black text-gray-900 mb-2 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-gray-900 to-gray-600">A-42</div>
+                             <div className="text-7xl font-black text-gray-900 mb-2 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-gray-900 to-gray-600">42</div>
                              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">
                                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></div>
                                  3rd in line
@@ -139,8 +139,8 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
 
                      {/* Footer Button */}
                      <div className="p-6 pt-0 z-10">
-                          <button className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-sm flex items-center justify-center shadow-lg shadow-gray-900/20 active:scale-95 transition-transform">
-                              View Menu
+                          <button className="w-full py-4 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all">
+                              <LogOut size={16} /> Leave Queue
                           </button>
                      </div>
                 </div>

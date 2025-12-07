@@ -196,4 +196,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
                  <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-4 md:mb-6">Recent Activity</h3>
                  <div className="space-y-3 md:space-y-4">
                     {[1,2,3].map((i) => (
-                        <div key={i} className="flex items-center justify-between text
+                        <div key={i} className="flex items-center justify-between text-sm p-2 hover:bg-gray-50 rounded-lg transition-colors cursor-default">
+                            <div className="flex items-center gap-2 md:gap-3">
+                                <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-green-400"></div>
+                                <span className="text-gray-600 text-xs md:text-sm">Number #{currentTicket - i} completed</span>
+                            </div>
+                            <span className="text-gray-400 text-[10px] md:text-xs">{i * 5}m ago</span>
+                        </div>
+                    ))}
+                 </div>
+             </GlassCard>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default Dashboard;

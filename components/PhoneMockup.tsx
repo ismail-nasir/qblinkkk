@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 
 interface PhoneMockupProps {
   children: React.ReactNode;
@@ -27,7 +28,7 @@ const PhoneMockup: React.FC<PhoneMockupProps> = ({ children, variant }) => {
         {/* The Screen */}
         <div className="absolute top-0 left-0 right-0 bottom-0 bg-white overflow-hidden flex flex-col">
           {/* Status Bar Mock */}
-          <div className="h-6 w-full flex justify-between px-6 items-center pt-2">
+          <div className="h-6 w-full flex justify-between px-6 items-center pt-2 z-20">
             <div className="text-[10px] font-bold text-gray-800">9:41</div>
             <div className="flex gap-1">
               <div className="w-4 h-2 bg-gray-800 rounded-sm"></div>
@@ -35,12 +36,18 @@ const PhoneMockup: React.FC<PhoneMockupProps> = ({ children, variant }) => {
           </div>
           
           {/* Dynamic Content */}
-          <div className="flex-1 relative">
+          <motion.div 
+            className="flex-1 relative flex flex-col"
+            initial={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            layout
+          >
             {children}
-          </div>
+          </motion.div>
           
           {/* Home Indicator */}
-          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-1/3 h-1 bg-gray-300 rounded-full"></div>
+          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-1/3 h-1 bg-gray-300 rounded-full z-20"></div>
         </div>
       </div>
       
