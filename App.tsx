@@ -9,6 +9,7 @@ import Pricing from './components/Pricing';
 import FAQ from './components/FAQ';
 import Footer from './components/Footer';
 import Dashboard from './components/Dashboard';
+import PainPoints from './components/PainPoints';
 import { AppView } from './types';
 
 const App: React.FC = () => {
@@ -29,17 +30,44 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen font-sans bg-[#F8FAFC] overflow-x-hidden text-gray-900">
+    <div className="min-h-screen font-sans bg-[#F8FAFC] overflow-x-hidden text-gray-900 relative selection:bg-primary-100 selection:text-primary-700">
+      {/* Ambient Background Gradient for Glass Effect */}
+      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-200/30 rounded-full blur-[120px] animate-blob"></div>
+        <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-blue-200/30 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-[-10%] left-[20%] w-[60%] h-[50%] bg-cyan-200/30 rounded-full blur-[120px] animate-blob animation-delay-4000"></div>
+      </div>
+
       <Navbar onGetStarted={handleGetStarted} />
       
-      <main>
+      <main className="relative z-10">
         <Hero onGetStarted={handleGetStarted} />
-        <TrustedBy />
-        <HowItWorks />
-        <Features />
-        <UseCases />
-        <Pricing onGetStarted={handleGetStarted} />
-        <FAQ />
+        
+        <div id="trusted-by">
+          <TrustedBy />
+        </div>
+        
+        <PainPoints />
+
+        <div id="how-it-works">
+          <HowItWorks />
+        </div>
+        
+        <div id="features">
+          <Features />
+        </div>
+        
+        <div id="use-cases">
+          <UseCases />
+        </div>
+        
+        <div id="pricing">
+          <Pricing onGetStarted={handleGetStarted} />
+        </div>
+        
+        <div id="faq">
+          <FAQ />
+        </div>
       </main>
 
       <Footer />

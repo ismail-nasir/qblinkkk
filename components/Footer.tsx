@@ -1,8 +1,16 @@
 import React from 'react';
 
 const Footer: React.FC = () => {
+  const scrollToSection = (id: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
-    <footer className="py-12 bg-white border-t border-gray-100">
+    <footer id="contact" className="py-12 bg-white border-t border-gray-100 relative z-10">
       <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white">
@@ -14,9 +22,8 @@ const Footer: React.FC = () => {
         </div>
         
         <div className="flex gap-8 text-sm font-semibold text-gray-500">
-          <a href="#" className="hover:text-primary-600 transition-colors">About</a>
-          <a href="#" className="hover:text-primary-600 transition-colors">Team</a>
-          <a href="#" className="hover:text-primary-600 transition-colors">Contact</a>
+          <a href="#how-it-works" onClick={scrollToSection('how-it-works')} className="hover:text-primary-600 transition-colors">How it Works</a>
+          <a href="#features" onClick={scrollToSection('features')} className="hover:text-primary-600 transition-colors">Features</a>
           <a href="#" className="hover:text-primary-600 transition-colors">Privacy</a>
           <a href="#" className="hover:text-primary-600 transition-colors">Terms</a>
         </div>
