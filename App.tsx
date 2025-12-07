@@ -1,6 +1,7 @@
 import React from 'react';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
+import FAQ from './components/FAQ';
 import Footer from './components/Footer';
 import RevealOnScroll from './components/RevealOnScroll';
 import { ArrowRight } from 'lucide-react';
@@ -34,6 +35,8 @@ const App: React.FC = () => {
       <main className="flex-grow">
         <Hero />
         <HowItWorks />
+        
+        <FAQ />
         
         {/* Simple CTA Section */}
         <section className="py-20 md:py-32 bg-white/50 backdrop-blur-sm">
