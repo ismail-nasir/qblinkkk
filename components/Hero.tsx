@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Play, Clock, Users, Zap } from 'lucide-react';
+import { ArrowRight, Play, Zap } from 'lucide-react';
+import PhoneMockup from './PhoneMockup';
 
 interface HeroProps {
   onGetStarted?: () => void;
@@ -13,10 +14,10 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
       <div className="absolute top-0 right-0 w-[300px] h-[300px] md:w-[800px] md:h-[800px] bg-blue-100/50 rounded-full blur-3xl -z-10 translate-x-1/4 -translate-y-1/4"></div>
 
       <div className="container mx-auto px-4 md:px-6">
-        <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
+        <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-20">
           
           {/* Left Content */}
-          <div className="lg:w-1/2 text-center lg:text-left pt-4">
+          <div className="lg:w-1/2 text-center lg:text-left pt-4 z-10">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -80,49 +81,70 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
             </motion.div>
           </div>
 
-          {/* Right Visual - The "Coffee House" Card */}
-          <div className="lg:w-1/2 w-full flex justify-center perspective-1000 mt-6 lg:mt-0 px-2 md:px-0">
+          {/* Right Visual - Phone Mockup */}
+          <div className="lg:w-1/2 w-full flex justify-center lg:justify-end perspective-1000 mt-12 lg:mt-0 px-2 md:px-0 relative">
+             {/* Decorative blob behind phone */}
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[600px] bg-gradient-to-tr from-primary-100 to-purple-100 rounded-[50px] blur-3xl -z-10 opacity-60 animate-pulse"></div>
+
             <motion.div 
               initial={{ opacity: 0, rotateY: -10, x: 50 }}
               animate={{ opacity: 1, rotateY: 0, x: 0 }}
               transition={{ duration: 0.8, type: "spring" }}
-              className="relative w-full max-w-sm md:max-w-md bg-white rounded-[32px] md:rounded-[40px] shadow-2xl p-6 md:p-8 border border-white/50"
             >
-              {/* Card Header */}
-              <div className="flex items-center justify-between mb-6 md:mb-8">
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div className="w-10 h-10 md:w-14 md:h-14 bg-primary-600 rounded-xl md:rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary-600/30 shrink-0">
-                    <Zap size={20} className="md:w-6 md:h-6" fill="currentColor" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg md:text-xl font-bold text-gray-900">Coffee House</h3>
-                    <p className="text-gray-500 text-xs md:text-sm">Main Queue</p>
-                  </div>
-                </div>
-                <span className="px-2 py-1 md:px-3 bg-green-100 text-green-700 text-[10px] md:text-xs font-bold rounded-full uppercase tracking-wider">Active</span>
-              </div>
+              <PhoneMockup variant="left">
+                 <div className="h-full bg-gray-50 flex flex-col font-sans relative overflow-hidden">
+                    {/* Background Pattern */}
+                    <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
-              {/* Blue Status Card */}
-              <div className="bg-gradient-to-br from-primary-500 to-cyan-500 rounded-2xl md:rounded-3xl p-6 md:p-8 text-center text-white shadow-lg shadow-primary-500/25 mb-6 md:mb-8 transform transition-transform hover:scale-[1.02]">
-                <p className="text-primary-100 font-medium mb-1 md:mb-2 text-sm md:text-base">Your Position</p>
-                <div className="text-5xl md:text-7xl font-extrabold mb-1 md:mb-2 tracking-tighter">#3</div>
-                <p className="text-primary-100 text-sm md:text-base">in line</p>
-              </div>
+                     {/* Header */}
+                     <div className="bg-white/80 backdrop-blur-md p-6 pb-4 rounded-b-[32px] shadow-sm z-10 border-b border-gray-100">
+                         <div className="flex justify-between items-start mb-1">
+                             <div>
+                                 <h3 className="text-lg font-bold text-gray-900">Coffee House</h3>
+                                 <p className="text-gray-400 text-xs font-medium">Main Queue</p>
+                             </div>
+                             <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1">
+                                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></div>
+                                 Live
+                             </span>
+                         </div>
+                     </div>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-3 md:gap-4">
-                <div className="bg-gray-50 rounded-xl md:rounded-2xl p-3 md:p-4 text-center">
-                  <Clock size={20} className="mx-auto text-primary-600 mb-2 md:w-6 md:h-6" />
-                  <p className="text-[10px] md:text-xs text-gray-400 font-bold uppercase mb-1">Wait Time</p>
-                  <p className="text-lg md:text-xl font-bold text-gray-900">~8 min</p>
-                </div>
-                <div className="bg-gray-50 rounded-xl md:rounded-2xl p-3 md:p-4 text-center">
-                  <Users size={20} className="mx-auto text-primary-600 mb-2 md:w-6 md:h-6" />
-                  <p className="text-[10px] md:text-xs text-gray-400 font-bold uppercase mb-1">Ahead</p>
-                  <p className="text-lg md:text-xl font-bold text-gray-900">2 people</p>
-                </div>
-              </div>
+                     {/* Main Ticket Area */}
+                     <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-6 z-10">
+                         <div className="w-full bg-white rounded-3xl p-6 shadow-xl shadow-blue-900/5 border border-white flex flex-col items-center relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
+                             {/* Decorative Top Border */}
+                             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
+                             
+                             <span className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-3">Your Ticket</span>
+                             <div className="text-6xl font-black text-gray-900 mb-2 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-gray-900 to-gray-600">A-42</div>
+                             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">
+                                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></div>
+                                 3rd in line
+                             </div>
+                         </div>
 
+                         {/* Stats */}
+                         <div className="grid grid-cols-2 gap-3 w-full">
+                             <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center group hover:border-blue-100 transition-colors">
+                                 <span className="text-gray-400 text-[10px] font-bold uppercase mb-1">Wait Time</span>
+                                 <span className="text-2xl font-bold text-gray-900">~8<span className="text-sm font-medium text-gray-400">m</span></span>
+                             </div>
+                             <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center group hover:border-blue-100 transition-colors">
+                                 <span className="text-gray-400 text-[10px] font-bold uppercase mb-1">Ahead</span>
+                                 <span className="text-2xl font-bold text-gray-900">2</span>
+                             </div>
+                         </div>
+                     </div>
+
+                     {/* Footer Button */}
+                     <div className="p-6 pt-0 z-10">
+                          <button className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-sm flex items-center justify-center shadow-lg shadow-gray-900/20 active:scale-95 transition-transform">
+                              View Menu
+                          </button>
+                     </div>
+                </div>
+              </PhoneMockup>
             </motion.div>
           </div>
 
