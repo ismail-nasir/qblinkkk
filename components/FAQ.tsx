@@ -1,76 +1,84 @@
 import React, { useState } from 'react';
-import { Plus, Minus } from 'lucide-react';
-import RevealOnScroll from './RevealOnScroll';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronDown } from 'lucide-react';
 
 const faqs = [
   {
-    question: "Do customers need to download an app?",
-    answer: "No app required. Q-Blink works entirely in the web browser. Customers simply scan a QR code to join the queue, making it completely frictionless."
+    question: "Is Qblink really free?",
+    answer: "Yes, Qblink is 100% free forever for all standard features. We support the platform through non-intrusive ads displayed on the customer waiting screen."
   },
   {
-    question: "Does it work on older smartphones?",
-    answer: "Yes. As long as the phone has a camera to scan a QR code and a web browser, Q-Blink works perfectly. It is optimized to be lightweight and fast even on 3G connections."
+    question: "Do my customers need to download an app?",
+    answer: "No. Customers simply scan a QR code to join the queue via their mobile browser. No app download or account creation is required."
   },
   {
-    question: "How do I notify customers?",
-    answer: "The interface updates in real-time on their phone screen. We also offer SMS notifications on our Pro plan if you want to text them when it's their turn."
+    question: "How do customers know when it's their turn?",
+    answer: "The browser interface updates in real-time. When it's their turn, the screen changes color and vibrates. You can also enable optional SMS notifications."
   },
   {
-    question: "Is there a limit to the queue size?",
-    answer: "Our free tier supports up to 50 concurrent active tickets. For larger events or enterprise needs, our unlimited plan handles thousands of simultaneous users."
+    question: "Can I manage multiple queues?",
+    answer: "Absolutely. You can create different queues for different services (e.g., 'Takeout' vs 'Dine-in') and manage them all from one dashboard."
+  },
+  {
+    question: "Is my data secure?",
+    answer: "We use enterprise-grade encryption for all data. We do not sell customer data to third parties."
   }
 ];
 
-interface FAQItemProps {
-  question: string;
-  answer: string;
-}
-
-const FAQItem: React.FC<FAQItemProps> = ({ question, answer }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="border-b border-gray-200/60 last:border-0">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full py-6 flex items-center justify-between text-left focus:outline-none group"
-      >
-        <span className={`text-lg font-semibold transition-colors ${isOpen ? 'text-indigo-600' : 'text-gray-900 group-hover:text-indigo-600'}`}>
-          {question}
-        </span>
-        <div className={`p-2 rounded-full transition-all duration-300 ${isOpen ? 'bg-indigo-100 rotate-180' : 'bg-gray-100 group-hover:bg-indigo-50'}`}>
-          {isOpen ? <Minus size={18} className="text-indigo-600" /> : <Plus size={18} className="text-gray-600 group-hover:text-indigo-600" />}
-        </div>
-      </button>
-      <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          isOpen ? 'max-h-40 opacity-100 pb-6' : 'max-h-0 opacity-0'
-        }`}
-      >
-        <p className="text-gray-600 leading-relaxed pr-8">
-          {answer}
-        </p>
-      </div>
-    </div>
-  );
-};
-
 const FAQ: React.FC = () => {
-  return (
-    <section className="py-20 md:py-28 relative z-10">
-      <div className="container mx-auto px-4 md:px-6 max-w-3xl">
-        <RevealOnScroll>
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
-            <p className="text-gray-500">Everything you need to know about setting up your queue.</p>
-          </div>
+  const [openIndex, setOpenIndex] = useState<number | null>(0);
 
-          <div className="bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/50 shadow-glass p-6 md:p-10">
-            {faqs.map((faq, index) => (
-              <FAQItem key={index} {...faq} />
-            ))}
-          </div>
-        </RevealOnScroll>
+  return (
+    <section className="py-24 bg-white">
+      <div className="container mx-auto px-4 md:px-6 max-w-3xl">
+        <div className="text-center mb-16">
+          <motion.h2 
+             initial={{ opacity: 0, y: 20 }}
+             whileInView={{ opacity: 1, y: 0 }}
+             viewport={{ once: true }}
+             className="text-3xl md:text-5xl font-bold text-gray-900"
+          >
+            Frequently Asked
+          </motion.h2>
+        </div>
+
+        <div className="space-y-4">
+          {faqs.map((faq, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: index * 0.1 }}
+              className="border border-gray-100 rounded-3xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow"
+            >
+              <button
+                onClick={() => setOpenIndex(openIndex === index ? null : index)}
+                className="w-full px-8 py-6 flex items-center justify-between text-left focus:outline-none"
+              >
+                <span className="text-lg font-bold text-gray-900">{faq.question}</span>
+                <ChevronDown 
+                  className={`text-gray-400 transition-transform duration-300 ${openIndex === index ? 'rotate-180 text-primary-600' : ''}`} 
+                  size={20} 
+                />
+              </button>
+              <AnimatePresence>
+                {openIndex === index && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <div className="px-8 pb-8 text-gray-600 leading-relaxed">
+                      {faq.answer}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </section>
   );

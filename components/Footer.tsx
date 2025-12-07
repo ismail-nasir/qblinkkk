@@ -2,15 +2,26 @@ import React from 'react';
 
 const Footer: React.FC = () => {
   return (
-    <footer className="py-12 bg-gray-50/50 backdrop-blur-sm border-t border-gray-200">
-      <div className="container mx-auto px-6 text-center">
-        <div className="mb-8 flex justify-center items-center gap-2">
-            <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center">
-                <div className="w-2 h-2 bg-white rounded-full"></div>
+    <footer className="py-12 bg-white border-t border-gray-100">
+      <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white">
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
             </div>
-            <span className="text-2xl font-bold tracking-tight text-gray-900">Q-Blink</span>
+            <span className="text-xl font-bold tracking-tight text-gray-900">Qblink</span>
         </div>
-        <p className="text-gray-500">© 2024 Q-Blink Systems. All rights reserved.</p>
+        
+        <div className="flex gap-8 text-sm font-semibold text-gray-500">
+          <a href="#" className="hover:text-primary-600 transition-colors">About</a>
+          <a href="#" className="hover:text-primary-600 transition-colors">Team</a>
+          <a href="#" className="hover:text-primary-600 transition-colors">Contact</a>
+          <a href="#" className="hover:text-primary-600 transition-colors">Privacy</a>
+          <a href="#" className="hover:text-primary-600 transition-colors">Terms</a>
+        </div>
+        
+        <p className="text-sm text-gray-400">© 2024 Qblink. All rights reserved.</p>
       </div>
     </footer>
   );
