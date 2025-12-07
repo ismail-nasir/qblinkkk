@@ -5,10 +5,10 @@ import { Timer, Armchair, AlertCircle } from 'lucide-react';
 
 const PainPoints: React.FC = () => {
   return (
-    <section className="py-24 relative z-10">
+    <section className="py-16 md:py-24 relative z-10">
       <div className="container mx-auto px-4 md:px-6">
         <RevealOnScroll>
-          <div className="text-center mb-16">
+          <div className="text-center mb-12 md:mb-16">
             <span className="text-indigo-600 font-bold tracking-wider uppercase text-sm mb-2 block">The Problem</span>
             <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-6">
               Traditional queuing is broken.
@@ -19,7 +19,7 @@ const PainPoints: React.FC = () => {
           </div>
         </RevealOnScroll>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
            {/* Card 1 */}
            <RevealOnScroll delay={100}>
              <GlassCard className="p-8 h-full border-red-100/30 bg-gradient-to-b from-white/80 to-red-50/30" hoverEffect>

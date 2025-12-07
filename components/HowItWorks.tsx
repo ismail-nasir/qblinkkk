@@ -31,9 +31,9 @@ const steps = [
 
 const HowItWorks: React.FC = () => {
   return (
-    <section className="py-24 bg-white relative">
+    <section className="py-16 md:py-24 bg-white relative">
       <div className="container mx-auto px-4 md:px-6">
-        <div className="text-center mb-20">
+        <div className="text-center mb-16">
           <motion.h2 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -57,7 +57,7 @@ const HowItWorks: React.FC = () => {
           {/* Connecting Line - Desktop Only */}
           <div className="hidden lg:block absolute top-[45px] left-[10%] right-[10%] h-[2px] bg-gray-100 z-0"></div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
             {steps.map((step, index) => (
               <motion.div 
                 key={step.id}

@@ -29,9 +29,9 @@ const FAQ: React.FC = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <section className="py-24 bg-white">
+    <section className="py-16 md:py-24 bg-white">
       <div className="container mx-auto px-4 md:px-6 max-w-3xl">
-        <div className="text-center mb-16">
+        <div className="text-center mb-12 md:mb-16">
           <motion.h2 
              initial={{ opacity: 0, y: 20 }}
              whileInView={{ opacity: 1, y: 0 }}
@@ -54,11 +54,11 @@ const FAQ: React.FC = () => {
             >
               <button
                 onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                className="w-full px-8 py-6 flex items-center justify-between text-left focus:outline-none"
+                className="w-full px-6 py-5 md:px-8 md:py-6 flex items-center justify-between text-left focus:outline-none"
               >
-                <span className="text-lg font-bold text-gray-900">{faq.question}</span>
+                <span className="text-base md:text-lg font-bold text-gray-900">{faq.question}</span>
                 <ChevronDown 
-                  className={`text-gray-400 transition-transform duration-300 ${openIndex === index ? 'rotate-180 text-primary-600' : ''}`} 
+                  className={`text-gray-400 transition-transform duration-300 shrink-0 ${openIndex === index ? 'rotate-180 text-primary-600' : ''}`} 
                   size={20} 
                 />
               </button>
@@ -70,7 +70,7 @@ const FAQ: React.FC = () => {
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <div className="px-8 pb-8 text-gray-600 leading-relaxed">
+                    <div className="px-6 pb-6 md:px-8 md:pb-8 text-gray-600 leading-relaxed text-sm md:text-base">
                       {faq.answer}
                     </div>
                   </motion.div>

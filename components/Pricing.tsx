@@ -8,7 +8,7 @@ interface PricingProps {
 
 const Pricing: React.FC<PricingProps> = ({ onGetStarted }) => {
   return (
-    <section className="py-24 bg-gray-50">
+    <section className="py-16 md:py-24 bg-gray-50">
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-16">
           <motion.h2 
@@ -34,14 +34,14 @@ const Pricing: React.FC<PricingProps> = ({ onGetStarted }) => {
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="bg-white rounded-[48px] p-8 md:p-12 shadow-2xl shadow-blue-900/5 border border-white relative overflow-hidden text-center"
+            className="bg-white rounded-[32px] md:rounded-[48px] p-8 md:p-12 shadow-2xl shadow-blue-900/5 border border-white relative overflow-hidden text-center"
           >
             <div className="inline-block px-4 py-1.5 rounded-full bg-green-50 text-green-600 font-bold text-sm mb-6 uppercase tracking-wide">
               Ad-Supported
             </div>
             
             <div className="flex items-center justify-center gap-1 mb-2">
-              <span className="text-7xl font-extrabold text-gray-900">$0</span>
+              <span className="text-6xl md:text-7xl font-extrabold text-gray-900">$0</span>
             </div>
             <p className="text-gray-500 font-medium mb-10">Forever Free</p>
 

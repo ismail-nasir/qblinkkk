@@ -8,12 +8,12 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
   return (
-    <section className="relative pt-40 pb-20 md:pt-48 md:pb-32 overflow-hidden">
+    <section className="relative pt-32 pb-16 md:pt-48 md:pb-32 overflow-hidden">
       {/* Background Gradient Blob */}
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-100/50 rounded-full blur-3xl -z-10 translate-x-1/3 -translate-y-1/4"></div>
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] md:w-[800px] md:h-[800px] bg-blue-100/50 rounded-full blur-3xl -z-10 translate-x-1/4 -translate-y-1/4"></div>
 
       <div className="container mx-auto px-4 md:px-6">
-        <div className="flex flex-col lg:flex-row items-center gap-16">
+        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
           
           {/* Left Content */}
           <div className="lg:w-1/2 text-center lg:text-left">
@@ -30,7 +30,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-5xl md:text-7xl font-extrabold text-gray-900 leading-[1.1] mb-6 tracking-tight"
+              className="text-4xl sm:text-5xl md:text-7xl font-extrabold text-gray-900 leading-[1.1] mb-6 tracking-tight"
             >
               Queue Smarter <br />
               <span className="text-primary-600">With Qblink</span>
@@ -73,7 +73,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="mt-8 flex items-center justify-center lg:justify-start gap-6 text-sm text-gray-500 font-medium"
+              className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 sm:gap-6 text-sm text-gray-500 font-medium"
             >
               <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> Forever free</span>
               <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> No credit card</span>
@@ -81,21 +81,21 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
           </div>
 
           {/* Right Visual - The "Coffee House" Card */}
-          <div className="lg:w-1/2 w-full flex justify-center perspective-1000">
+          <div className="lg:w-1/2 w-full flex justify-center perspective-1000 mt-8 lg:mt-0">
             <motion.div 
               initial={{ opacity: 0, rotateY: -10, x: 50 }}
               animate={{ opacity: 1, rotateY: 0, x: 0 }}
               transition={{ duration: 0.8, type: "spring" }}
-              className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl p-6 md:p-8 border border-white/50"
+              className="relative w-full max-w-sm md:max-w-md bg-white rounded-[40px] shadow-2xl p-6 md:p-8 border border-white/50"
             >
               {/* Card Header */}
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary-600/30">
-                    <Zap size={28} fill="currentColor" />
+                  <div className="w-12 h-12 md:w-14 md:h-14 bg-primary-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary-600/30 shrink-0">
+                    <Zap size={24} fill="currentColor" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">Coffee House</h3>
+                    <h3 className="text-lg md:text-xl font-bold text-gray-900">Coffee House</h3>
                     <p className="text-gray-500 text-sm">Main Queue</p>
                   </div>
                 </div>
@@ -103,9 +103,9 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
               </div>
 
               {/* Blue Status Card */}
-              <div className="bg-gradient-to-br from-primary-500 to-cyan-500 rounded-3xl p-8 text-center text-white shadow-lg shadow-primary-500/25 mb-8 transform transition-transform hover:scale-[1.02]">
+              <div className="bg-gradient-to-br from-primary-500 to-cyan-500 rounded-3xl p-6 md:p-8 text-center text-white shadow-lg shadow-primary-500/25 mb-8 transform transition-transform hover:scale-[1.02]">
                 <p className="text-primary-100 font-medium mb-2">Your Position</p>
-                <div className="text-7xl font-extrabold mb-2 tracking-tighter">#3</div>
+                <div className="text-6xl md:text-7xl font-extrabold mb-2 tracking-tighter">#3</div>
                 <p className="text-primary-100">in line</p>
               </div>
 
