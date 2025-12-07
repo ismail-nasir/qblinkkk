@@ -13,5 +13,7 @@ export interface Customer {
 
 export enum AppView {
   LANDING = 'LANDING',
-  DASHBOARD = 'DASHBOARD'
+  DASHBOARD = 'DASHBOARD',
+  PRIVACY = 'PRIVACY',
+  TERMS = 'TERMS'
 }

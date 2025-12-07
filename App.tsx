@@ -10,6 +10,9 @@ import FAQ from './components/FAQ';
 import Footer from './components/Footer';
 import Dashboard from './components/Dashboard';
 import PainPoints from './components/PainPoints';
+import About from './components/About';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import Terms from './components/Terms';
 import { AppView } from './types';
 
 const App: React.FC = () => {
@@ -24,9 +27,21 @@ const App: React.FC = () => {
     setView(AppView.LANDING);
     window.scrollTo(0, 0);
   };
+  
+  const handleNavigate = (newView: AppView) => {
+    setView(newView);
+  };
 
   if (view === AppView.DASHBOARD) {
     return <Dashboard onBack={handleBackToHome} />;
+  }
+  
+  if (view === AppView.PRIVACY) {
+    return <PrivacyPolicy onBack={handleBackToHome} />;
+  }
+
+  if (view === AppView.TERMS) {
+    return <Terms onBack={handleBackToHome} />;
   }
 
   return (
@@ -48,6 +63,8 @@ const App: React.FC = () => {
         </div>
         
         <PainPoints />
+        
+        <About />
 
         <div id="how-it-works">
           <HowItWorks />
@@ -70,7 +87,7 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <Footer />
+      <Footer onNavigate={handleNavigate} />
     </div>
   );
 };
