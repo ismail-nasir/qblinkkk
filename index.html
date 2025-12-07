@@ -31,6 +31,10 @@
             },
             animation: {
               'blob': 'blob 7s infinite',
+              'fade-in': 'fadeIn 0.5s ease-out forwards',
+              'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+              'pop-in': 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+              'shimmer': 'shimmer 2s infinite linear',
             },
             keyframes: {
               blob: {
@@ -38,6 +42,22 @@
                 '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
                 '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
                 '100%': { transform: 'translate(0px, 0px) scale(1)' },
+              },
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(20px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              popIn: {
+                '0%': { opacity: '0', transform: 'scale(0.5)' },
+                '100%': { opacity: '1', transform: 'scale(1)' },
+              },
+              shimmer: {
+                '0%': { transform: 'translateX(-100%)' },
+                '100%': { transform: 'translateX(100%)' },
               }
             }
           }
@@ -53,6 +73,19 @@
         color: #0f172a;
         overflow-x: hidden;
       }
+      /* Custom Utilities */
+      .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+      }
+      .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+      }
+      .animation-delay-100 { animation-delay: 100ms; }
+      .animation-delay-200 { animation-delay: 200ms; }
+      .animation-delay-300 { animation-delay: 300ms; }
+      .animation-delay-2000 { animation-delay: 2000ms; }
+      .animation-delay-4000 { animation-delay: 4000ms; }
     </style>
   <script type="importmap">
 {

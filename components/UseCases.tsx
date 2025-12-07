@@ -42,15 +42,16 @@ const UseCases: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              whileHover={{ scale: 1.02 }}
-              className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-6 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 hover:border-primary-100 hover:bg-blue-50/30 transition-all duration-300 h-full"
+              whileHover={{ scale: 1.03, y: -4 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-6 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 bg-white hover:border-primary-100 hover:bg-blue-50/30 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 h-full cursor-default group"
             >
-              <div className="w-10 h-10 md:w-16 md:h-16 bg-blue-50 text-primary-600 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 md:w-16 md:h-16 bg-blue-50 text-primary-600 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 group-hover:bg-primary-600 group-hover:text-white">
                 <item.icon size={20} className="md:w-7 md:h-7" />
               </div>
               <div>
-                <h3 className="font-bold text-sm md:text-lg text-gray-900 mb-1">{item.title}</h3>
-                <p className="text-xs text-gray-500">{item.desc}</p>
+                <h3 className="font-bold text-sm md:text-lg text-gray-900 mb-1 group-hover:text-primary-700 transition-colors">{item.title}</h3>
+                <p className="text-xs text-gray-500 group-hover:text-gray-600 transition-colors">{item.desc}</p>
               </div>
             </motion.div>
           ))}

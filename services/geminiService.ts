@@ -2,7 +2,14 @@ import { GoogleGenAI } from "@google/genai";
 import { QueueMetric } from '../types';
 
 const getClient = () => {
-  const apiKey = process.env.API_KEY;
+  let apiKey: string | undefined;
+  try {
+    // Safely attempt to access process.env
+    apiKey = process.env.API_KEY;
+  } catch (e) {
+    console.warn("Unable to access process.env");
+  }
+
   if (!apiKey) {
     console.warn("API_KEY not found in environment.");
     return null;
