@@ -3,15 +3,19 @@ import { QueueMetric } from '../types';
 
 const getClient = () => {
   let apiKey: string | undefined;
+  
   try {
-    // Safely attempt to access process.env
-    apiKey = process.env.API_KEY;
+    // Check if process is defined (node/shim) before accessing .env
+    if (typeof process !== 'undefined' && process.env) {
+      apiKey = process.env.API_KEY;
+    }
   } catch (e) {
-    console.warn("Unable to access process.env");
+    // Ignore ReferenceError if process is not defined
+    console.warn("Unable to access process environment variables");
   }
 
   if (!apiKey) {
-    console.warn("API_KEY not found in environment.");
+    console.warn("API_KEY not found. AI features will be disabled.");
     return null;
   }
   return new GoogleGenAI({ apiKey });
