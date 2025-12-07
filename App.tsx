@@ -1,6 +1,7 @@
 import React from 'react';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
+import PainPoints from './components/PainPoints';
 import FAQ from './components/FAQ';
 import Footer from './components/Footer';
 import RevealOnScroll from './components/RevealOnScroll';
@@ -19,8 +20,8 @@ const App: React.FC = () => {
         <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px]"></div>
       </div>
 
-      {/* Simplified Navbar - Logo Only */}
-      <nav className="fixed w-full z-50 transition-all duration-300 bg-white/70 backdrop-blur-lg border-b border-white/20">
+      {/* Simplified Navbar - Logo Only - Changed from fixed to absolute per request */}
+      <nav className="absolute w-full z-50 transition-all duration-300 bg-transparent">
         <div className="container mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
@@ -34,6 +35,7 @@ const App: React.FC = () => {
 
       <main className="flex-grow">
         <Hero />
+        <PainPoints />
         <HowItWorks />
         
         <FAQ />
