@@ -92,7 +92,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
               transition={{ duration: 0.8, type: "spring" }}
             >
               <PhoneMockup variant="left">
-                 <div className="h-full bg-gray-50 flex flex-col font-sans relative overflow-hidden">
+                 <div key="mockup-content" className="h-full bg-gray-50 flex flex-col font-sans relative overflow-hidden">
                     {/* Background Pattern */}
                     <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
@@ -100,8 +100,8 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                      <div className="bg-white/80 backdrop-blur-md p-6 pb-4 rounded-b-[32px] shadow-sm z-10 border-b border-gray-100">
                          <div className="flex justify-between items-start mb-1">
                              <div>
-                                 <h3 className="text-lg font-bold text-gray-900">Coffee House</h3>
-                                 <p className="text-gray-400 text-xs font-medium">Main Queue</p>
+                                 <h3 className="text-lg font-bold text-gray-900">Morning Brew</h3>
+                                 <p className="text-gray-400 text-xs font-medium">Regular Order</p>
                              </div>
                              <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1">
                                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></div>
@@ -110,7 +110,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                          </div>
                      </div>
 
-                     {/* Main Ticket Area */}
+                     {/* Main Number Area */}
                      <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-6 z-10">
                          <div className="w-full bg-white rounded-3xl p-6 shadow-xl shadow-blue-900/5 border border-white flex flex-col items-center relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
                              {/* Decorative Top Border */}
@@ -120,7 +120,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                              <div className="text-7xl font-black text-gray-900 mb-2 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-gray-900 to-gray-600">42</div>
                              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">
                                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></div>
-                                 3rd in line
+                                 On Time
                              </div>
                          </div>
 
@@ -128,11 +128,11 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                          <div className="grid grid-cols-2 gap-3 w-full">
                              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center group hover:border-blue-100 transition-colors">
                                  <span className="text-gray-400 text-[10px] font-bold uppercase mb-1">Wait Time</span>
-                                 <span className="text-2xl font-bold text-gray-900">~8<span className="text-sm font-medium text-gray-400">m</span></span>
+                                 <span className="text-2xl font-bold text-gray-900">~5<span className="text-sm font-medium text-gray-400">m</span></span>
                              </div>
                              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center group hover:border-blue-100 transition-colors">
                                  <span className="text-gray-400 text-[10px] font-bold uppercase mb-1">Ahead</span>
-                                 <span className="text-2xl font-bold text-gray-900">2</span>
+                                 <span className="text-2xl font-bold text-gray-900">3</span>
                              </div>
                          </div>
                      </div>

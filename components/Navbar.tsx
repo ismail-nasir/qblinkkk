@@ -1,21 +1,43 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
+import { AppView } from '../types';
 
 interface NavbarProps {
   onGetStarted?: () => void;
+  onNavigate?: (view: AppView) => void;
+  currentView?: AppView;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ onGetStarted }) => {
+const Navbar: React.FC<NavbarProps> = ({ onGetStarted, onNavigate, currentView }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const scrollToSection = (id: string) => (e: React.MouseEvent) => {
+  const handleLinkClick = (id: string) => (e: React.MouseEvent) => {
     e.preventDefault();
-    setIsOpen(false); // Close mobile menu on click
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
+    setIsOpen(false);
+    
+    // If not on landing page, go there first
+    if (currentView !== AppView.LANDING && onNavigate) {
+       onNavigate(AppView.LANDING);
+       // Wait a tick for render then scroll
+       setTimeout(() => {
+          const element = document.getElementById(id);
+          if (element) element.scrollIntoView({ behavior: 'smooth' });
+       }, 100);
+    } else {
+      const element = document.getElementById(id);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
     }
+  };
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (currentView !== AppView.LANDING && onNavigate) {
+        onNavigate(AppView.LANDING);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -29,7 +51,7 @@ const Navbar: React.FC<NavbarProps> = ({ onGetStarted }) => {
         
         <div className="w-full md:w-auto flex items-center justify-between">
           {/* Logo */}
-          <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-2 cursor-pointer">
+          <a href="#" onClick={handleLogoClick} className="flex items-center gap-2 cursor-pointer">
             <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-primary-600/20">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
@@ -50,10 +72,10 @@ const Navbar: React.FC<NavbarProps> = ({ onGetStarted }) => {
 
         {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-8 font-medium text-sm text-gray-600">
-          <a href="#how-it-works" onClick={scrollToSection('how-it-works')} className="hover:text-primary-600 transition-colors">How it Works</a>
-          <a href="#features" onClick={scrollToSection('features')} className="hover:text-primary-600 transition-colors">Features</a>
-          <a href="#pricing" onClick={scrollToSection('pricing')} className="hover:text-primary-600 transition-colors">Pricing</a>
-          <a href="#contact" onClick={scrollToSection('contact')} className="hover:text-primary-600 transition-colors">Contact</a>
+          <a href="#how-it-works" onClick={handleLinkClick('how-it-works')} className="hover:text-primary-600 transition-colors">How it Works</a>
+          <a href="#features" onClick={handleLinkClick('features')} className="hover:text-primary-600 transition-colors">Features</a>
+          <a href="#pricing" onClick={handleLinkClick('pricing')} className="hover:text-primary-600 transition-colors">Pricing</a>
+          <a href="#contact" onClick={handleLinkClick('contact')} className="hover:text-primary-600 transition-colors">Contact</a>
         </div>
 
         {/* Desktop Buttons */}
@@ -88,7 +110,7 @@ const Navbar: React.FC<NavbarProps> = ({ onGetStarted }) => {
                   <a 
                     key={section}
                     href={`#${section}`} 
-                    onClick={scrollToSection(section)} 
+                    onClick={handleLinkClick(section)} 
                     className="w-full py-3 hover:text-primary-600 hover:bg-gray-50/50 rounded-xl transition-colors text-lg"
                   >
                     {section.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}

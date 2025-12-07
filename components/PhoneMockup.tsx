@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface PhoneMockupProps {
   children: React.ReactNode;
@@ -36,15 +36,21 @@ const PhoneMockup: React.FC<PhoneMockupProps> = ({ children, variant }) => {
           </div>
           
           {/* Dynamic Content */}
-          <motion.div 
-            className="flex-1 relative flex flex-col"
-            initial={{ opacity: 0, scale: 0.98, filter: 'blur(4px)' }}
-            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            layout
-          >
-            {children}
-          </motion.div>
+          <AnimatePresence mode="wait">
+            <motion.div 
+              key={React.isValidElement(children) ? (children.key as string) : 'content'}
+              className="flex-1 relative flex flex-col h-full"
+              initial={{ opacity: 0, y: 40, scale: 0.95, filter: 'blur(8px)' }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -20, scale: 0.98, filter: 'blur(4px)' }}
+              transition={{ 
+                duration: 0.6, 
+                ease: [0.16, 1, 0.3, 1] // Smooth premium curve
+              }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
           
           {/* Home Indicator */}
           <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-1/3 h-1 bg-gray-300 rounded-full z-20"></div>

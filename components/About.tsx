@@ -13,29 +13,8 @@ const About: React.FC<AboutProps> = ({ onBack }) => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-20 pt-8 px-4 md:px-6">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-bold">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                    </svg>
-                </div>
-                <span className="text-2xl font-bold text-gray-900">Qblink</span>
-            </div>
-            
-            {onBack && (
-              <button 
-                  onClick={onBack}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-gray-600 font-medium shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors w-fit"
-              >
-                  <ArrowLeft size={18} /> Back to Home
-              </button>
-            )}
-        </div>
-
+    <div className="pb-20 pt-8 px-4 md:px-6">
+      <div className="max-w-4xl mx-auto pt-20">
         <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -82,6 +61,17 @@ const About: React.FC<AboutProps> = ({ onBack }) => {
               <h3 className="text-xl md:text-3xl font-bold text-gray-900 leading-tight">
                 Qblink is not just a tool — it's the simplest way to bring order, professionalism, and efficiency to your service.
               </h3>
+            </div>
+            
+            <div className="flex justify-center mt-8">
+                 {onBack && (
+                  <button 
+                      onClick={onBack}
+                      className="flex items-center gap-2 px-6 py-3 rounded-full bg-white text-gray-600 font-bold shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors hover:scale-105 active:scale-95 transform"
+                  >
+                      <ArrowLeft size={18} /> Back to Home
+                  </button>
+                )}
             </div>
           </div>
         </motion.div>
