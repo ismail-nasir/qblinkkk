@@ -25,7 +25,7 @@ const Navbar: React.FC<NavbarProps> = ({ onGetStarted }) => {
       transition={{ duration: 0.5 }}
       className="fixed top-0 left-0 right-0 z-50 pt-4 md:pt-6 px-4 md:px-6 pointer-events-none"
     >
-      <div className="max-w-7xl mx-auto pointer-events-auto bg-white/70 backdrop-blur-xl rounded-3xl md:rounded-full px-6 py-4 shadow-glass border border-white/40 flex flex-col md:flex-row items-center md:justify-between transition-all hover:bg-white/80">
+      <div className={`max-w-7xl mx-auto pointer-events-auto bg-white/70 backdrop-blur-xl md:rounded-full px-6 py-4 shadow-glass border border-white/40 flex flex-col md:flex-row items-center md:justify-between transition-all duration-300 hover:bg-white/80 ${isOpen ? 'rounded-[32px]' : 'rounded-full'}`}>
         
         <div className="w-full md:w-auto flex items-center justify-between">
           {/* Logo */}
@@ -41,7 +41,8 @@ const Navbar: React.FC<NavbarProps> = ({ onGetStarted }) => {
           {/* Mobile Menu Toggle */}
           <button 
             onClick={() => setIsOpen(!isOpen)} 
-            className="md:hidden p-2 text-gray-600 hover:text-primary-600 transition-colors"
+            className="md:hidden p-2 -mr-2 text-gray-600 hover:text-primary-600 transition-colors focus:outline-none"
+            aria-label="Toggle menu"
           >
             {isOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
@@ -82,21 +83,28 @@ const Navbar: React.FC<NavbarProps> = ({ onGetStarted }) => {
               exit={{ height: 0, opacity: 0 }}
               className="w-full md:hidden overflow-hidden"
             >
-              <div className="flex flex-col gap-4 py-6 text-center font-medium text-gray-600 border-t border-gray-100 mt-4">
-                <a href="#how-it-works" onClick={scrollToSection('how-it-works')} className="py-2 hover:text-primary-600">How it Works</a>
-                <a href="#features" onClick={scrollToSection('features')} className="py-2 hover:text-primary-600">Features</a>
-                <a href="#pricing" onClick={scrollToSection('pricing')} className="py-2 hover:text-primary-600">Pricing</a>
-                <a href="#contact" onClick={scrollToSection('contact')} className="py-2 hover:text-primary-600">Contact</a>
-                <div className="flex flex-col gap-3 mt-2">
+              <div className="flex flex-col items-center gap-2 py-6 text-center font-medium text-gray-600 border-t border-gray-100/50 mt-4">
+                {['how-it-works', 'features', 'pricing', 'contact'].map((section) => (
+                  <a 
+                    key={section}
+                    href={`#${section}`} 
+                    onClick={scrollToSection(section)} 
+                    className="w-full py-3 hover:text-primary-600 hover:bg-gray-50/50 rounded-xl transition-colors text-lg"
+                  >
+                    {section.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                  </a>
+                ))}
+                
+                <div className="flex flex-col gap-3 mt-4 w-full px-2">
                   <button 
                     onClick={onGetStarted} 
-                    className="w-full py-3 rounded-xl bg-gray-50 text-gray-900 font-semibold"
+                    className="w-full py-3.5 rounded-xl bg-gray-50 text-gray-900 font-semibold border border-gray-100 hover:bg-gray-100 transition-colors"
                   >
                     Sign In
                   </button>
                   <button 
                     onClick={onGetStarted} 
-                    className="w-full py-3 rounded-xl bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/20"
+                    className="w-full py-3.5 rounded-xl bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/20 hover:bg-primary-700 transition-colors"
                   >
                     Get Started
                   </button>

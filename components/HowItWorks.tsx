@@ -31,9 +31,9 @@ const steps = [
 
 const HowItWorks: React.FC = () => {
   return (
-    <section className="py-12 md:py-24 bg-white relative">
+    <section className="py-16 md:py-24 bg-white relative overflow-hidden">
       <div className="container mx-auto px-4 md:px-6">
-        <div className="text-center mb-12 md:mb-16">
+        <div className="text-center mb-12 md:mb-16 relative z-20">
           <motion.h2 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -53,12 +53,13 @@ const HowItWorks: React.FC = () => {
           </motion.p>
         </div>
 
-        <div className="relative">
+        <div className="relative max-w-6xl mx-auto">
           {/* Connecting Line - Desktop Only */}
           <div className="hidden lg:block absolute top-[45px] left-[10%] right-[10%] h-[2px] bg-gray-100 z-0"></div>
           
           {/* Connecting Line - Mobile/Tablet (Vertical) */}
-          <div className="block lg:hidden absolute top-0 bottom-12 left-1/2 w-[2px] bg-gray-100 -translate-x-1/2 z-0"></div>
+          {/* Positioned to align with the center of the icons, masked by the cards */}
+          <div className="block lg:hidden absolute top-10 bottom-20 left-1/2 w-[2px] border-l-2 border-dashed border-gray-200 -translate-x-1/2 z-0"></div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 md:gap-12">
             {steps.map((step, index) => (
@@ -68,7 +69,7 @@ const HowItWorks: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.15 }}
-                className="relative z-10 flex flex-col items-center text-center group bg-white py-4"
+                className="relative z-10 flex flex-col items-center text-center group w-full bg-white" 
               >
                 {/* Number Badge */}
                 <div className="w-8 h-8 rounded-full bg-primary-600 text-white font-bold flex items-center justify-center absolute -top-3 right-[calc(50%-45px)] lg:-top-4 lg:-right-4 lg:left-auto lg:right-auto lg:left-[60%] shadow-md border-2 border-white z-20">
@@ -78,7 +79,7 @@ const HowItWorks: React.FC = () => {
                 {/* Icon Container */}
                 <motion.div 
                   whileHover={{ scale: 1.1, rotate: 5 }}
-                  className={`w-20 h-20 md:w-24 md:h-24 rounded-3xl flex items-center justify-center mb-6 md:mb-8 shadow-xl shadow-blue-500/10 transition-colors duration-300 relative z-10
+                  className={`w-20 h-20 md:w-24 md:h-24 rounded-3xl flex items-center justify-center mb-6 md:mb-8 shadow-xl shadow-blue-500/10 transition-colors duration-300 relative z-10 border-4 border-white
                     ${index === 0 ? 'bg-blue-500 text-white' : ''}
                     ${index === 1 ? 'bg-sky-400 text-white' : ''}
                     ${index === 2 ? 'bg-teal-400 text-white' : ''}
@@ -88,10 +89,13 @@ const HowItWorks: React.FC = () => {
                   <step.icon size={32} className="md:w-9 md:h-9" />
                 </motion.div>
 
-                <h3 className="text-xl font-bold text-gray-900 mb-2 md:mb-3">{step.title}</h3>
-                <p className="text-gray-500 leading-relaxed text-sm px-4 md:px-2">
-                  {step.desc}
-                </p>
+                {/* Text Content - Wrapped in bg-white to mask line if needed, though z-index handles icon area */}
+                <div className="bg-white relative z-10 px-2 w-full">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2 md:mb-3">{step.title}</h3>
+                  <p className="text-gray-500 leading-relaxed text-sm px-4 md:px-2">
+                    {step.desc}
+                  </p>
+                </div>
               </motion.div>
             ))}
           </div>
