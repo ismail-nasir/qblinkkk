@@ -15,5 +15,6 @@ export enum AppView {
   LANDING = 'LANDING',
   DASHBOARD = 'DASHBOARD',
   PRIVACY = 'PRIVACY',
-  TERMS = 'TERMS'
+  TERMS = 'TERMS',
+  ABOUT = 'ABOUT'
 }

@@ -36,6 +36,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <a href="#how-it-works" onClick={scrollToSection('how-it-works')} className="hover:text-primary-600 transition-colors">How it Works</a>
           <a href="#features" onClick={scrollToSection('features')} className="hover:text-primary-600 transition-colors">Features</a>
           <a href="#pricing" onClick={scrollToSection('pricing')} className="hover:text-primary-600 transition-colors">Pricing</a>
+          <button onClick={handleNavClick(AppView.ABOUT)} className="hover:text-primary-600 transition-colors">About</button>
           <button onClick={handleNavClick(AppView.PRIVACY)} className="hover:text-primary-600 transition-colors">Privacy</button>
           <button onClick={handleNavClick(AppView.TERMS)} className="hover:text-primary-600 transition-colors">Terms</button>
         </div>

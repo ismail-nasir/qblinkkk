@@ -44,6 +44,10 @@ const App: React.FC = () => {
     return <Terms onBack={handleBackToHome} />;
   }
 
+  if (view === AppView.ABOUT) {
+    return <About onBack={handleBackToHome} />;
+  }
+
   return (
     <div className="min-h-screen font-sans bg-[#F8FAFC] overflow-x-hidden text-gray-900 relative selection:bg-primary-100 selection:text-primary-700">
       {/* Ambient Background Gradient for Glass Effect */}
@@ -64,8 +68,6 @@ const App: React.FC = () => {
         
         <PainPoints />
         
-        <About />
-
         <div id="how-it-works">
           <HowItWorks />
         </div>
