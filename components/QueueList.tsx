@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { User, QueueInfo, QueueData } from '../types';
 import { queueService } from '../services/queue';
-import { Plus, LayoutGrid, Clock, Users, ArrowRight, ExternalLink, Activity, Copy, Trash2, TrendingUp, UserCheck, Hourglass } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, Users, ArrowRight, ExternalLink, Activity, Copy, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface QueueListProps {
@@ -15,6 +14,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   const [queues, setQueues] = useState<QueueInfo[]>([]);
   const [queueStats, setQueueStats] = useState<Record<string, QueueData>>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [queueToDelete, setQueueToDelete] = useState<string | null>(null);
   const [newQueueName, setNewQueueName] = useState('');
   const [estimatedTime, setEstimatedTime] = useState('');
   
@@ -79,11 +79,16 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
       loadQueues();
   };
 
-  const handleDeleteQueue = (e: React.MouseEvent, queueId: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, queueId: string) => {
       e.stopPropagation();
-      if (confirm("Are you sure you want to delete this queue? All data will be lost.")) {
-          queueService.deleteQueue(user.id, queueId);
+      setQueueToDelete(queueId);
+  };
+
+  const confirmDeleteQueue = () => {
+      if (queueToDelete) {
+          queueService.deleteQueue(user.id, queueToDelete);
           loadQueues();
+          setQueueToDelete(null);
       }
   };
 
@@ -250,7 +255,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
 
                              {/* Delete Button (Hidden by default, shows on hover) */}
                             <button
-                                onClick={(e) => handleDeleteQueue(e, queue.id)}
+                                onClick={(e) => handleDeleteClick(e, queue.id)}
                                 className="absolute top-6 right-6 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all"
                                 title="Delete Queue"
                             >
@@ -319,6 +324,44 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                               </button>
                           </div>
                       </form>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+          {queueToDelete && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center"
+                  >
+                      <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                          <AlertTriangle size={32} />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Queue?</h3>
+                      <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                          Are you sure you want to delete this queue? <br/>
+                          All active tickets and data will be permanently removed.
+                      </p>
+                      
+                      <div className="flex flex-col gap-3">
+                          <button 
+                              onClick={confirmDeleteQueue}
+                              className="w-full py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-600/30 hover:bg-red-700 transition-all"
+                          >
+                              Yes, Delete Queue
+                          </button>
+                          <button 
+                              onClick={() => setQueueToDelete(null)}
+                              className="w-full py-3 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold hover:bg-gray-50 transition-all"
+                          >
+                              Cancel
+                          </button>
+                      </div>
                   </motion.div>
               </div>
           )}
