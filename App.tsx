@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import TrustedBy from './components/TrustedBy';
@@ -14,12 +14,30 @@ import About from './components/About';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Terms from './components/Terms';
 import Auth from './components/Auth';
-import { AppView } from './types';
+import { AppView, User } from './types';
+import { authService } from './services/auth';
+import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.LANDING);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup');
-  const [businessName, setBusinessName] = useState<string>('');
+  const [user, setUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Check for session on mount
+  useEffect(() => {
+    const initAuth = async () => {
+      const currentUser = authService.getCurrentUser();
+      if (currentUser) {
+        setUser(currentUser);
+        // Only go to dashboard if we are already there or on landing, 
+        // otherwise let the url/view logic handle it (simple version here)
+        setView(AppView.DASHBOARD);
+      }
+      setIsInitializing(false);
+    };
+    initAuth();
+  }, []);
 
   const handleGetStarted = () => {
     setAuthMode('signup');
@@ -33,14 +51,15 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  const handleAuthSuccess = (name: string) => {
-    setBusinessName(name);
+  const handleAuthSuccess = (loggedInUser: User) => {
+    setUser(loggedInUser);
     setView(AppView.DASHBOARD);
     window.scrollTo(0, 0);
   };
 
-  const handleLogout = () => {
-    setBusinessName('');
+  const handleLogout = async () => {
+    await authService.logout();
+    setUser(null);
     setView(AppView.LANDING);
     window.scrollTo(0, 0);
   };
@@ -55,6 +74,14 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
+  if (isInitializing) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+            <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+        </div>
+    );
+  }
+
   // Render Full Page Auth
   if (view === AppView.AUTH) {
     return (
@@ -66,10 +93,10 @@ const App: React.FC = () => {
     );
   }
 
-  if (view === AppView.DASHBOARD) {
+  if (view === AppView.DASHBOARD && user) {
     return (
       <Dashboard 
-        businessName={businessName} 
+        user={user} 
         onLogout={handleLogout} 
       />
     );

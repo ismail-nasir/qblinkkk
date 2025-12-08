@@ -1,24 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import GlassCard from './GlassCard';
 import { Users, Clock, ArrowRight, Sparkles, X, RotateCw, SkipForward, LogOut } from 'lucide-react';
 import { getQueueInsights } from '../services/geminiService';
-import { QueueMetric } from '../types';
+import { queueService } from '../services/queue.ts';
+import { QueueMetric, User, ActivityLog } from '../types';
 
 interface DashboardProps {
-  businessName?: string;
+  user: User;
   onLogout: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ businessName = "Business Name", onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [currentTicket, setCurrentTicket] = useState(0);
   const [queueMetrics, setQueueMetrics] = useState<QueueMetric>({
     waiting: 0,
     served: 0,
-    avgWaitTime: 0
+    avgWaitTime: 5
   });
+  const [recentActivity, setRecentActivity] = useState<ActivityLog[]>([]);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
-  const [recentActivity, setRecentActivity] = useState<Array<{ticket: number, time: string}>>([]);
+
+  // Load Data on Mount
+  useEffect(() => {
+    const data = queueService.getQueueData(user.id);
+    setCurrentTicket(data.currentTicket);
+    setQueueMetrics(data.metrics);
+    setRecentActivity(data.recentActivity);
+  }, [user.id]);
 
   // Generate Insight Handler
   const handleGenerateInsight = async () => {
@@ -29,34 +38,33 @@ const Dashboard: React.FC<DashboardProps> = ({ businessName = "Business Name", o
   };
 
   const handleCallNext = () => {
-    const nextTicket = currentTicket + 1;
-    setCurrentTicket(nextTicket);
-    setQueueMetrics(prev => ({
-      ...prev,
-      waiting: Math.max(0, prev.waiting - 1),
-      served: prev.served + 1
-    }));
+    const updated = queueService.callNext(user.id);
     
-    // Add to activity
-    setRecentActivity(prev => [
-      { ticket: nextTicket, time: 'Just now' },
-      ...prev.slice(0, 4) // Keep last 5
-    ]);
+    // Sync state
+    setCurrentTicket(updated.currentTicket);
+    setQueueMetrics(updated.metrics);
+    setRecentActivity(updated.recentActivity);
 
     // Reset insight on state change to encourage re-checking
     if (aiInsight) setAiInsight(null);
   };
 
   const handleSkip = () => {
-     const nextTicket = currentTicket + 1;
-     setCurrentTicket(nextTicket);
-     setQueueMetrics(prev => ({ ...prev, waiting: Math.max(0, prev.waiting - 1) }));
+     // For now, call next handles everything but we could add specific 'skip' logic in service
+     const updated = queueService.callNext(user.id); 
+     // Override the action type locally before set (or improve service)
+     // To keep simple, we assume skipping increments the number but maybe doesn't count as served?
+     // For this version, 'Skip' just calls next for simplicity in the persistent model
+     setCurrentTicket(updated.currentTicket);
+     setQueueMetrics(updated.metrics);
+     setRecentActivity(updated.recentActivity);
   };
 
   const handleReset = () => {
-    setCurrentTicket(0);
-    setQueueMetrics({ waiting: 0, served: 0, avgWaitTime: 0 });
-    setRecentActivity([]);
+    const resetData = queueService.reset(user.id);
+    setCurrentTicket(resetData.currentTicket);
+    setQueueMetrics(resetData.metrics);
+    setRecentActivity(resetData.recentActivity);
   };
 
   return (
@@ -80,9 +88,9 @@ const Dashboard: React.FC<DashboardProps> = ({ businessName = "Business Name", o
                 <LogOut size={16} /> Logout
             </button>
             <div className="flex items-center gap-3">
-                 <span className="hidden md:block text-sm font-medium text-gray-900">{businessName}</span>
+                 <span className="hidden md:block text-sm font-medium text-gray-900">{user.businessName}</span>
                  <div className="w-9 h-9 md:w-10 md:h-10 bg-gradient-to-br from-primary-100 to-cyan-100 text-primary-600 flex items-center justify-center font-bold rounded-full border-2 border-white shadow-sm">
-                    {businessName.charAt(0).toUpperCase()}
+                    {user.businessName.charAt(0).toUpperCase()}
                 </div>
             </div>
           </div>
@@ -93,7 +101,7 @@ const Dashboard: React.FC<DashboardProps> = ({ businessName = "Business Name", o
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 md:mb-10 gap-4 md:gap-6">
           <div className="animate-fade-in-up w-full md:w-auto">
-            <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-1 md:mb-2">Welcome, {businessName}</h1>
+            <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-1 md:mb-2">Welcome, {user.businessName}</h1>
             <p className="text-sm md:text-base text-gray-500">Your queue is ready to go.</p>
           </div>
           

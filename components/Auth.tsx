@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, Upload, ArrowLeft, Loader2 } from 'lucide-react';
+import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { authService } from '../services/auth';
+import { User } from '../types';
 
 interface AuthProps {
   initialMode?: 'login' | 'signup';
-  onLogin: (businessName: string) => void;
+  onLogin: (user: User) => void;
   onBack: () => void;
 }
 
 const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) => {
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   
   // Form State
@@ -20,6 +23,11 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
     password: '',
     agreed: false
   });
+
+  // Clear error on mode switch
+  useEffect(() => {
+    setError(null);
+  }, [mode]);
 
   // Password Strength Logic
   const passwordCriteria = [
@@ -43,17 +51,30 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
     return 'Strong';
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
-    
-    // Simulate API Call
-    setTimeout(() => {
-      setIsLoading(false);
-      // Determine display name
-      const name = mode === 'signup' && formData.businessName ? formData.businessName : "My Business";
-      onLogin(name);
-    }, 1500);
+
+    try {
+        let user: User;
+        if (mode === 'signup') {
+            if (!formData.agreed) {
+                throw new Error("You must agree to the Terms and Privacy Policy.");
+            }
+            if (passwordStrength < 3) {
+                throw new Error("Please choose a stronger password.");
+            }
+            user = await authService.signup(formData.email, formData.password, formData.businessName);
+        } else {
+            user = await authService.login(formData.email, formData.password);
+        }
+        onLogin(user);
+    } catch (err: any) {
+        setError(err.message || "Authentication failed. Please try again.");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   // Scroll to top on mount
@@ -134,6 +155,17 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                     {mode === 'signup' ? 'Start managing queues in 30 seconds' : 'Enter your details to access your dashboard'}
                 </motion.p>
             </div>
+
+            {error && (
+                <motion.div 
+                    initial={{ opacity: 0, y: -10 }} 
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3"
+                >
+                    <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-600 font-medium">{error}</p>
+                </motion.div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
                 <AnimatePresence mode="popLayout" initial={false}>

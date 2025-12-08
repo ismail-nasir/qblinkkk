@@ -4,6 +4,25 @@ export interface QueueMetric {
   avgWaitTime: number; // in minutes
 }
 
+export interface ActivityLog {
+  ticket: number;
+  time: string;
+  action: 'call' | 'skip' | 'complete';
+}
+
+export interface QueueData {
+  currentTicket: number;
+  metrics: QueueMetric;
+  recentActivity: ActivityLog[];
+}
+
+export interface User {
+  id: string;
+  email: string;
+  businessName: string;
+  joinedAt: Date;
+}
+
 export interface Customer {
   id: string;
   ticketNumber: string;
