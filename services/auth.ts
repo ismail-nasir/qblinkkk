@@ -157,6 +157,30 @@ export const authService = {
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
   },
 
+  // Delete Account
+  deleteAccount: async (email: string): Promise<void> => {
+    await delay(1000);
+    
+    const usersStr = localStorage.getItem(USERS_KEY);
+    if (usersStr) {
+        const users = JSON.parse(usersStr);
+        const user = users[email];
+        
+        if (user) {
+             // Attempt to clean up queue data
+             // Note: Queue data key prefix is 'qblink_data_' + userId
+             localStorage.removeItem(`qblink_data_${user.id}`);
+             
+             // Remove user from users list
+             delete users[email];
+             localStorage.setItem(USERS_KEY, JSON.stringify(users));
+        }
+    }
+    
+    // Clear session
+    localStorage.removeItem(SESSION_KEY);
+  },
+
   // Logout
   logout: async () => {
     await delay(300);
