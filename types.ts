@@ -31,6 +31,12 @@ export interface Visitor {
   servedTime?: string; // Time when status changed to served
 }
 
+export interface QueueSettings {
+  soundEnabled: boolean;
+  soundVolume: number; // 0.1 to 1.0
+  soundType: 'beep' | 'chime' | 'alarm';
+}
+
 export interface QueueInfo {
   id: string;
   userId: string;
@@ -40,6 +46,7 @@ export interface QueueInfo {
   createdAt: string;
   estimatedWaitTime?: number; // Manual override for wait time
   logo?: string; // Base64 or URL of the queue logo
+  settings: QueueSettings;
 }
 
 export interface QueueData {

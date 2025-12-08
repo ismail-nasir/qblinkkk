@@ -1,6 +1,6 @@
 
 
-import { QueueData, QueueMetric, ActivityLog, User, Visitor, QueueInfo } from '../types';
+import { QueueData, QueueMetric, ActivityLog, User, Visitor, QueueInfo, QueueSettings } from '../types';
 
 const DATA_KEY_PREFIX = 'qblink_data_';
 const QUEUES_KEY_PREFIX = 'qblink_queues_';
@@ -19,6 +19,12 @@ const INITIAL_DATA: Omit<QueueData, 'queueId'> = {
   },
   recentActivity: [],
   visitors: []
+};
+
+const DEFAULT_SETTINGS: QueueSettings = {
+  soundEnabled: true,
+  soundVolume: 1.0,
+  soundType: 'beep'
 };
 
 // Helper to get queue data key
@@ -47,7 +53,8 @@ export const queueService = {
       code: generateShortCode(),
       status: 'active',
       createdAt: new Date().toISOString(),
-      estimatedWaitTime: estimatedWaitTime || undefined
+      estimatedWaitTime: estimatedWaitTime || undefined,
+      settings: DEFAULT_SETTINGS
     };
 
     queues.push(newQueue);
@@ -74,7 +81,17 @@ export const queueService = {
       
       if (index === -1) return null;
 
-      const updatedQueue = { ...queues[index], ...updates };
+      // Merge deep settings if provided
+      const newSettings = updates.settings 
+        ? { ...queues[index].settings, ...updates.settings } 
+        : queues[index].settings || DEFAULT_SETTINGS;
+
+      const updatedQueue = { 
+          ...queues[index], 
+          ...updates, 
+          settings: newSettings 
+      };
+      
       queues[index] = updatedQueue;
       
       localStorage.setItem(getUserQueuesKey(userId), JSON.stringify(queues));
@@ -96,7 +113,11 @@ export const queueService = {
           if (key && key.startsWith(QUEUES_KEY_PREFIX)) {
               const queues: QueueInfo[] = JSON.parse(localStorage.getItem(key) || '[]');
               const found = queues.find(q => q.id === queueId);
-              if (found) return found;
+              if (found) {
+                  // Ensure settings exist for legacy queues
+                  if (!found.settings) found.settings = DEFAULT_SETTINGS;
+                  return found;
+              }
           }
       }
       return null;

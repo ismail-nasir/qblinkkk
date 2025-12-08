@@ -3,10 +3,12 @@
 
 
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
-import { User, QueueData, QueueInfo, Visitor } from '../types';
+import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Music, Save } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -22,15 +24,23 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [currentQueue, setCurrentQueue] = useState<QueueInfo>(queue);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [newVisitorName, setNewVisitorName] = useState('');
   const [callNumberInput, setCallNumberInput] = useState('');
   const [showCallModal, setShowCallModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Settings State
+  const [settings, setSettings] = useState<QueueSettings>(currentQueue.settings || {
+      soundEnabled: true,
+      soundVolume: 1.0,
+      soundType: 'beep'
+  });
+
   // QR Generation State
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(queue.logo || null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(currentQueue.logo || null);
 
   // Poll for updates (in case multiple devices/customers are interacting)
   useEffect(() => {
@@ -175,6 +185,12 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           reader.readAsDataURL(file);
       }
   };
+  
+  const handleSaveSettings = () => {
+      const updated = queueService.updateQueue(user.id, queue.id, { settings });
+      if (updated) setCurrentQueue(updated);
+      setShowSettingsModal(false);
+  };
 
   const handleDownloadQR = () => {
       if (canvasRef.current) {
@@ -185,7 +201,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       }
   };
 
-  // ... (Existing Event Handlers: handleCallNext, handleAddVisitor, etc.)
   const handleCallNext = () => {
     const newData = queueService.callNext(queue.id);
     setQueueData(newData);
@@ -280,27 +295,34 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                 <ArrowLeft size={24} />
             </button>
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">{queue.name}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{currentQueue.name}</h1>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-bold">{queue.code}</span>
+                    <span className="text-sm font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-bold">{currentQueue.code}</span>
                     <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                    <span className="text-sm text-green-600 font-bold">{queue.status}</span>
+                    <span className="text-sm text-green-600 font-bold">{currentQueue.status}</span>
                 </div>
             </div>
         </div>
         <div className="flex gap-2">
             <button 
+                onClick={() => setShowSettingsModal(true)}
+                className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm flex items-center gap-2"
+                title="Queue Settings"
+            >
+                <Settings size={20} /> <span className="hidden sm:inline font-bold text-sm">Settings</span>
+            </button>
+            <button 
                 onClick={() => setShowQrModal(true)}
                 className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm flex items-center gap-2"
             >
-                <QrCode size={20} /> <span className="md:hidden font-bold text-sm">QR Code</span>
+                <QrCode size={20} /> <span className="hidden sm:inline font-bold text-sm">QR Code</span>
             </button>
              <button 
                 onClick={() => window.open(`${window.location.origin}?view=display&queueId=${queue.id}`, '_blank')}
                 className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm flex items-center gap-2"
                 title="Open Display Screen"
             >
-                <Share2 size={20} /> <span className="md:hidden font-bold text-sm">Display</span>
+                <Share2 size={20} /> <span className="hidden sm:inline font-bold text-sm">Display</span>
             </button>
         </div>
       </div>
@@ -539,6 +561,96 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       </div>
 
       {/* MODALS */}
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+          {showSettingsModal && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                   <motion.div 
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-6 max-w-sm w-full"
+                  >
+                      <div className="flex items-center justify-between mb-6">
+                           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                               <Settings size={20} className="text-gray-500" /> Queue Settings
+                           </h3>
+                           <button onClick={() => setShowSettingsModal(false)} className="text-gray-400 hover:text-gray-600">
+                               <X size={20} />
+                           </button>
+                      </div>
+
+                      <div className="space-y-6">
+                          {/* Sound Toggle */}
+                          <div className="flex items-center justify-between">
+                              <div>
+                                  <label className="font-bold text-gray-800 block">Alert Sound</label>
+                                  <span className="text-xs text-gray-500">Play sound on customer device</span>
+                              </div>
+                              <button 
+                                  onClick={() => setSettings({...settings, soundEnabled: !settings.soundEnabled})}
+                                  className={`w-12 h-6 rounded-full transition-colors relative ${settings.soundEnabled ? 'bg-primary-600' : 'bg-gray-200'}`}
+                              >
+                                  <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${settings.soundEnabled ? 'left-7' : 'left-1'}`} />
+                              </button>
+                          </div>
+
+                          {settings.soundEnabled && (
+                            <div className="space-y-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                {/* Sound Type */}
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Alert Style</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {['beep', 'chime', 'alarm'].map((type) => (
+                                            <button
+                                                key={type}
+                                                onClick={() => setSettings({...settings, soundType: type as any})}
+                                                className={`py-2 text-sm font-bold rounded-lg border transition-all capitalize ${
+                                                    settings.soundType === type 
+                                                    ? 'bg-white border-primary-600 text-primary-600 shadow-sm' 
+                                                    : 'bg-transparent border-transparent text-gray-500 hover:bg-gray-200/50'
+                                                }`}
+                                            >
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Volume Slider */}
+                                <div>
+                                     <div className="flex items-center justify-between mb-2">
+                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Volume Level</label>
+                                         <span className="text-xs font-mono text-gray-500">{Math.round(settings.soundVolume * 100)}%</span>
+                                     </div>
+                                     <div className="flex items-center gap-3">
+                                         <Volume2 size={16} className="text-gray-400" />
+                                         <input 
+                                            type="range" 
+                                            min="0.1" 
+                                            max="1.0" 
+                                            step="0.1"
+                                            value={settings.soundVolume}
+                                            onChange={(e) => setSettings({...settings, soundVolume: parseFloat(e.target.value)})}
+                                            className="w-full accent-primary-600 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                         />
+                                     </div>
+                                </div>
+                            </div>
+                          )}
+                      </div>
+
+                      <button 
+                          onClick={handleSaveSettings}
+                          className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold mt-8 shadow-lg shadow-primary-600/20 flex items-center justify-center gap-2"
+                      >
+                          <Save size={18} /> Save Settings
+                      </button>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
       
       {/* QR Modal (Premium Design with Logo Upload) */}
       <AnimatePresence>
@@ -575,12 +687,12 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                        <span className="font-bold text-gray-500 tracking-tight text-xs uppercase">Powered by Qblink</span>
                                    </div>
                                    
-                                   <h3 className="text-2xl font-black text-gray-900 mb-2 leading-tight tracking-tight">{queue.name}</h3>
+                                   <h3 className="text-2xl font-black text-gray-900 mb-2 leading-tight tracking-tight">{currentQueue.name}</h3>
                                    
                                    {/* Prominent Code Badge */}
                                    <div className="inline-flex flex-col items-center bg-gray-900 text-white px-6 py-2 rounded-xl shadow-lg transform scale-110 mt-1">
                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-0.5">Queue Code</span>
-                                       <span className="text-3xl font-mono font-bold tracking-widest">{queue.code}</span>
+                                       <span className="text-3xl font-mono font-bold tracking-widest">{currentQueue.code}</span>
                                    </div>
                                </div>
 

@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
@@ -64,7 +66,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
             }
         } else {
             // Expired or Removed or doesn't exist anymore
-            // We only unjoin if we are sure queueData is loaded and visitor is missing
+            // We only unjoin if we are sure queueData is robust.
             if (isJoined && queueData.visitors.length > 0) {
                  // Double check if actually removed or just data sync issue?
                  // For safety, only reset if queueData is robust.
@@ -102,6 +104,12 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   };
 
   const playBeep = () => {
+    // Check if sound is enabled for this queue
+    if (queueInfo?.settings?.soundEnabled === false) return;
+
+    const volume = queueInfo?.settings?.soundVolume || 1.0;
+    const soundType = queueInfo?.settings?.soundType || 'beep';
+
     if (!audioContextRef.current) {
          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
@@ -114,17 +122,43 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
     osc.connect(gainNode);
     gainNode.connect(ctx.destination);
 
-    // Alert sound pattern - CHANGED to SQUARE wave for higher perceived loudness
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(800, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+    // Apply Volume
+    gainNode.gain.setValueAtTime(volume, ctx.currentTime);
 
-    // CHANGED gain to 1.0 (Maximum Web Audio Volume)
-    gainNode.gain.setValueAtTime(1.0, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    // Generate Sound based on Type
+    switch (soundType) {
+        case 'chime':
+            // Soft sine wave with long decay
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 1.5);
+            break;
 
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.3);
+        case 'alarm':
+            // Harsh sawtooth wave
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(600, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.5);
+            break;
+
+        case 'beep':
+        default:
+             // Standard Square Wave Beep
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.3);
+            break;
+    }
   };
 
   const handleJoin = (e: React.FormEvent) => {
