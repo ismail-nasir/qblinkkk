@@ -41,7 +41,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <button onClick={handleNavClick(AppView.TERMS)} className="hover:text-primary-600 transition-colors">Terms</button>
         </div>
         
-        <p className="text-sm text-gray-400">© 2024 Qblink. All rights reserved.</p>
+        <p className="text-sm text-gray-400">© 2025 Qblink. All rights reserved.</p>
       </div>
     </footer>
   );

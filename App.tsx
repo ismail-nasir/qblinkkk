@@ -19,6 +19,7 @@ import { AppView } from './types';
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.LANDING);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup');
+  const [businessName, setBusinessName] = useState<string>('');
 
   const handleGetStarted = () => {
     setAuthMode('signup');
@@ -32,8 +33,15 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  const handleAuthSuccess = () => {
+  const handleAuthSuccess = (name: string) => {
+    setBusinessName(name);
     setView(AppView.DASHBOARD);
+    window.scrollTo(0, 0);
+  };
+
+  const handleLogout = () => {
+    setBusinessName('');
+    setView(AppView.LANDING);
     window.scrollTo(0, 0);
   };
 
@@ -59,7 +67,12 @@ const App: React.FC = () => {
   }
 
   if (view === AppView.DASHBOARD) {
-    return <Dashboard onBack={handleBackToHome} />;
+    return (
+      <Dashboard 
+        businessName={businessName} 
+        onLogout={handleLogout} 
+      />
+    );
   }
 
   // Common Layout Wrappers for Pages

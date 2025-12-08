@@ -4,7 +4,7 @@ import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, Upload, ArrowLeft, Lo
 
 interface AuthProps {
   initialMode?: 'login' | 'signup';
-  onLogin: () => void;
+  onLogin: (businessName: string) => void;
   onBack: () => void;
 }
 
@@ -50,7 +50,9 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
     // Simulate API Call
     setTimeout(() => {
       setIsLoading(false);
-      onLogin();
+      // Determine display name
+      const name = mode === 'signup' && formData.businessName ? formData.businessName : "My Business";
+      onLogin(name);
     }, 1500);
   };
 
@@ -125,21 +127,23 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                       <Zap size={12} fill="currentColor" /> Get started free
                   </motion.div>
                 )}
-                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                <motion.h1 layout className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
                     {mode === 'signup' ? 'Create Account' : 'Welcome Back'}
-                </h1>
-                <p className="text-gray-500">
+                </motion.h1>
+                <motion.p layout className="text-gray-500">
                     {mode === 'signup' ? 'Start managing queues in 30 seconds' : 'Enter your details to access your dashboard'}
-                </p>
+                </motion.p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
-                <AnimatePresence mode="popLayout">
+                <AnimatePresence mode="popLayout" initial={false}>
                     {mode === 'signup' && (
                         <motion.div 
-                            initial={{ opacity: 0, height: 0 }} 
-                            animate={{ opacity: 1, height: 'auto' }} 
-                            exit={{ opacity: 0, height: 0 }}
+                            key="business-field"
+                            initial={{ opacity: 0, y: -20, height: 0 }} 
+                            animate={{ opacity: 1, y: 0, height: 'auto' }} 
+                            exit={{ opacity: 0, y: -20, height: 0 }}
+                            transition={{ duration: 0.3 }}
                             className="space-y-1 overflow-hidden"
                         >
                             <label className="text-sm font-semibold text-gray-700">Business Name</label>
@@ -149,12 +153,13 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-gray-200 border focus:bg-white focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all outline-none"
                                 value={formData.businessName}
                                 onChange={e => setFormData({...formData, businessName: e.target.value})}
+                                required={mode === 'signup'}
                             />
                         </motion.div>
                     )}
                 </AnimatePresence>
 
-                <div className="space-y-1">
+                <motion.div layout className="space-y-1">
                     <label className="text-sm font-semibold text-gray-700">Email</label>
                     <input 
                         type="email" 
@@ -162,10 +167,11 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                         className="w-full px-4 py-3 rounded-xl bg-gray-50 border-gray-200 border focus:bg-white focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all outline-none"
                         value={formData.email}
                         onChange={e => setFormData({...formData, email: e.target.value})}
+                        required
                     />
-                </div>
+                </motion.div>
 
-                <div className="space-y-1">
+                <motion.div layout className="space-y-1">
                     <label className="text-sm font-semibold text-gray-700">Password</label>
                     <div className="relative">
                         <input 
@@ -174,6 +180,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                             className="w-full px-4 py-3 rounded-xl bg-gray-50 border-gray-200 border focus:bg-white focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all outline-none"
                             value={formData.password}
                             onChange={e => setFormData({...formData, password: e.target.value})}
+                            required
                         />
                         <button 
                             type="button"
@@ -183,12 +190,13 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
                     </div>
-                </div>
+                </motion.div>
 
                 {/* Password Strength Meter - Signup Only */}
                 <AnimatePresence>
                     {mode === 'signup' && formData.password.length > 0 && (
                         <motion.div 
+                            key="strength-meter"
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
@@ -228,9 +236,11 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                 <AnimatePresence>
                     {mode === 'signup' && (
                          <motion.div 
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
+                            key="logo-field"
+                            initial={{ opacity: 0, height: 0, y: -10 }}
+                            animate={{ opacity: 1, height: 'auto', y: 0 }}
+                            exit={{ opacity: 0, height: 0, y: -10 }}
+                            transition={{ duration: 0.3 }}
                             className="space-y-1 overflow-hidden"
                         >
                             <label className="text-sm font-semibold text-gray-700">Business Logo <span className="text-gray-400 font-normal">(Optional)</span></label>
@@ -247,7 +257,11 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                 
                 {/* Terms - Signup Only */}
                 {mode === 'signup' && (
-                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3 pt-2">
+                     <motion.div 
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        className="flex items-center gap-3 pt-2"
+                     >
                         <div 
                             className={`w-5 h-5 rounded-md border flex items-center justify-center cursor-pointer transition-colors ${formData.agreed ? 'bg-primary-600 border-primary-600' : 'border-gray-300 bg-white'}`}
                             onClick={() => setFormData({...formData, agreed: !formData.agreed})}
@@ -260,13 +274,14 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                     </motion.div>
                 )}
 
-                <button 
+                <motion.button 
+                    layout
                     type="submit"
                     disabled={isLoading}
                     className="w-full h-12 md:h-14 bg-gradient-to-r from-primary-600 to-purple-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-primary-600/25 hover:shadow-primary-600/40 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                     {isLoading ? <Loader2 className="animate-spin" /> : (mode === 'signup' ? 'Create Account' : 'Sign In')}
-                </button>
+                </motion.button>
             </form>
 
             <div className="text-center pt-4">
