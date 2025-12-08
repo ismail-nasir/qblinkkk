@@ -341,10 +341,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                 <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
                                     <Activity size={16} className="text-primary-600" /> Recent Activity
                                 </h4>
-                                <div className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
+                                <div className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden max-h-[300px] overflow-y-auto">
                                     {userQueueData?.recentActivity && userQueueData.recentActivity.length > 0 ? (
                                         <div className="divide-y divide-gray-100">
-                                            {userQueueData.recentActivity.slice(0, 5).map((log, i) => (
+                                            {userQueueData.recentActivity.slice(0, 50).map((log, i) => (
                                                 <div key={i} className="p-3 flex items-center justify-between text-sm hover:bg-white transition-colors">
                                                     <div className="flex items-center gap-3">
                                                         <span className="font-mono text-xs text-gray-400 bg-white px-1.5 py-0.5 rounded border border-gray-100">{log.time}</span>

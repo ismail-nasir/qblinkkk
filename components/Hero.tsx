@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Play, Zap, LogOut } from 'lucide-react';
+import { ArrowRight, Zap, LogOut, CheckCircle2 } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
 
 interface HeroProps {
@@ -9,87 +9,101 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
   return (
-    <section className="relative pt-24 pb-12 md:pt-48 md:pb-32 overflow-hidden">
-      {/* Background Gradient Blob */}
-      <div className="absolute top-0 right-0 w-[300px] h-[300px] md:w-[800px] md:h-[800px] bg-blue-100/50 rounded-full blur-3xl -z-10 translate-x-1/4 -translate-y-1/4"></div>
+    <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden selection:bg-primary-100 selection:text-primary-700">
+      {/* Enhanced Background Gradients */}
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-blue-100/40 to-indigo-100/40 rounded-full blur-[100px] -z-10 translate-x-1/3 -translate-y-1/4 animate-pulse"></div>
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-fuchsia-100/40 to-purple-100/40 rounded-full blur-[100px] -z-10 -translate-x-1/4 translate-y-1/4"></div>
 
       <div className="container mx-auto px-4 md:px-6">
-        <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-20">
+        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-24">
           
           {/* Left Content */}
-          <div className="lg:w-1/2 text-center lg:text-left pt-4 z-10">
+          <div className="lg:w-1/2 text-center lg:text-left z-10">
+            
+            {/* Badge */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="inline-flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-blue-50 text-primary-600 text-xs md:text-sm font-semibold mb-6 border border-blue-100"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-gray-100 shadow-sm mb-8"
             >
-              <Zap size={14} className="md:w-4 md:h-4" fill="currentColor" /> Smart Queue Management
+               <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+              <span className="text-xs font-extrabold tracking-widest text-gray-500 uppercase">Live Queue System</span>
             </motion.div>
 
+            {/* Heading */}
             <motion.h1 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-4xl sm:text-5xl md:text-7xl font-extrabold text-gray-900 leading-[1.1] mb-4 md:mb-6 tracking-tight"
+              className="text-5xl sm:text-6xl md:text-8xl font-black text-gray-900 leading-[0.95] mb-8 tracking-tighter"
             >
-              Queue Smarter <br />
-              <span className="text-primary-600">With Qblink</span>
+              Queue <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 via-blue-600 to-indigo-600">Smarter.</span>
             </motion.h1>
 
+            {/* Description */}
             <motion.p 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-base md:text-xl text-gray-500 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed"
+              className="text-lg md:text-2xl text-gray-500 mb-10 max-w-lg mx-auto lg:mx-0 leading-relaxed font-medium"
             >
-              Transform waiting into a seamless experience. QR-powered queues, real-time updates, zero friction.
+              Transform waiting into a seamless experience. <br className="hidden md:block"/>
+              Zero friction. No apps required.
             </motion.p>
 
+            {/* CTA */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="flex flex-col sm:flex-row items-center gap-3 md:gap-4 justify-center lg:justify-start"
+              className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start"
             >
               <motion.button 
                 onClick={onGetStarted}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="w-full sm:w-auto h-12 md:h-14 px-8 rounded-full bg-primary-600 text-white font-bold text-base md:text-lg shadow-xl shadow-primary-600/20 flex items-center justify-center gap-2"
+                className="group relative w-full sm:w-auto h-16 px-10 rounded-2xl bg-gray-900 text-white font-bold text-lg shadow-2xl shadow-gray-900/20 hover:bg-black transition-all flex items-center justify-center gap-3 overflow-hidden"
               >
-                Start Free <ArrowRight size={20} />
-              </motion.button>
-              
-              <motion.button 
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-full sm:w-auto h-12 md:h-14 px-8 rounded-full bg-white text-gray-900 border border-gray-200 font-semibold text-base md:text-lg hover:bg-gray-50 flex items-center justify-center gap-3"
-              >
-                <Play size={18} fill="currentColor" className="text-gray-900" /> Watch Demo
+                <span className="relative z-10 flex items-center gap-2">Start for Free <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform"/></span>
+                
+                {/* Button Shine Effect */}
+                <div className="absolute inset-0 -translate-x-full group-hover:animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent z-0"></div>
               </motion.button>
             </motion.div>
 
+            {/* Trust Badges */}
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="mt-8 flex flex-wrap justify-center lg:justify-start gap-4 md:gap-6 text-sm text-gray-500 font-medium"
+              className="mt-12 flex flex-wrap justify-center lg:justify-start gap-x-8 gap-y-3 text-sm font-bold text-gray-400"
             >
-              <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> Forever free</span>
-              <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> No credit card</span>
+               <div className="flex items-center gap-2">
+                  <CheckCircle2 size={18} className="text-green-500" /> No credit card
+              </div>
+              <div className="flex items-center gap-2">
+                  <CheckCircle2 size={18} className="text-green-500" /> 30-second setup
+              </div>
+              <div className="flex items-center gap-2">
+                  <CheckCircle2 size={18} className="text-green-500" /> Forever free
+              </div>
             </motion.div>
           </div>
 
           {/* Right Visual - Phone Mockup */}
-          <div className="lg:w-1/2 w-full flex justify-center lg:justify-end perspective-1000 mt-12 lg:mt-0 px-2 md:px-0 relative">
+          <div className="lg:w-1/2 w-full flex justify-center lg:justify-end perspective-1000 mt-12 lg:mt-0 relative z-10 px-4 md:px-0">
              {/* Decorative blob behind phone */}
-             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[600px] bg-gradient-to-tr from-primary-100 to-purple-100 rounded-[50px] blur-3xl -z-10 opacity-60 animate-pulse"></div>
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[600px] bg-gradient-to-tr from-primary-400/20 to-purple-400/20 rounded-[50px] blur-3xl -z-10 animate-pulse"></div>
 
             <motion.div 
               initial={{ opacity: 0, rotateY: -10, x: 50 }}
               animate={{ opacity: 1, rotateY: 0, x: 0 }}
-              transition={{ duration: 0.8, type: "spring" }}
+              transition={{ duration: 0.8, type: "spring", damping: 20 }}
             >
               <PhoneMockup variant="left">
                  <div key="mockup-content" className="h-full bg-gray-50 flex flex-col font-sans relative overflow-hidden">
@@ -101,7 +115,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                          <div className="flex justify-between items-start mb-1">
                              <div>
                                  <h3 className="text-lg font-bold text-gray-900">Morning Brew</h3>
-                                 <p className="text-gray-400 text-xs font-medium">Regular Order</p>
+                                 <p className="text-gray-400 text-xs font-medium">Your Turn is Coming</p>
                              </div>
                              <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1">
                                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></div>
@@ -116,23 +130,23 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                              {/* Decorative Top Border */}
                              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
                              
-                             <span className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-3">Number</span>
-                             <div className="text-7xl font-black text-gray-900 mb-2 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-gray-900 to-gray-600">42</div>
+                             <span className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-3">Your Number</span>
+                             <div className="text-8xl font-black text-gray-900 mb-2 tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-gray-900 to-gray-600">42</div>
                              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">
-                                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse"></div>
-                                 On Time
+                                 <Zap size={12} fill="currentColor" />
+                                 It's almost your turn
                              </div>
                          </div>
 
                          {/* Stats */}
                          <div className="grid grid-cols-2 gap-3 w-full">
                              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center group hover:border-blue-100 transition-colors">
-                                 <span className="text-gray-400 text-[10px] font-bold uppercase mb-1">Wait Time</span>
-                                 <span className="text-2xl font-bold text-gray-900">~5<span className="text-sm font-medium text-gray-400">m</span></span>
+                                 <span className="text-gray-400 text-[10px] font-bold uppercase mb-1">Est. Wait</span>
+                                 <span className="text-xl font-bold text-gray-900">2<span className="text-sm font-medium text-gray-400">min</span></span>
                              </div>
                              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center group hover:border-blue-100 transition-colors">
-                                 <span className="text-gray-400 text-[10px] font-bold uppercase mb-1">Ahead</span>
-                                 <span className="text-2xl font-bold text-gray-900">3</span>
+                                 <span className="text-gray-400 text-[10px] font-bold uppercase mb-1">People Ahead</span>
+                                 <span className="text-xl font-bold text-gray-900">1</span>
                              </div>
                          </div>
                      </div>
