@@ -22,6 +22,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [newVisitorName, setNewVisitorName] = useState('');
   const [callNumberInput, setCallNumberInput] = useState('');
   const [showCallModal, setShowCallModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // QR Generation State
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -226,7 +227,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       }
   };
 
-  const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting');
+  const waitingVisitors = queueData.visitors.filter(v => 
+      v.status === 'waiting' && 
+      (v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.ticketNumber.toString().includes(searchQuery))
+  );
+
   const currentVisitor = queueData.visitors.find(v => v.status === 'serving');
   
   return (
@@ -349,9 +354,22 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
       {/* Waiting List - Removed Border */}
       <div className="bg-white rounded-[32px] shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-50 flex justify-between items-center">
-              <h3 className="font-bold text-lg text-gray-900">Waiting List</h3>
-              <span className="text-sm text-gray-500">{waitingVisitors.length} visitors</span>
+          <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                  <h3 className="font-bold text-lg text-gray-900">Waiting List</h3>
+                  <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{queueData.metrics.waiting} Total</span>
+              </div>
+              
+              <div className="relative w-full sm:w-auto">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                      type="text" 
+                      placeholder="Search name or ticket..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full sm:w-64 pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-primary-500/20 transition-all"
+                  />
+              </div>
           </div>
           
           <div className="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
@@ -377,7 +395,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                   </div>
               )) : (
                   <div className="p-12 text-center text-gray-400">
-                      No visitors in the queue.
+                      {searchQuery ? "No visitors found matching your search." : "No visitors in the queue."}
                   </div>
               )}
           </div>
