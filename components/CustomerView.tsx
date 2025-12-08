@@ -102,8 +102,8 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   // Active View (My Ticket)
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white rounded-[48px] shadow-2xl overflow-hidden relative border-[6px] border-gray-900 min-h-[700px] flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center md:p-4">
+        <div className="w-full max-w-md bg-white md:rounded-[48px] shadow-2xl overflow-hidden relative min-h-screen md:min-h-[700px] flex flex-col">
             
             {/* Header */}
             <div className="bg-white/80 backdrop-blur-md p-6 pb-4 z-10 border-b border-gray-100">

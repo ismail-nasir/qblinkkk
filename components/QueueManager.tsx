@@ -153,9 +153,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user }) => {
           </button>
       </div>
 
-      {/* Waiting List */}
-      <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+      {/* Waiting List - Removed Border */}
+      <div className="bg-white rounded-[32px] shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-gray-50 flex justify-between items-center">
               <h3 className="font-bold text-lg text-gray-900">Waiting List</h3>
               <span className="text-sm text-gray-500">{waitingVisitors.length} visitors</span>
           </div>
