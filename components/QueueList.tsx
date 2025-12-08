@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, QueueInfo, QueueData } from '../types';
 import { queueService } from '../services/queue';
-import { Plus, LayoutGrid, Clock, Users, ArrowRight, ExternalLink, Activity, Copy, Trash2 } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, Users, ArrowRight, ExternalLink, Activity, Copy, Trash2, TrendingUp, UserCheck, Hourglass } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface QueueListProps {
@@ -15,21 +15,55 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   const [queueStats, setQueueStats] = useState<Record<string, QueueData>>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newQueueName, setNewQueueName] = useState('');
+  
+  // Aggregate Stats State
+  const [stats, setStats] = useState({
+      totalQueues: 0,
+      totalServed: 0,
+      totalWaiting: 0,
+      avgWaitTime: 0
+  });
 
+  // Initial load and polling setup
   useEffect(() => {
     loadQueues();
+    // Real-time polling every 3 seconds
+    const interval = setInterval(loadQueues, 3000);
+    return () => clearInterval(interval);
   }, [user.id]);
 
   const loadQueues = () => {
     const userQueues = queueService.getUserQueues(user.id);
     setQueues(userQueues);
     
-    // Load stats for each queue
-    const stats: Record<string, QueueData> = {};
+    // Load stats for each queue and calculate aggregates
+    const currentStats: Record<string, QueueData> = {};
+    let servedCount = 0;
+    let waitingCount = 0;
+    let totalWaitTime = 0;
+    let activeQueuesCount = 0;
+
     userQueues.forEach(q => {
-        stats[q.id] = queueService.getQueueData(q.id);
+        const data = queueService.getQueueData(q.id);
+        currentStats[q.id] = data;
+        
+        servedCount += data.metrics.served;
+        waitingCount += data.metrics.waiting;
+        
+        if (data.metrics.waiting > 0) {
+            totalWaitTime += data.metrics.avgWaitTime;
+            activeQueuesCount++;
+        }
     });
-    setQueueStats(stats);
+
+    setQueueStats(currentStats);
+    setStats({
+        totalQueues: userQueues.length,
+        totalServed: servedCount,
+        totalWaiting: waitingCount,
+        // Calculate average across active queues, or default to 5 if none active
+        avgWaitTime: activeQueuesCount > 0 ? Math.round(totalWaitTime / activeQueuesCount) : 0
+    });
   };
 
   const handleCreateQueue = (e: React.FormEvent) => {
@@ -50,15 +84,82 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   };
 
   return (
-    <div className="container mx-auto px-4 max-w-6xl pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+    <div className="container mx-auto px-4 max-w-6xl pb-20 pt-6">
+      
+      {/* Real-time Statistics Section */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-32 relative overflow-hidden"
+          >
+              <div className="absolute right-[-10px] top-[-10px] w-20 h-20 bg-blue-50 rounded-full opacity-50"></div>
+              <div>
+                  <div className="flex items-center gap-2 mb-1 text-blue-600 font-bold text-xs uppercase tracking-wider">
+                      <LayoutGrid size={14} /> Total Queues
+                  </div>
+                  <div className="text-3xl font-black text-gray-900">{stats.totalQueues}</div>
+              </div>
+              <div className="text-xs text-gray-400 font-medium">Active managed queues</div>
+          </motion.div>
+
+          <motion.div 
+             initial={{ opacity: 0, y: 10 }}
+             animate={{ opacity: 1, y: 0 }}
+             transition={{ delay: 0.1 }}
+             className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-32 relative overflow-hidden"
+          >
+              <div className="absolute right-[-10px] top-[-10px] w-20 h-20 bg-green-50 rounded-full opacity-50"></div>
+              <div>
+                  <div className="flex items-center gap-2 mb-1 text-green-600 font-bold text-xs uppercase tracking-wider">
+                      <UserCheck size={14} /> Served Today
+                  </div>
+                  <div className="text-3xl font-black text-gray-900">{stats.totalServed}</div>
+              </div>
+              <div className="text-xs text-gray-400 font-medium">Total customers served</div>
+          </motion.div>
+
+          <motion.div 
+             initial={{ opacity: 0, y: 10 }}
+             animate={{ opacity: 1, y: 0 }}
+             transition={{ delay: 0.2 }}
+             className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-32 relative overflow-hidden"
+          >
+              <div className="absolute right-[-10px] top-[-10px] w-20 h-20 bg-orange-50 rounded-full opacity-50"></div>
+              <div>
+                  <div className="flex items-center gap-2 mb-1 text-orange-600 font-bold text-xs uppercase tracking-wider">
+                      <Hourglass size={14} /> Waiting Now
+                  </div>
+                  <div className="text-3xl font-black text-gray-900">{stats.totalWaiting}</div>
+              </div>
+              <div className="text-xs text-gray-400 font-medium">Across all queues</div>
+          </motion.div>
+
+          <motion.div 
+             initial={{ opacity: 0, y: 10 }}
+             animate={{ opacity: 1, y: 0 }}
+             transition={{ delay: 0.3 }}
+             className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-32 relative overflow-hidden"
+          >
+              <div className="absolute right-[-10px] top-[-10px] w-20 h-20 bg-purple-50 rounded-full opacity-50"></div>
+              <div>
+                  <div className="flex items-center gap-2 mb-1 text-purple-600 font-bold text-xs uppercase tracking-wider">
+                      <Activity size={14} /> Avg. Wait
+                  </div>
+                  <div className="text-3xl font-black text-gray-900">{stats.avgWaitTime}<span className="text-lg text-gray-400 font-medium ml-1">min</span></div>
+              </div>
+              <div className="text-xs text-gray-400 font-medium">Estimated wait time</div>
+          </motion.div>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 border-t border-gray-100 pt-8">
           <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome, {user.businessName}</h1>
               <p className="text-gray-500">Manage your queues and monitor real-time statuses.</p>
           </div>
           <button 
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold shadow-lg shadow-primary-600/20 transition-all hover:scale-105 active:scale-95"
+            className="flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold shadow-lg shadow-primary-600/20 transition-all hover:scale-105 active:scale-95 w-full md:w-auto justify-center"
           >
               <Plus size={20} /> Create Queue
           </button>
