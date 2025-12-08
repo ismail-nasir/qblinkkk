@@ -21,6 +21,7 @@ export interface User {
   email: string;
   businessName: string;
   joinedAt: Date;
+  isVerified: boolean;
 }
 
 export interface Customer {
