@@ -88,7 +88,8 @@ const App: React.FC = () => {
       <Auth 
         initialMode={authMode} 
         onLogin={handleAuthSuccess} 
-        onBack={handleBackToHome} 
+        onBack={handleBackToHome}
+        onNavigate={handleNavigate}
       />
     );
   }

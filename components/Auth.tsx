@@ -2,17 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Mail, KeyRound, ChevronLeft } from 'lucide-react';
 import { authService } from '../services/auth';
-import { User } from '../types';
+import { User, AppView } from '../types';
 
 interface AuthProps {
   initialMode?: 'login' | 'signup';
   onLogin: (user: User) => void;
   onBack: () => void;
+  onNavigate: (view: AppView) => void;
 }
 
 type AuthView = 'login' | 'signup' | 'verify' | 'forgot' | 'reset';
 
-const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) => {
+const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, onNavigate }) => {
   const [view, setView] = useState<AuthView>(initialMode);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +27,8 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
     password: '',
     confirmPassword: '', // for reset
     code: '', // for verify/reset
-    agreed: false
+    agreedTerms: false,
+    agreedPrivacy: false
   });
 
   // Track the email currently being processed (for verification/reset steps)
@@ -66,7 +68,8 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
     setError(null);
     setIsLoading(true);
     try {
-        if (!formData.agreed) throw new Error("You must agree to the Terms and Privacy Policy.");
+        if (!formData.agreedTerms) throw new Error("You must agree to the Terms & Conditions.");
+        if (!formData.agreedPrivacy) throw new Error("You must acknowledge the Privacy Policy.");
         if (passwordStrength < 3) throw new Error("Please choose a stronger password.");
         
         await authService.signup(formData.email, formData.password, formData.businessName);
@@ -286,16 +289,29 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack }) 
                           </div>
                       )}
                       
-                      <div className="flex items-center gap-3 pt-2">
-                          <div 
-                              className={`w-5 h-5 rounded-md border flex items-center justify-center cursor-pointer transition-colors ${formData.agreed ? 'bg-primary-600 border-primary-600' : 'border-gray-300 bg-white'}`}
-                              onClick={() => setFormData({...formData, agreed: !formData.agreed})}
-                          >
-                              {formData.agreed && <Check size={14} className="text-white" />}
+                      <div className="space-y-3 pt-2">
+                          <div className="flex items-start gap-3">
+                              <div 
+                                  className={`w-5 h-5 mt-0.5 rounded-md border flex items-center justify-center cursor-pointer transition-colors flex-shrink-0 ${formData.agreedTerms ? 'bg-primary-600 border-primary-600' : 'border-gray-300 bg-white'}`}
+                                  onClick={() => setFormData({...formData, agreedTerms: !formData.agreedTerms})}
+                              >
+                                  {formData.agreedTerms && <Check size={14} className="text-white" />}
+                              </div>
+                              <span className="text-sm text-gray-600 select-none leading-tight">
+                                  I agree to the <button onClick={(e) => {e.preventDefault(); onNavigate(AppView.TERMS)}} className="text-primary-600 font-semibold hover:underline">Terms & Conditions</button>
+                              </span>
                           </div>
-                          <span className="text-sm text-gray-600 select-none">
-                              I agree to the <a href="#" className="text-primary-600 font-semibold hover:underline">Terms</a> and <a href="#" className="text-primary-600 font-semibold hover:underline">Privacy Policy</a>
-                          </span>
+                          <div className="flex items-start gap-3">
+                              <div 
+                                  className={`w-5 h-5 mt-0.5 rounded-md border flex items-center justify-center cursor-pointer transition-colors flex-shrink-0 ${formData.agreedPrivacy ? 'bg-primary-600 border-primary-600' : 'border-gray-300 bg-white'}`}
+                                  onClick={() => setFormData({...formData, agreedPrivacy: !formData.agreedPrivacy})}
+                              >
+                                  {formData.agreedPrivacy && <Check size={14} className="text-white" />}
+                              </div>
+                              <span className="text-sm text-gray-600 select-none leading-tight">
+                                  I have read and acknowledge the <button onClick={(e) => {e.preventDefault(); onNavigate(AppView.PRIVACY)}} className="text-primary-600 font-semibold hover:underline">Privacy Policy</button>
+                              </span>
+                          </div>
                       </div>
 
                       <button 
