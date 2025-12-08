@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, QueueData, Visitor, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface QueueManagerProps {
@@ -63,7 +63,16 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       setQueueData(newData);
   };
 
+  const handleNotifyCurrent = () => {
+      const currentVisitor = queueData.visitors.find(v => v.status === 'serving');
+      if (currentVisitor) {
+          const newData = queueService.triggerAlert(queue.id, currentVisitor.id);
+          setQueueData(newData);
+      }
+  };
+
   const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting');
+  const currentVisitor = queueData.visitors.find(v => v.status === 'serving');
   
   // URL for the QR Code
   const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
@@ -119,17 +128,37 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               {String(queueData.lastCalledNumber).padStart(3, '0')}
           </motion.div>
 
+          {/* Current Visitor Name (if active) */}
+          {currentVisitor && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-blue-100/50 text-blue-800 rounded-full text-sm font-bold"
+              >
+                  <span>Currently Serving: {currentVisitor.name}</span>
+              </motion.div>
+          )}
+
           <div className="flex items-center justify-center gap-2 text-gray-600 font-medium mb-8">
               <span className="flex h-2 w-2 rounded-full bg-blue-500"></span>
               There are <span className="text-blue-600 font-bold">{queueData.metrics.waiting}</span> visitors waiting
           </div>
 
-          <div className="max-w-md mx-auto">
+          <div className="max-w-lg mx-auto grid grid-cols-4 gap-3">
               <button 
                 onClick={handleCallNext}
-                className="w-full py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary-600/30 active:scale-95 transition-all mb-4 flex items-center justify-center gap-3"
+                className="col-span-3 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary-600/30 active:scale-95 transition-all flex items-center justify-center gap-3"
               >
                   Call next visitor <Phone size={20} />
+              </button>
+
+              <button 
+                onClick={handleNotifyCurrent}
+                disabled={!currentVisitor}
+                className={`py-4 rounded-2xl font-bold text-lg shadow-sm border border-gray-200 flex items-center justify-center transition-all ${currentVisitor?.isAlerting ? 'bg-yellow-400 text-white border-yellow-400 animate-pulse' : 'bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+                title="Notify Current Visitor (Buzz)"
+              >
+                  <Bell size={24} fill={currentVisitor?.isAlerting ? "currentColor" : "none"} />
               </button>
           </div>
       </div>

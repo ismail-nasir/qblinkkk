@@ -1,9 +1,7 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
-import { QueueData, Visitor, QueueInfo } from '../types';
+import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
-import { LogOut, Zap, Users, Clock, Bell } from 'lucide-react';
+import { LogOut, Zap, Users, Bell, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CustomerViewProps {
@@ -18,7 +16,11 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [queueInfo, setQueueInfo] = useState<QueueInfo | null>(null);
   const [alertShown, setAlertShown] = useState(false);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  
+  // Sound loop control
+  const [isAlerting, setIsAlerting] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const alertIntervalRef = useRef<number | null>(null);
 
   // Poll for updates
   useEffect(() => {
@@ -40,9 +42,18 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         if (visitor && (visitor.status === 'waiting' || visitor.status === 'serving')) {
             setIsJoined(true);
             
+            // Check for Alert Trigger
+            if (visitor.isAlerting && !isAlerting) {
+                 setIsAlerting(true);
+                 startAlertLoop();
+            } else if (!visitor.isAlerting && isAlerting) {
+                 setIsAlerting(false);
+                 stopAlertLoop();
+            }
+            
             const peopleAhead = queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < visitor.ticketNumber).length;
 
-            // 1. Proximity Alert (2 people ahead)
+            // 1. Proximity Alert (2 people ahead) - Only once
             if (peopleAhead === 2 && !alertShown && visitor.status === 'waiting') {
                 setShowNotificationPopup(true);
                 setAlertShown(true);
@@ -50,15 +61,20 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                     new Notification(`Get Ready!`, { body: `Only 2 people ahead of you in ${queueInfo?.name || 'the queue'}.` });
                 }
             }
-
-            // 2. Called Alert (Sound)
-            if (visitor.status === 'serving') {
-                 playAlertSound();
-            }
-
         } else {
-            // Expired or Removed
-            if (isJoined) setIsJoined(false);
+            // Expired or Removed or doesn't exist anymore
+            // We only unjoin if we are sure queueData is loaded and visitor is missing
+            if (isJoined && queueData.visitors.length > 0) {
+                 // Double check if actually removed or just data sync issue?
+                 // For safety, only reset if queueData is robust.
+                 setIsJoined(false);
+                 setMyVisitorId(null);
+                 localStorage.removeItem(`qblink_visit_${queueId}`);
+                 stopAlertLoop();
+            } else if (!isJoined && visitor) {
+                 // Recovery logic for refresh
+                 setIsJoined(true);
+            }
         }
     }
   }, [queueData, myVisitorId, alertShown, queueInfo?.name]);
@@ -69,70 +85,57 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
      }
   };
 
-  const playAlertSound = () => {
+  const startAlertLoop = () => {
+      // Play immediately
+      playBeep();
+      // Loop
+      if (alertIntervalRef.current) clearInterval(alertIntervalRef.current);
+      alertIntervalRef.current = window.setInterval(playBeep, 2000);
+  };
+
+  const stopAlertLoop = () => {
+      if (alertIntervalRef.current) {
+          clearInterval(alertIntervalRef.current);
+          alertIntervalRef.current = null;
+      }
+  };
+
+  const playBeep = () => {
     if (!audioContextRef.current) {
-         // Create context if not exists
          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     const ctx = audioContextRef.current;
-    
-    // Resume context if suspended (common in browsers)
-    if (ctx.state === 'suspended') {
-        ctx.resume();
-    }
+    if (ctx.state === 'suspended') ctx.resume();
 
-    // Check if already playing? We'll just play a pulse.
-    // Create oscillator
     const osc = ctx.createOscillator();
     const gainNode = ctx.createGain();
 
     osc.connect(gainNode);
     gainNode.connect(ctx.destination);
 
-    // Beep pattern
+    // Alert sound pattern (High pitch pulse)
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(600, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.5);
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.2);
 
-    // Volume 150% (Gain 1.5)
-    gainNode.gain.setValueAtTime(1.5, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5); // Fade out beep
+    gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
 
     osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.5);
-
-    // Loop for ~6 seconds (approx 10 beeps)
-    let count = 0;
-    const interval = setInterval(() => {
-        if (count > 10) {
-             clearInterval(interval);
-             return;
-        }
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.type = 'sine';
-        o.frequency.setValueAtTime(600, ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.4);
-        g.gain.setValueAtTime(1.5, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-        o.start();
-        o.stop(ctx.currentTime + 0.4);
-        count++;
-    }, 600);
+    osc.stop(ctx.currentTime + 0.2);
   };
 
   const handleJoin = (e: React.FormEvent) => {
       e.preventDefault();
       requestNotificationPermission();
+      
+      // Initialize Audio Context on user gesture
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+
       const { visitor } = queueService.joinQueue(queueId, joinName);
       setMyVisitorId(visitor.id);
       localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
       setIsJoined(true);
-      
-      // Initialize audio context on user interaction
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
   };
 
   const handleLeave = () => {
@@ -142,8 +145,32 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
           setMyVisitorId(null);
           setIsJoined(false);
           setAlertShown(false);
+          stopAlertLoop();
+          setIsAlerting(false);
       }
   };
+
+  const handleImComing = () => {
+      if (myVisitorId) {
+          queueService.dismissAlert(queueId, myVisitorId);
+          setIsAlerting(false);
+          stopAlertLoop();
+      }
+  };
+
+  // Loading state handling for persistence check
+  // If we have a stored ID but no queueData yet, show loading
+  if (myVisitorId && !queueData) {
+      return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500 font-sans gap-4">
+              <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <p>Restoring your ticket...</p>
+          </div>
+      );
+  }
+
+  // If we have queueData but the visitor ID is not in it (and we had a stored ID), it means we were removed/served long ago
+  // The useEffect handles the cleanup of isJoined/localStorage in that case.
 
   if (!queueData) return <div className="min-h-screen flex items-center justify-center text-gray-500 font-sans">Loading Queue...</div>;
 
@@ -184,7 +211,15 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   }
 
   const myVisitor = queueData.visitors.find(v => v.id === myVisitorId);
-  if (!myVisitor) return null;
+  // Fallback if joined state is true but visitor not found (e.g. slight sync delay or removed)
+  if (!myVisitor) {
+       // Logic to return to home handled by useEffect, but render safe fallback
+       return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <p className="text-gray-500">Updating status...</p>
+            </div>
+       );
+  }
 
   const peopleAhead = queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < myVisitor.ticketNumber).length;
   // Use manual estimate from config if available, else calculated metric
@@ -193,26 +228,21 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 flex flex-col">
-        {/* Borderless Mobile Layout */}
-        
-        {/* Header */}
-        <div className="p-6 pb-4 border-b border-gray-50 sticky top-0 bg-white/90 backdrop-blur-md z-10">
-            <div className="flex justify-between items-start mb-1">
-                <div>
-                    <h3 className="text-xl font-bold text-gray-900">{queueInfo?.name || 'Queue'}</h3>
-                    <p className="text-gray-400 text-xs font-medium">Your Turn is Coming</p>
-                </div>
-                <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></div>
-                    Live
-                </span>
-            </div>
-        </div>
-
         {/* Main Content */}
-        <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-6">
+        <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-8">
             
-            {/* Ticket Card - No border on mobile, subtle shadow */}
+            {/* Queue Info */}
+            <div className="text-center space-y-2">
+                 <h3 className="text-2xl font-bold text-gray-900">{queueInfo?.name || 'Queue'}</h3>
+                 <div className="flex items-center justify-center gap-2">
+                    <span className="px-2.5 py-1 bg-green-50 text-green-700 text-xs font-bold rounded-full uppercase tracking-wider flex items-center gap-1.5 border border-green-100">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></div>
+                        Live Updates
+                    </span>
+                 </div>
+            </div>
+
+            {/* Ticket Card */}
             <motion.div 
                 initial={{ scale: 0.9 }}
                 animate={{ scale: 1 }}
@@ -251,9 +281,41 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
             </div>
         </div>
 
-        {/* Pop-up Notification for "2 Ahead" */}
+        {/* ALERT OVERLAY (I'm Coming) */}
         <AnimatePresence>
-            {showNotificationPopup && (
+            {isAlerting && (
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[60] bg-blue-600 flex flex-col items-center justify-center p-8 text-center"
+                >
+                    <motion.div 
+                        animate={{ scale: [1, 1.2, 1] }} 
+                        transition={{ repeat: Infinity, duration: 1 }}
+                        className="w-24 h-24 bg-white rounded-full flex items-center justify-center mb-8 shadow-2xl"
+                    >
+                        <Bell size={48} className="text-blue-600" fill="currentColor" />
+                    </motion.div>
+                    
+                    <h2 className="text-4xl font-black text-white mb-4">It's Your Turn!</h2>
+                    <p className="text-blue-100 text-lg mb-12 max-w-xs">
+                        Please proceed to the counter immediately. We are waiting for you.
+                    </p>
+                    
+                    <button 
+                        onClick={handleImComing}
+                        className="w-full max-w-xs py-5 bg-white text-blue-600 rounded-2xl font-black text-xl shadow-xl flex items-center justify-center gap-3 hover:scale-105 transition-transform"
+                    >
+                        <CheckCircle size={24} /> I'M COMING
+                    </button>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* Pop-up Notification for "2 Ahead" (Non-intrusive) */}
+        <AnimatePresence>
+            {showNotificationPopup && !isAlerting && (
                 <motion.div 
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}

@@ -1,5 +1,6 @@
 
 
+
 import { QueueData, QueueMetric, ActivityLog, User, Visitor, QueueInfo } from '../types';
 
 const DATA_KEY_PREFIX = 'qblink_data_';
@@ -217,8 +218,8 @@ export const queueService = {
     if (!nextVisitor) return data;
 
     const updatedVisitors = data.visitors.map(v => {
-        if (v.status === 'serving') return { ...v, status: 'served' as const };
-        if (v.id === nextVisitor.id) return { ...v, status: 'serving' as const };
+        if (v.status === 'serving') return { ...v, status: 'served' as const, isAlerting: false };
+        if (v.id === nextVisitor.id) return { ...v, status: 'serving' as const, isAlerting: true }; // Trigger alert on call
         return v;
     });
 
@@ -254,8 +255,8 @@ export const queueService = {
       if (!visitor) return data;
 
       const updatedVisitors = data.visitors.map(v => {
-          if (v.status === 'serving') return { ...v, status: 'served' as const };
-          if (v.ticketNumber === ticketNumber) return { ...v, status: 'serving' as const };
+          if (v.status === 'serving') return { ...v, status: 'served' as const, isAlerting: false };
+          if (v.ticketNumber === ticketNumber) return { ...v, status: 'serving' as const, isAlerting: true };
           return v;
       });
 
@@ -285,7 +286,7 @@ export const queueService = {
 
       const updatedVisitors = data.visitors.map(v => {
           if (v.ticketNumber === data.lastCalledNumber) {
-              return { ...v, status: 'waiting' as const };
+              return { ...v, status: 'waiting' as const, isAlerting: false };
           }
           return v;
       });
@@ -323,5 +324,26 @@ export const queueService = {
   reset: (queueId: string) => {
     localStorage.setItem(getDataKey(queueId), JSON.stringify({ ...INITIAL_DATA, queueId }));
     return { ...INITIAL_DATA, queueId };
+  },
+
+  // Alert Control
+  triggerAlert: (queueId: string, visitorId: string) => {
+      const data = queueService.getQueueData(queueId);
+      const updatedVisitors = data.visitors.map(v => 
+          v.id === visitorId ? { ...v, isAlerting: true } : v
+      );
+      const updatedData = { ...data, visitors: updatedVisitors };
+      queueService.saveQueueData(queueId, updatedData);
+      return updatedData;
+  },
+
+  dismissAlert: (queueId: string, visitorId: string) => {
+      const data = queueService.getQueueData(queueId);
+      const updatedVisitors = data.visitors.map(v => 
+          v.id === visitorId ? { ...v, isAlerting: false } : v
+      );
+      const updatedData = { ...data, visitors: updatedVisitors };
+      queueService.saveQueueData(queueId, updatedData);
+      return updatedData;
   }
 };
