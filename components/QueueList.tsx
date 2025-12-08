@@ -1,9 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { User, QueueInfo, QueueData } from '../types';
 import { queueService } from '../services/queue';
-import { Plus, LayoutGrid, Clock, Users, ArrowRight, ExternalLink, Activity, Copy, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, Users, ArrowRight, ExternalLink, Activity, Copy, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle, BarChart3, PieChart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+// @ts-ignore
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 
 interface QueueListProps {
   user: User;
@@ -26,6 +28,10 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
       avgWaitTime: 0
   });
 
+  // Chart Data State
+  const [trafficData, setTrafficData] = useState<any[]>([]);
+  const [volumeData, setVolumeData] = useState<any[]>([]);
+
   // Initial load and polling setup
   useEffect(() => {
     loadQueues();
@@ -44,6 +50,17 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
     let waitingCount = 0;
     let totalWaitTime = 0;
     let activeQueuesCount = 0;
+    
+    // For Charts
+    const hourlyTraffic: Record<string, { time: string, visitors: number, served: number }> = {};
+    const queueVolumes: { name: string, visitors: number }[] = [];
+
+    // Initialize hourly buckets (9 AM to 6 PM default, or current day hours)
+    const currentHour = new Date().getHours();
+    for (let i = Math.max(8, currentHour - 8); i <= Math.max(18, currentHour + 1); i++) {
+        const hourLabel = `${i > 12 ? i - 12 : i} ${i >= 12 ? 'PM' : 'AM'}`;
+        hourlyTraffic[i] = { time: hourLabel, visitors: 0, served: 0 };
+    }
 
     userQueues.forEach(q => {
         const data = queueService.getQueueData(q.id);
@@ -56,6 +73,34 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
             totalWaitTime += data.metrics.avgWaitTime;
             activeQueuesCount++;
         }
+
+        // --- Process Graph Data ---
+        // 1. Volume per Queue
+        queueVolumes.push({
+            name: q.name,
+            visitors: data.metrics.waiting + data.metrics.served
+        });
+
+        // 2. Hourly Traffic (Join vs Served)
+        data.recentActivity.forEach(log => {
+            // Parse log time "HH:MM AM/PM"
+            // Note: This is a simplified parser assuming logs are from Today. 
+            // Real apps would use ISO timestamps in logs.
+            try {
+                const [timeStr, modifier] = log.time.split(' ');
+                let [hours, minutes] = timeStr.split(':');
+                let h = parseInt(hours);
+                if (modifier === 'PM' && h < 12) h += 12;
+                if (modifier === 'AM' && h === 12) h = 0;
+                
+                if (hourlyTraffic[h]) {
+                    if (log.action === 'join') hourlyTraffic[h].visitors++;
+                    if (log.action === 'complete' || log.action === 'call') hourlyTraffic[h].served++;
+                }
+            } catch (e) {
+                // Ignore parse errors
+            }
+        });
     });
 
     setQueueStats(currentStats);
@@ -63,9 +108,11 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
         totalQueues: userQueues.length,
         totalServed: servedCount,
         totalWaiting: waitingCount,
-        // Calculate average across active queues, or default to 5 if none active
         avgWaitTime: activeQueuesCount > 0 ? Math.round(totalWaitTime / activeQueuesCount) : 0
     });
+
+    setTrafficData(Object.values(hourlyTraffic));
+    setVolumeData(queueVolumes);
   };
 
   const handleCreateQueue = (e: React.FormEvent) => {
@@ -92,10 +139,27 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
       }
   };
 
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white/90 backdrop-blur-md p-4 rounded-xl shadow-xl border border-white/50 text-xs">
+          <p className="font-bold text-gray-900 mb-2">{label}</p>
+          {payload.map((p: any, index: number) => (
+            <p key={index} style={{ color: p.color }} className="font-medium flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full" style={{backgroundColor: p.color}}></span>
+                {p.name}: {p.value}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="container mx-auto px-4 max-w-6xl pb-20 pt-6">
       
-      {/* Real-time Statistics Section */}
+      {/* Real-time Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
@@ -161,7 +225,82 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
           </motion.div>
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 border-t border-gray-100 pt-8">
+      {/* Analytics Graphs */}
+      {queues.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4 }}
+                className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100"
+              >
+                  <div className="flex items-center justify-between mb-6">
+                      <div>
+                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                             <TrendingUp size={20} className="text-primary-600" /> Hourly Traffic
+                          </h3>
+                          <p className="text-xs text-gray-500">Visitors joined vs. Served today</p>
+                      </div>
+                  </div>
+                  <div className="h-[250px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={trafficData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <defs>
+                                  <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                  </linearGradient>
+                                  <linearGradient id="colorServed" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2}/>
+                                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                                  </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                              <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                              <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVisitors)" name="Joined" />
+                              <Area type="monotone" dataKey="served" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorServed)" name="Served" />
+                          </AreaChart>
+                      </ResponsiveContainer>
+                  </div>
+              </motion.div>
+
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.5 }}
+                className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100"
+              >
+                  <div className="flex items-center justify-between mb-6">
+                      <div>
+                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                             <BarChart3 size={20} className="text-purple-600" /> Queue Volume
+                          </h3>
+                          <p className="text-xs text-gray-500">Total visitors by queue</p>
+                      </div>
+                  </div>
+                  <div className="h-[250px] w-full">
+                       <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={volumeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                              <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                              <Tooltip content={<CustomTooltip />} cursor={{fill: '#f9fafb'}} />
+                              <Bar dataKey="visitors" radius={[6, 6, 0, 0]} name="Total Visitors">
+                                  {volumeData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'][index % 4]} />
+                                  ))}
+                              </Bar>
+                          </BarChart>
+                      </ResponsiveContainer>
+                  </div>
+              </motion.div>
+          </div>
+      )}
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pt-4">
           <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome, {user.businessName}</h1>
               <p className="text-gray-500">Manage your queues and monitor real-time statuses.</p>
