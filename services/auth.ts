@@ -2,6 +2,8 @@ import { User } from '../types';
 
 const USERS_KEY = 'qblink_users_v1';
 const SESSION_KEY = 'qblink_session_v1';
+const ADMINS_KEY = 'qblink_admins_v1';
+const ROOT_ADMIN = 'ismailnsm75@gmail.com';
 
 // Helper to delay execution to simulate network request
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -196,13 +198,55 @@ export const authService = {
         }
     }
     
-    // Clear session
-    localStorage.removeItem(SESSION_KEY);
+    // Clear session if deleting self
+    const currentUser = authService.getCurrentUser();
+    if (currentUser && currentUser.email === normalizedEmail) {
+        localStorage.removeItem(SESSION_KEY);
+    }
   },
 
   // Logout
   logout: async () => {
     await delay(300);
     localStorage.removeItem(SESSION_KEY);
+  },
+
+  // --- Admin Management ---
+
+  getAdmins: (): string[] => {
+    const adminsStr = localStorage.getItem(ADMINS_KEY);
+    const storedAdmins: string[] = adminsStr ? JSON.parse(adminsStr) : [];
+    return Array.from(new Set([ROOT_ADMIN, ...storedAdmins]));
+  },
+
+  isAdmin: (email: string): boolean => {
+    const normalized = email.toLowerCase().trim();
+    if (normalized === ROOT_ADMIN) return true;
+    const admins = authService.getAdmins();
+    return admins.includes(normalized);
+  },
+
+  addAdmin: async (email: string): Promise<void> => {
+    await delay(500);
+    const normalized = email.toLowerCase().trim();
+    
+    const adminsStr = localStorage.getItem(ADMINS_KEY);
+    const storedAdmins: string[] = adminsStr ? JSON.parse(adminsStr) : [];
+    
+    if (!storedAdmins.includes(normalized) && normalized !== ROOT_ADMIN) {
+        storedAdmins.push(normalized);
+        localStorage.setItem(ADMINS_KEY, JSON.stringify(storedAdmins));
+    }
+  },
+
+  removeAdmin: async (email: string): Promise<void> => {
+    await delay(500);
+    const normalized = email.toLowerCase().trim();
+    if (normalized === ROOT_ADMIN) throw new Error("Cannot remove root admin");
+
+    const adminsStr = localStorage.getItem(ADMINS_KEY);
+    let storedAdmins: string[] = adminsStr ? JSON.parse(adminsStr) : [];
+    storedAdmins = storedAdmins.filter(a => a !== normalized);
+    localStorage.setItem(ADMINS_KEY, JSON.stringify(storedAdmins));
   }
 };

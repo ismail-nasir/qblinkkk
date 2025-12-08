@@ -17,8 +17,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Case-insensitive check for admin
-  const isAdmin = (user.email || '').toLowerCase().trim() === 'ismailnsm75@gmail.com';
+  // Check for admin privileges
+  const isAdmin = authService.isAdmin(user.email || '');
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -80,7 +80,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 <span className="hidden md:block text-sm font-semibold text-gray-700 max-w-[150px] truncate">
                     {user.businessName}
                 </span>
-                <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                <motion.div
+                  animate={{ rotate: isDropdownOpen ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                   <ChevronDown size={16} className="text-gray-400" />
+                </motion.div>
             </button>
 
             {/* Dropdown Menu */}

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { User, ActivityLog, QueueData } from '../types';
-import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Eye, Calendar, Mail, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Eye, Calendar, Mail, CheckCircle, AlertTriangle, Plus, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authService } from '../services/auth';
 import { queueService } from '../services/queue';
@@ -13,6 +13,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<(ActivityLog & { user: string, email: string })[]>([]);
+  const [admins, setAdmins] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
   // Real-time metrics
@@ -22,6 +23,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userQueueData, setUserQueueData] = useState<QueueData | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
 
   useEffect(() => {
     refreshData();
@@ -44,6 +47,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       const allUsers = authService.getAllUsers();
       setUsers(allUsers);
       setLogs(queueService.getSystemLogs(allUsers));
+      setAdmins(authService.getAdmins());
   };
 
   const handleUserClick = (user: User) => {
@@ -61,15 +65,43 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.businessName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleAddAdmin = async () => {
+      if (newAdminEmail && newAdminEmail.includes('@')) {
+          await authService.addAdmin(newAdminEmail);
+          setNewAdminEmail('');
+          refreshData();
+      }
+  };
 
-  const filteredLogs = logs.filter(l => 
-    l.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    l.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleRemoveAdmin = async (email: string) => {
+      if (confirm(`Remove admin privileges for ${email}?`)) {
+          try {
+              await authService.removeAdmin(email);
+              refreshData();
+          } catch (e: any) {
+              alert(e.message);
+          }
+      }
+  };
+
+  // Optimised search filtering
+  const filteredUsers = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return users.filter(u => 
+      u.email.toLowerCase().includes(term) || 
+      u.businessName.toLowerCase().includes(term)
+    );
+  }, [users, searchTerm]);
+
+  const filteredLogs = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return logs.filter(l => 
+        l.user.toLowerCase().includes(term) ||
+        l.email.toLowerCase().includes(term) ||
+        l.action.toLowerCase().includes(term) ||
+        l.ticket.toString().includes(term)
+    );
+  }, [logs, searchTerm]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] animate-fade-in relative">
@@ -95,7 +127,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 md:gap-4">
                      {/* Real-time visitors - Visible on all screens */}
                      <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
                          <div className="relative flex h-2 w-2">
@@ -104,9 +136,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                         </div>
                         <span className="text-xs font-bold text-green-700 whitespace-nowrap">{activeVisitors} Live Visitors</span>
                      </div>
-                    <div className="hidden md:flex text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-                        System Admin
-                    </div>
+                     
+                    <button 
+                        onClick={() => setShowAdminModal(true)}
+                        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-bold hover:bg-gray-50 transition-colors"
+                    >
+                        <Shield size={14} /> Manage Admins
+                    </button>
                 </div>
             </div>
         </div>
@@ -135,7 +171,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                         <input 
                             type="text" 
-                            placeholder={activeTab === 'users' ? "Search users..." : "Search logs..."}
+                            placeholder={activeTab === 'users' ? "Search users..." : "Search logs by ticket, action..."}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
@@ -265,6 +301,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                              <div className="flex flex-col items-center justify-center text-gray-400">
                                                 <FileText size={48} className="mb-4 opacity-20" />
                                                 <p className="text-lg font-medium text-gray-900">No logs found</p>
+                                                <p className="text-sm">Filter by user, ticket number, or action</p>
                                             </div>
                                         </td>
                                     </tr>
@@ -374,7 +411,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                             <button 
                                 onClick={() => {
                                     setUserToDelete(selectedUser);
-                                    // Don't close details yet, let confirmation overlay it
                                 }}
                                 className="px-4 py-2 bg-white text-red-600 border border-gray-200 hover:border-red-200 hover:bg-red-50 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2"
                             >
@@ -392,10 +428,73 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
             )}
         </AnimatePresence>
 
+        {/* Admin Management Modal */}
+        <AnimatePresence>
+            {showAdminModal && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+                    <motion.div 
+                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/50"
+                    >
+                         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <Shield size={18} className="text-primary-600" /> Manage Admins
+                             </h3>
+                             <button onClick={() => setShowAdminModal(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100">
+                                 <X size={18} />
+                             </button>
+                         </div>
+                         <div className="p-6">
+                             <div className="flex gap-2 mb-6">
+                                 <input 
+                                     type="email" 
+                                     placeholder="Enter admin email" 
+                                     value={newAdminEmail}
+                                     onChange={(e) => setNewAdminEmail(e.target.value)}
+                                     className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                                 />
+                                 <button 
+                                     onClick={handleAddAdmin}
+                                     disabled={!newAdminEmail}
+                                     className="px-4 py-2 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 disabled:opacity-50"
+                                 >
+                                     <Plus size={18} />
+                                 </button>
+                             </div>
+                             
+                             <div className="space-y-2">
+                                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Current Admins</p>
+                                 <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                     {admins.map((admin, idx) => (
+                                         <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 group">
+                                             <span className="text-sm font-medium text-gray-700">{admin}</span>
+                                             {admin !== 'ismailnsm75@gmail.com' && (
+                                                <button 
+                                                    onClick={() => handleRemoveAdmin(admin)}
+                                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                             )}
+                                             {admin === 'ismailnsm75@gmail.com' && (
+                                                 <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">ROOT</span>
+                                             )}
+                                         </div>
+                                     ))}
+                                 </div>
+                             </div>
+                         </div>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
+
         {/* Delete Confirmation Modal */}
         <AnimatePresence>
             {userToDelete && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
                     <motion.div 
                         initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
