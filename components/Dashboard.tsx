@@ -72,9 +72,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           <div className="relative" ref={dropdownRef}>
             <button 
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-3 p-1.5 pr-3 rounded-full hover:bg-white hover:shadow-sm transition-all duration-200 border border-transparent hover:border-gray-200 focus:outline-none"
+              className="flex items-center gap-2 sm:gap-3 p-1 sm:p-1.5 sm:pr-3 rounded-full hover:bg-white hover:shadow-sm transition-all duration-200 border border-transparent hover:border-gray-200 focus:outline-none"
             >
-                <div className="w-9 h-9 bg-gradient-to-br from-primary-100 to-cyan-100 text-primary-600 flex items-center justify-center font-bold rounded-full border-2 border-white shadow-sm">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-primary-100 to-cyan-100 text-primary-600 flex items-center justify-center font-bold rounded-full border-2 border-white shadow-sm text-sm sm:text-base">
                     {user.businessName.charAt(0).toUpperCase()}
                 </div>
                 <span className="hidden md:block text-sm font-semibold text-gray-700 max-w-[150px] truncate">
@@ -144,9 +144,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       </nav>
 
       {/* Main Content Area - Blank with Welcome Message */}
-      <main className="container mx-auto px-4 md:px-6 pt-12 md:pt-24 relative z-0">
-        <h1 className="text-3xl md:text-5xl font-extrabold text-gray-900 tracking-tight">
-            Welcome, <span className="text-primary-600">@{user.businessName}</span>
+      <main className="container mx-auto px-4 md:px-6 pt-12 md:pt-24 relative z-0 text-center md:text-left">
+        <h1 className="text-3xl sm:text-4xl md:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight">
+            Welcome, <br className="md:hidden" />
+            <span className="text-primary-600">@{user.businessName}</span>
         </h1>
       </main>
 
@@ -186,13 +187,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Business Name</label>
-                                <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-700 font-medium">
+                                <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-700 font-medium truncate">
                                     {user.businessName}
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email Address</label>
-                                <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-700 font-medium">
+                                <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-700 font-medium truncate">
                                     {user.email}
                                 </div>
                             </div>

@@ -114,56 +114,56 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                         onClick={onClose} 
                         className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
                     >
-                        <ArrowLeft size={18} /> Back
+                        <ArrowLeft size={18} /> <span className="hidden sm:inline">Back</span>
                     </button>
                     <div className="h-6 w-px bg-gray-200 mx-2 hidden md:block"></div>
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gradient-to-br from-gray-800 to-black text-white rounded-xl shadow-lg shadow-gray-900/10">
+                        <div className="p-2 bg-gradient-to-br from-gray-800 to-black text-white rounded-xl shadow-lg shadow-gray-900/10 hidden sm:block">
                             <ShieldAlert size={20} />
                         </div>
                         <div>
-                            <h2 className="text-lg md:text-xl font-bold text-gray-900 leading-tight">Admin Console</h2>
+                            <h2 className="text-lg md:text-xl font-bold text-gray-900 leading-tight">Admin<span className="hidden sm:inline"> Console</span></h2>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3 md:gap-4">
                      {/* Real-time visitors - Visible on all screens */}
-                     <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
+                     <div className="flex items-center gap-2 bg-green-50 px-2 sm:px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
                          <div className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </div>
-                        <span className="text-xs font-bold text-green-700 whitespace-nowrap">{activeVisitors} Live Visitors</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-green-700 whitespace-nowrap">{activeVisitors} Live</span>
                      </div>
                      
                     <button 
                         onClick={() => setShowAdminModal(true)}
-                        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-bold hover:bg-gray-50 transition-colors"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-bold hover:bg-gray-50 transition-colors"
                     >
-                        <Shield size={14} /> Manage Admins
+                        <Shield size={14} /> <span className="hidden sm:inline">Admins</span>
                     </button>
                 </div>
             </div>
         </div>
 
         {/* Main Content */}
-        <div className="container mx-auto px-4 md:px-6 py-8">
+        <div className="container mx-auto px-4 md:px-6 py-4 md:py-8">
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden min-h-[600px] flex flex-col">
                  {/* Tabs & Toolbar */}
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4 p-6 border-b border-gray-100">
-                    <div className="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4 p-4 md:p-6 border-b border-gray-100">
+                    <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100 w-full md:w-auto">
                         <button 
                             onClick={() => setActiveTab('users')}
-                            className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'users' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'users' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             <Users size={18} /> Users ({users.length})
                         </button>
                         <button 
                             onClick={() => setActiveTab('logs')}
-                            className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'logs' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'logs' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            <FileText size={18} /> System Logs ({logs.length})
+                            <FileText size={18} /> Logs
                         </button>
                     </div>
                     
@@ -171,7 +171,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                         <input 
                             type="text" 
-                            placeholder={activeTab === 'users' ? "Search users..." : "Search logs by ticket, action..."}
+                            placeholder={activeTab === 'users' ? "Search users..." : "Search logs..."}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium"
@@ -188,15 +188,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                 </div>
 
                 {/* Content Area */}
-                <div className="flex-1 overflow-x-auto">
+                <div className="flex-1 overflow-x-auto scrollbar-hide">
                     {activeTab === 'users' ? (
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse min-w-[600px]">
                             <thead>
                                 <tr className="bg-gray-50/50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500">
-                                    <th className="p-6 font-semibold">User Info</th>
-                                    <th className="p-6 font-semibold">Joined</th>
-                                    <th className="p-6 font-semibold">Status</th>
-                                    <th className="p-6 font-semibold text-right">Actions</th>
+                                    <th className="p-4 md:p-6 font-semibold">User Info</th>
+                                    <th className="p-4 md:p-6 font-semibold">Joined</th>
+                                    <th className="p-4 md:p-6 font-semibold">Status</th>
+                                    <th className="p-4 md:p-6 font-semibold text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
@@ -206,33 +206,33 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                         onClick={() => handleUserClick(user)}
                                         className="hover:bg-blue-50/30 transition-colors group cursor-pointer"
                                     >
-                                        <td className="p-6">
+                                        <td className="p-4 md:p-6">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-600 font-bold border border-white shadow-sm">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-600 font-bold border border-white shadow-sm shrink-0">
                                                     {user.businessName.charAt(0).toUpperCase()}
                                                 </div>
-                                                <div>
-                                                    <p className="font-bold text-gray-900 text-sm group-hover:text-primary-700 transition-colors">{user.businessName}</p>
-                                                    <p className="text-xs text-gray-500">{user.email}</p>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-gray-900 text-sm group-hover:text-primary-700 transition-colors truncate max-w-[150px]">{user.businessName}</p>
+                                                    <p className="text-xs text-gray-500 truncate max-w-[150px]">{user.email}</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-6">
+                                        <td className="p-4 md:p-6">
                                             <span className="text-sm font-medium text-gray-600">
                                                 {new Date(user.joinedAt).toLocaleDateString('en-US', {
                                                     year: 'numeric',
-                                                    month: 'long',
+                                                    month: 'short',
                                                     day: 'numeric'
                                                 })}
                                             </span>
                                         </td>
-                                        <td className="p-6">
+                                        <td className="p-4 md:p-6">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${user.isVerified ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
                                                 <span className={`w-1.5 h-1.5 rounded-full ${user.isVerified ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
                                                 {user.isVerified ? 'Verified' : 'Pending'}
                                             </span>
                                         </td>
-                                        <td className="p-6 text-right">
+                                        <td className="p-4 md:p-6 text-right">
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -260,29 +260,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                             </tbody>
                         </table>
                     ) : (
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse min-w-[600px]">
                             <thead>
                                 <tr className="bg-gray-50/50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500">
-                                    <th className="p-6 font-semibold">Time</th>
-                                    <th className="p-6 font-semibold">User</th>
-                                    <th className="p-6 font-semibold">Action</th>
-                                    <th className="p-6 font-semibold">Details</th>
+                                    <th className="p-4 md:p-6 font-semibold">Time</th>
+                                    <th className="p-4 md:p-6 font-semibold">User</th>
+                                    <th className="p-4 md:p-6 font-semibold">Action</th>
+                                    <th className="p-4 md:p-6 font-semibold">Details</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {filteredLogs.map((log, index) => (
                                     <tr key={index} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="p-6 text-sm text-gray-600 font-mono">
+                                        <td className="p-4 md:p-6 text-sm text-gray-600 font-mono whitespace-nowrap">
                                             {log.time}
                                         </td>
-                                        <td className="p-6">
-                                            <div>
-                                                <p className="font-bold text-gray-900 text-sm">{log.user}</p>
-                                                <p className="text-xs text-gray-400">{log.email}</p>
+                                        <td className="p-4 md:p-6">
+                                            <div className="min-w-0">
+                                                <p className="font-bold text-gray-900 text-sm truncate max-w-[120px]">{log.user}</p>
+                                                <p className="text-xs text-gray-400 truncate max-w-[120px]">{log.email}</p>
                                             </div>
                                         </td>
-                                        <td className="p-6">
-                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border
+                                        <td className="p-4 md:p-6">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border whitespace-nowrap
                                                 ${log.action === 'call' ? 'bg-blue-50 text-blue-700 border-blue-100' : ''}
                                                 ${log.action === 'complete' ? 'bg-green-50 text-green-700 border-green-100' : ''}
                                                 ${log.action === 'skip' ? 'bg-orange-50 text-orange-700 border-orange-100' : ''}
@@ -290,7 +290,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                                 {log.action}
                                             </span>
                                         </td>
-                                        <td className="p-6 text-sm text-gray-600 font-medium">
+                                        <td className="p-4 md:p-6 text-sm text-gray-600 font-medium whitespace-nowrap">
                                             Ticket #{log.ticket}
                                         </td>
                                     </tr>
@@ -325,12 +325,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                     >
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-primary-500/30">
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-primary-500/30 shrink-0">
                                     {selectedUser.businessName.charAt(0).toUpperCase()}
                                 </div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-gray-900">{selectedUser.businessName}</h3>
-                                    <p className="text-sm text-gray-500">{selectedUser.email}</p>
+                                <div className="min-w-0">
+                                    <h3 className="text-xl font-bold text-gray-900 truncate">{selectedUser.businessName}</h3>
+                                    <p className="text-sm text-gray-500 truncate">{selectedUser.email}</p>
                                 </div>
                             </div>
                             <button 
@@ -343,7 +343,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
 
                         <div className="p-6 overflow-y-auto">
                             {/* Stats Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                                 <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
                                     <div className="flex items-center gap-2 mb-1 text-blue-600 font-bold text-xs uppercase tracking-wider">
                                         <Calendar size={14} /> Joined
@@ -407,18 +407,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                             </div>
                         </div>
                         
-                        <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+                        <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row justify-end gap-3">
                             <button 
                                 onClick={() => {
                                     setUserToDelete(selectedUser);
                                 }}
-                                className="px-4 py-2 bg-white text-red-600 border border-gray-200 hover:border-red-200 hover:bg-red-50 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+                                className="px-4 py-3 sm:py-2 bg-white text-red-600 border border-gray-200 hover:border-red-200 hover:bg-red-50 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2"
                             >
                                 <Trash2 size={16} /> Delete User
                             </button>
                             <button 
                                 onClick={() => setSelectedUser(null)}
-                                className="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-gray-800 transition-all"
+                                className="px-6 py-3 sm:py-2 bg-gray-900 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-gray-800 transition-all"
                             >
                                 Close
                             </button>
@@ -469,7 +469,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
                                      {admins.map((admin, idx) => (
                                          <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 group">
-                                             <span className="text-sm font-medium text-gray-700">{admin}</span>
+                                             <span className="text-sm font-medium text-gray-700 truncate max-w-[200px]">{admin}</span>
                                              {admin !== 'ismailnsm75@gmail.com' && (
                                                 <button 
                                                     onClick={() => handleRemoveAdmin(admin)}
