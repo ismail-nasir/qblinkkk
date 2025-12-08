@@ -1,14 +1,7 @@
-
-
-
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Music, Save } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Music, Save, Play } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -42,6 +35,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(currentQueue.logo || null);
 
+  // Audio Context for preview
+  const previewAudioContextRef = useRef<AudioContext | null>(null);
+
   // Poll for updates (in case multiple devices/customers are interacting)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -49,6 +45,50 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     }, 1000); // Increased frequency for "instant" feel
     return () => clearInterval(interval);
   }, [queue.id]);
+
+  const playPreview = (type: string, vol: number) => {
+    if (!previewAudioContextRef.current) {
+         previewAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    const ctx = previewAudioContextRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    gainNode.gain.setValueAtTime(vol, ctx.currentTime);
+
+    switch (type) {
+        case 'chime':
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 1.5);
+            break;
+        case 'alarm':
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(600, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+            gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.5);
+            break;
+        case 'beep':
+        default:
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.3);
+            break;
+    }
+  };
 
   // QR Code Rendering Logic (Advanced Dot Style with Logo)
   useEffect(() => {
@@ -605,7 +645,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                         {['beep', 'chime', 'alarm'].map((type) => (
                                             <button
                                                 key={type}
-                                                onClick={() => setSettings({...settings, soundType: type as any})}
+                                                onClick={() => {
+                                                    setSettings({...settings, soundType: type as any});
+                                                    playPreview(type, settings.soundVolume);
+                                                }}
                                                 className={`py-2 text-sm font-bold rounded-lg border transition-all capitalize ${
                                                     settings.soundType === type 
                                                     ? 'bg-white border-primary-600 text-primary-600 shadow-sm' 
@@ -633,8 +676,17 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                             step="0.1"
                                             value={settings.soundVolume}
                                             onChange={(e) => setSettings({...settings, soundVolume: parseFloat(e.target.value)})}
+                                            onMouseUp={() => playPreview(settings.soundType, settings.soundVolume)}
+                                            onTouchEnd={() => playPreview(settings.soundType, settings.soundVolume)}
                                             className="w-full accent-primary-600 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                                          />
+                                         <button
+                                            onClick={() => playPreview(settings.soundType, settings.soundVolume)} 
+                                            className="p-2 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg text-gray-600 shadow-sm"
+                                            title="Test Sound"
+                                         >
+                                            <Play size={14} fill="currentColor" />
+                                         </button>
                                      </div>
                                 </div>
                             </div>
