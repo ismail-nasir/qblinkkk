@@ -69,15 +69,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                     </button>
                 </div>
                 
-                <div className="relative w-full md:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <div className="relative w-full md:w-64 group">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-500 transition-colors" size={16} />
                     <input 
                         type="text" 
                         placeholder="Search..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                        className="w-full pl-10 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                     />
+                    {searchTerm && (
+                        <button 
+                            onClick={() => setSearchTerm('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200/50 transition-all"
+                        >
+                            <X size={14} />
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -122,17 +130,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                                         });
                                                     }
                                                 }}
-                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
                                                 title="Delete User"
                                             >
-                                                <Trash2 size={16} />
+                                                <Trash2 size={18} />
                                             </button>
                                         </td>
                                     </tr>
                                 ))}
                                 {filteredUsers.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="p-8 text-center text-gray-500 text-sm">
+                                        <td colSpan={4} className="p-8 text-center text-gray-500">
                                             No users found matching "{searchTerm}"
                                         </td>
                                     </tr>
@@ -141,35 +149,51 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                         </table>
                     </div>
                 ) : (
-                    <div className="space-y-2">
-                        {filteredLogs.map((log, index) => (
-                            <div key={index} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between hover:shadow-sm transition-shadow">
-                                <div className="flex items-center gap-4">
-                                    <div className={`p-2 rounded-lg ${
-                                        log.action === 'call' ? 'bg-blue-50 text-blue-600' : 
-                                        log.action === 'complete' ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-600'
-                                    }`}>
-                                        <FileText size={16} />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-bold text-gray-900">
-                                            Ticket #{log.ticket} <span className="font-normal text-gray-500">was {log.action}ed</span>
-                                        </p>
-                                        <p className="text-xs text-gray-500">
-                                            by <span className="font-medium text-gray-700">{log.user}</span> ({log.email})
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="text-xs font-mono text-gray-400 bg-gray-50 px-2 py-1 rounded">
-                                    {log.time}
-                                </div>
-                            </div>
-                        ))}
-                        {filteredLogs.length === 0 && (
-                             <div className="p-12 text-center text-gray-500 text-sm bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                                No activity logs found.
-                            </div>
-                        )}
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50/50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500">
+                                    <th className="p-4 font-semibold">Time</th>
+                                    <th className="p-4 font-semibold">User</th>
+                                    <th className="p-4 font-semibold">Action</th>
+                                    <th className="p-4 font-semibold">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {filteredLogs.map((log, index) => (
+                                    <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                                        <td className="p-4 text-sm text-gray-600 font-mono">
+                                            {log.time}
+                                        </td>
+                                        <td className="p-4">
+                                            <div>
+                                                <p className="font-bold text-gray-900 text-xs">{log.user}</p>
+                                                <p className="text-[10px] text-gray-400">{log.email}</p>
+                                            </div>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide
+                                                ${log.action === 'call' ? 'bg-blue-50 text-blue-700' : ''}
+                                                ${log.action === 'complete' ? 'bg-green-50 text-green-700' : ''}
+                                                ${log.action === 'skip' ? 'bg-orange-50 text-orange-700' : ''}
+                                            `}>
+                                                {log.action}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-sm text-gray-600">
+                                            Ticket #{log.ticket}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredLogs.length === 0 && (
+                                    <tr>
+                                        <td colSpan={4} className="p-8 text-center text-gray-500">
+                                            No activity logs found.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>

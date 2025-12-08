@@ -16,7 +16,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = user.email === 'ismailnsm75@gmail.com';
+  // Case-insensitive check for admin
+  const isAdmin = (user.email || '').toLowerCase().trim() === 'ismailnsm75@gmail.com';
 
   // Close dropdown when clicking outside
   useEffect(() => {
