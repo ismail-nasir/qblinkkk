@@ -5,11 +5,12 @@ import { AppView } from '../types';
 
 interface NavbarProps {
   onGetStarted?: () => void;
+  onSignIn?: () => void;
   onNavigate?: (view: AppView) => void;
   currentView?: AppView;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ onGetStarted, onNavigate, currentView }) => {
+const Navbar: React.FC<NavbarProps> = ({ onGetStarted, onSignIn, onNavigate, currentView }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLinkClick = (id: string) => (e: React.MouseEvent) => {
@@ -81,7 +82,7 @@ const Navbar: React.FC<NavbarProps> = ({ onGetStarted, onNavigate, currentView }
         {/* Desktop Buttons */}
         <div className="hidden md:flex items-center gap-4">
           <button 
-            onClick={onGetStarted}
+            onClick={onSignIn}
             className="text-sm font-semibold text-gray-900 hover:text-primary-600 px-4 py-2 bg-white/50 rounded-full border border-white/60 hover:bg-white transition-all shadow-sm"
           >
             Sign In
@@ -119,13 +120,13 @@ const Navbar: React.FC<NavbarProps> = ({ onGetStarted, onNavigate, currentView }
                 
                 <div className="flex flex-col gap-3 mt-4 w-full px-2">
                   <button 
-                    onClick={onGetStarted} 
+                    onClick={() => { setIsOpen(false); if(onSignIn) onSignIn(); }}
                     className="w-full py-3.5 rounded-xl bg-gray-50 text-gray-900 font-semibold border border-gray-100 hover:bg-gray-100 transition-colors"
                   >
                     Sign In
                   </button>
                   <button 
-                    onClick={onGetStarted} 
+                    onClick={() => { setIsOpen(false); if(onGetStarted) onGetStarted(); }}
                     className="w-full py-3.5 rounded-xl bg-primary-600 text-white font-semibold shadow-lg shadow-primary-600/20 hover:bg-primary-700 transition-colors"
                   >
                     Get Started

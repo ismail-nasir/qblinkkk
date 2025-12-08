@@ -16,5 +16,6 @@ export enum AppView {
   DASHBOARD = 'DASHBOARD',
   PRIVACY = 'PRIVACY',
   TERMS = 'TERMS',
-  ABOUT = 'ABOUT'
+  ABOUT = 'ABOUT',
+  AUTH = 'AUTH'
 }

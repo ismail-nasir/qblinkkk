@@ -13,12 +13,26 @@ import PainPoints from './components/PainPoints';
 import About from './components/About';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Terms from './components/Terms';
+import Auth from './components/Auth';
 import { AppView } from './types';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.LANDING);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup');
 
   const handleGetStarted = () => {
+    setAuthMode('signup');
+    setView(AppView.AUTH);
+    window.scrollTo(0, 0);
+  };
+  
+  const handleSignIn = () => {
+    setAuthMode('login');
+    setView(AppView.AUTH);
+    window.scrollTo(0, 0);
+  };
+
+  const handleAuthSuccess = () => {
     setView(AppView.DASHBOARD);
     window.scrollTo(0, 0);
   };
@@ -33,6 +47,17 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
+  // Render Full Page Auth
+  if (view === AppView.AUTH) {
+    return (
+      <Auth 
+        initialMode={authMode} 
+        onLogin={handleAuthSuccess} 
+        onBack={handleBackToHome} 
+      />
+    );
+  }
+
   if (view === AppView.DASHBOARD) {
     return <Dashboard onBack={handleBackToHome} />;
   }
@@ -45,7 +70,7 @@ const App: React.FC = () => {
         <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-blue-200/30 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[-10%] left-[20%] w-[60%] h-[50%] bg-cyan-200/30 rounded-full blur-[120px] animate-blob animation-delay-4000"></div>
       </div>
-      <Navbar onGetStarted={handleGetStarted} onNavigate={handleNavigate} currentView={view} />
+      <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
       <main className="relative z-10 min-h-screen">
         {content}
       </main>
@@ -74,7 +99,7 @@ const App: React.FC = () => {
         <div className="absolute bottom-[-10%] left-[20%] w-[60%] h-[50%] bg-cyan-200/30 rounded-full blur-[120px] animate-blob animation-delay-4000"></div>
       </div>
 
-      <Navbar onGetStarted={handleGetStarted} onNavigate={handleNavigate} currentView={view} />
+      <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
       
       <main className="relative z-10">
         <Hero onGetStarted={handleGetStarted} />
