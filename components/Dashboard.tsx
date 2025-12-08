@@ -2,10 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, Settings, ChevronDown, Trash2, X, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User } from '../types';
+import { User, QueueInfo } from '../types';
 import { authService } from '../services/auth';
 import AdminPanel from './AdminPanel';
 import QueueManager from './QueueManager';
+import QueueList from './QueueList';
 
 interface DashboardProps {
   user: User;
@@ -17,6 +18,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Navigation State
+  const [selectedQueue, setSelectedQueue] = useState<QueueInfo | null>(null);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Check for admin privileges
@@ -61,7 +66,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         <div className="container mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between">
           
           {/* Logo */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSelectedQueue(null)}>
              <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-bold shadow-sm">
                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
@@ -145,9 +150,33 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </div>
       </nav>
 
-      {/* Main Content Area - Queue Manager */}
+      {/* Main Content Area */}
       <main className="container mx-auto pt-6 md:pt-10 relative z-0">
-          <QueueManager user={user} />
+          <AnimatePresence mode="wait">
+              {selectedQueue ? (
+                  <motion.div
+                    key="manager"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                      <QueueManager 
+                        queue={selectedQueue} 
+                        user={user}
+                        onBack={() => setSelectedQueue(null)} 
+                      />
+                  </motion.div>
+              ) : (
+                  <motion.div
+                    key="list"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                  >
+                      <QueueList user={user} onSelectQueue={setSelectedQueue} />
+                  </motion.div>
+              )}
+          </AnimatePresence>
       </main>
 
       {/* Settings Modal */}

@@ -14,11 +14,15 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [myVisitorId, setMyVisitorId] = useState<string | null>(localStorage.getItem(`qblink_visit_${queueId}`));
   const [joinName, setJoinName] = useState('');
   const [isJoined, setIsJoined] = useState(false);
+  const [queueInfo, setQueueInfo] = useState<any>(null); // To store name/code
 
   // Poll for updates
   useEffect(() => {
     const fetchData = () => {
         const data = queueService.getQueueData(queueId);
+        // Also fetch info if we don't have it (in a real app this would be optimized)
+        const info = queueService.getQueueInfo(queueId);
+        setQueueInfo(info);
         setQueueData(data);
     };
     fetchData();
@@ -70,7 +74,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                       <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-600">
                           <Users size={32} />
                       </div>
-                      <h1 className="text-2xl font-bold text-gray-900">Join the Queue</h1>
+                      <h1 className="text-2xl font-bold text-gray-900">{queueInfo ? queueInfo.name : 'Join Queue'}</h1>
                       <p className="text-gray-500 mt-2">Enter your name to hold your spot.</p>
                   </div>
                   
@@ -109,7 +113,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
             <div className="bg-white/80 backdrop-blur-md p-6 pb-4 z-10 border-b border-gray-100">
                 <div className="flex justify-between items-start mb-1">
                     <div>
-                        <h3 className="text-xl font-bold text-gray-900">Queue #{queueId.slice(0,4)}</h3>
+                        <h3 className="text-xl font-bold text-gray-900">{queueInfo?.name || 'Queue'}</h3>
                         <p className="text-gray-400 text-xs font-medium">Your Turn is Coming</p>
                     </div>
                     <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1">

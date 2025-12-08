@@ -1,16 +1,18 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, QueueData, Visitor } from '../types';
+import { User, QueueData, Visitor, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface QueueManagerProps {
   user: User;
+  queue: QueueInfo;
+  onBack: () => void;
 }
 
-const QueueManager: React.FC<QueueManagerProps> = ({ user }) => {
-  const [queueData, setQueueData] = useState<QueueData>(queueService.getQueueData(user.id));
+const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
+  const [queueData, setQueueData] = useState<QueueData>(queueService.getQueueData(queue.id));
   const [showQrModal, setShowQrModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newVisitorName, setNewVisitorName] = useState('');
@@ -20,13 +22,13 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user }) => {
   // Poll for updates (in case multiple devices/customers are interacting)
   useEffect(() => {
     const interval = setInterval(() => {
-      setQueueData(queueService.getQueueData(user.id));
+      setQueueData(queueService.getQueueData(queue.id));
     }, 2000);
     return () => clearInterval(interval);
-  }, [user.id]);
+  }, [queue.id]);
 
   const handleCallNext = () => {
-    const newData = queueService.callNext(user.id);
+    const newData = queueService.callNext(queue.id);
     setQueueData(newData);
   };
 
@@ -34,7 +36,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user }) => {
       e.preventDefault();
       const num = parseInt(callNumberInput);
       if (!isNaN(num)) {
-          const newData = queueService.callByNumber(user.id, num);
+          const newData = queueService.callByNumber(queue.id, num);
           setQueueData(newData);
           setShowCallModal(false);
           setCallNumberInput('');
@@ -43,51 +45,62 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user }) => {
 
   const handleAddVisitor = (e: React.FormEvent) => {
       e.preventDefault();
-      queueService.joinQueue(user.id, newVisitorName);
-      setQueueData(queueService.getQueueData(user.id)); // Refresh
+      queueService.joinQueue(queue.id, newVisitorName);
+      setQueueData(queueService.getQueueData(queue.id)); // Refresh
       setNewVisitorName('');
       setShowAddModal(false);
   };
 
   const handleRemoveVisitors = () => {
       if (confirm("Are you sure you want to clear the entire waiting list?")) {
-          const newData = queueService.clearQueue(user.id);
+          const newData = queueService.clearQueue(queue.id);
           setQueueData(newData);
       }
   };
 
   const handleTakeBack = () => {
-      const newData = queueService.takeBack(user.id);
+      const newData = queueService.takeBack(queue.id);
       setQueueData(newData);
   };
 
   const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting');
   
   // URL for the QR Code
-  // In a real app, this would be the actual URL. Here we simulate.
-  const joinUrl = `${window.location.origin}?view=customer&queueId=${user.id}`;
+  const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
 
   return (
     <div className="container mx-auto px-4 pb-20 max-w-5xl">
       {/* Top Bar */}
-      <div className="flex justify-between items-center py-6">
-        <div>
-            <h1 className="text-2xl font-bold text-gray-900">{user.businessName}</h1>
-            <p className="text-sm text-gray-500 font-mono">Queue ID: {user.id.slice(0, 8).toUpperCase()}</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-6">
+        <div className="flex items-center gap-4">
+            <button 
+                onClick={onBack}
+                className="p-2 -ml-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all"
+            >
+                <ArrowLeft size={24} />
+            </button>
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900">{queue.name}</h1>
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-bold">{queue.code}</span>
+                    <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                    <span className="text-sm text-green-600 font-bold">{queue.status}</span>
+                </div>
+            </div>
         </div>
         <div className="flex gap-2">
             <button 
                 onClick={() => setShowQrModal(true)}
-                className="p-2 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm"
+                className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm flex items-center gap-2"
             >
-                <QrCode size={20} />
+                <QrCode size={20} /> <span className="md:hidden font-bold text-sm">QR Code</span>
             </button>
              <button 
-                onClick={() => window.open(`${window.location.origin}?view=display&queueId=${user.id}`, '_blank')}
-                className="p-2 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm hidden md:block"
+                onClick={() => window.open(`${window.location.origin}?view=display&queueId=${queue.id}`, '_blank')}
+                className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm flex items-center gap-2"
                 title="Open Display Screen"
             >
-                <Share2 size={20} />
+                <Share2 size={20} /> <span className="md:hidden font-bold text-sm">Display</span>
             </button>
         </div>
       </div>
@@ -201,11 +214,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user }) => {
                     exit={{ scale: 0.9, opacity: 0 }}
                     className="bg-white rounded-3xl p-8 max-w-sm w-full text-center"
                   >
-                      <h3 className="text-xl font-bold mb-2">Join Queue</h3>
+                      <h3 className="text-xl font-bold mb-2">{queue.name}</h3>
                       <p className="text-gray-500 text-sm mb-6">Scan to join the queue instantly</p>
                       
                       <div className="bg-white p-4 rounded-2xl border-2 border-gray-100 inline-block mb-6 shadow-sm">
-                           {/* Use QR Server API for simplicity in this env */}
                            <img 
                                 src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`} 
                                 alt="Queue QR Code" 
@@ -218,7 +230,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user }) => {
                              onClick={() => {
                                  const link = document.createElement('a');
                                  link.href = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(joinUrl)}`;
-                                 link.download = 'queue-qr.png';
+                                 link.download = `queue-qr-${queue.code}.png`;
                                  link.target = '_blank';
                                  link.click();
                              }}

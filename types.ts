@@ -20,7 +20,17 @@ export interface Visitor {
   status: 'waiting' | 'serving' | 'served' | 'cancelled';
 }
 
+export interface QueueInfo {
+  id: string;
+  userId: string;
+  name: string;
+  code: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+}
+
 export interface QueueData {
+  queueId: string; // Added queueId
   currentTicket: number;
   metrics: QueueMetric;
   recentActivity: ActivityLog[];

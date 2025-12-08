@@ -1,9 +1,14 @@
 
-import { QueueData, QueueMetric, ActivityLog, User, Visitor } from '../types';
+import { QueueData, QueueMetric, ActivityLog, User, Visitor, QueueInfo } from '../types';
 
 const DATA_KEY_PREFIX = 'qblink_data_';
+const QUEUES_KEY_PREFIX = 'qblink_queues_';
 
-const INITIAL_DATA: QueueData = {
+const generateShortCode = () => {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+};
+
+const INITIAL_DATA: Omit<QueueData, 'queueId'> = {
   currentTicket: 0,
   lastCalledNumber: 0,
   metrics: {
@@ -15,50 +20,116 @@ const INITIAL_DATA: QueueData = {
   visitors: []
 };
 
-const getKey = (userId: string) => `${DATA_KEY_PREFIX}${userId}`;
+// Helper to get queue data key
+const getDataKey = (queueId: string) => `${DATA_KEY_PREFIX}${queueId}`;
+// Helper to get user queues key
+const getUserQueuesKey = (userId: string) => `${QUEUES_KEY_PREFIX}${userId}`;
 
 export const queueService = {
-  // Get data for a specific user (or generic if userId provided)
-  getQueueData: (userId: string): QueueData => {
-    const dataStr = localStorage.getItem(getKey(userId));
+  // --- Queue Management (Multi-Queue) ---
+
+  // Get all queues for a user
+  getUserQueues: (userId: string): QueueInfo[] => {
+    const key = getUserQueuesKey(userId);
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  },
+
+  // Create a new queue
+  createQueue: (userId: string, name: string): QueueInfo => {
+    const queues = queueService.getUserQueues(userId);
+    
+    const newQueue: QueueInfo = {
+      id: crypto.randomUUID(),
+      userId,
+      name,
+      code: generateShortCode(),
+      status: 'active',
+      createdAt: new Date().toISOString()
+    };
+
+    queues.push(newQueue);
+    localStorage.setItem(getUserQueuesKey(userId), JSON.stringify(queues));
+    
+    // Initialize Data for this queue
+    const initialQueueData: QueueData = {
+        ...INITIAL_DATA,
+        queueId: newQueue.id
+    };
+    localStorage.setItem(getDataKey(newQueue.id), JSON.stringify(initialQueueData));
+
+    return newQueue;
+  },
+
+  // Delete a queue
+  deleteQueue: (userId: string, queueId: string) => {
+      const queues = queueService.getUserQueues(userId);
+      const updatedQueues = queues.filter(q => q.id !== queueId);
+      localStorage.setItem(getUserQueuesKey(userId), JSON.stringify(updatedQueues));
+      localStorage.removeItem(getDataKey(queueId));
+  },
+
+  // Get metadata for a specific queue by ID (useful for public views)
+  getQueueInfo: (queueId: string): QueueInfo | null => {
+      // In a real DB, we'd query by ID. 
+      // In localStorage, we have to iterate all users or store a global map.
+      // For this demo, we assume we might not need the owner info immediately, 
+      // OR we scan keys. Scanning keys is safer for this 'database'.
+      
+      // Optimization: We can store a global map of queueId -> userId, 
+      // but let's just search since it's local.
+      for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(QUEUES_KEY_PREFIX)) {
+              const queues: QueueInfo[] = JSON.parse(localStorage.getItem(key) || '[]');
+              const found = queues.find(q => q.id === queueId);
+              if (found) return found;
+          }
+      }
+      return null;
+  },
+
+
+  // --- Data Operations (Specific to a Queue ID) ---
+
+  // Get data for a specific queue
+  getQueueData: (queueId: string): QueueData => {
+    const dataStr = localStorage.getItem(getDataKey(queueId));
     if (!dataStr) {
-      return { ...INITIAL_DATA };
+      // Fallback for legacy data (if queueId passed was actually userId in old version)
+      // or just return empty initial data
+      return { ...INITIAL_DATA, queueId };
     }
     try {
       const parsed = JSON.parse(dataStr);
-      // Ensure compatibility with old data structure
-      return { ...INITIAL_DATA, ...parsed };
+      return { ...INITIAL_DATA, ...parsed, queueId };
     } catch {
-      return { ...INITIAL_DATA };
+      return { ...INITIAL_DATA, queueId };
     }
   },
 
-  // Save data helper
-  saveQueueData: (userId: string, data: QueueData) => {
-    localStorage.setItem(getKey(userId), JSON.stringify(data));
+  saveQueueData: (queueId: string, data: QueueData) => {
+    localStorage.setItem(getDataKey(queueId), JSON.stringify(data));
   },
 
   // Get aggregated system logs (Admin)
   getSystemLogs: (users: User[]): (ActivityLog & { user: string, email: string })[] => {
     let allLogs: (ActivityLog & { user: string, email: string })[] = [];
     
+    // Iterate users, then their queues
     users.forEach(user => {
-        const dataStr = localStorage.getItem(getKey(user.id));
-        if (dataStr) {
-            try {
-                const data: QueueData = JSON.parse(dataStr);
-                if (data.recentActivity && data.recentActivity.length > 0) {
-                    const labeledLogs = data.recentActivity.map(log => ({
-                        ...log,
-                        user: user.businessName,
-                        email: user.email
-                    }));
-                    allLogs = [...allLogs, ...labeledLogs];
-                }
-            } catch (e) {
-                // Ignore malformed data
+        const queues = queueService.getUserQueues(user.id);
+        queues.forEach(queue => {
+            const data = queueService.getQueueData(queue.id);
+            if (data.recentActivity && data.recentActivity.length > 0) {
+                 const labeledLogs = data.recentActivity.map(log => ({
+                    ...log,
+                    user: `${user.businessName} (${queue.name})`,
+                    email: user.email
+                }));
+                allLogs = [...allLogs, ...labeledLogs];
             }
-        }
+        });
     });
     return allLogs.reverse(); 
   },
@@ -66,10 +137,9 @@ export const queueService = {
   // --- ACTIONS ---
 
   // Customer Joins Queue
-  joinQueue: (userId: string, name: string): { visitor: Visitor, queueData: QueueData } => {
-    const data = queueService.getQueueData(userId);
+  joinQueue: (queueId: string, name: string): { visitor: Visitor, queueData: QueueData } => {
+    const data = queueService.getQueueData(queueId);
     
-    // Calculate new ticket number (highest ticket + 1, or 1)
     const maxTicket = data.visitors.reduce((max, v) => Math.max(max, v.ticketNumber), data.lastCalledNumber);
     const newTicketNumber = maxTicket + 1;
 
@@ -83,7 +153,6 @@ export const queueService = {
 
     const updatedVisitors = [...data.visitors, newVisitor];
     
-    // Update metrics
     const newMetrics = {
         ...data.metrics,
         waiting: updatedVisitors.filter(v => v.status === 'waiting').length
@@ -103,16 +172,15 @@ export const queueService = {
         recentActivity: [newActivity, ...data.recentActivity].slice(0, 50)
     };
 
-    queueService.saveQueueData(userId, updatedData);
+    queueService.saveQueueData(queueId, updatedData);
     return { visitor: newVisitor, queueData: updatedData };
   },
 
-  // Customer Leaves Queue
-  leaveQueue: (userId: string, visitorId: string) => {
-      const data = queueService.getQueueData(userId);
+  leaveQueue: (queueId: string, visitorId: string) => {
+      const data = queueService.getQueueData(queueId);
       const updatedVisitors = data.visitors.map(v => 
           v.id === visitorId ? { ...v, status: 'cancelled' as const } : v
-      ).filter(v => v.status !== 'cancelled'); // Actually remove them or keep as cancelled? Let's remove for cleaner list, or keep for history. Requirements said "Leave Queue", usually implies removal.
+      ).filter(v => v.status !== 'cancelled');
 
       const visitor = data.visitors.find(v => v.id === visitorId);
       
@@ -129,22 +197,19 @@ export const queueService = {
           recentActivity: [newActivity, ...data.recentActivity].slice(0, 50)
       };
 
-      queueService.saveQueueData(userId, updatedData);
+      queueService.saveQueueData(queueId, updatedData);
       return updatedData;
   },
 
-  // Manager Calls Next
-  callNext: (userId: string) => {
-    const data = queueService.getQueueData(userId);
+  callNext: (queueId: string) => {
+    const data = queueService.getQueueData(queueId);
     
-    // Find next waiting
     const nextVisitor = data.visitors
         .filter(v => v.status === 'waiting')
         .sort((a, b) => a.ticketNumber - b.ticketNumber)[0];
 
-    if (!nextVisitor) return data; // No one to call
+    if (!nextVisitor) return data;
 
-    // Mark previous serving as served (if any)
     const updatedVisitors = data.visitors.map(v => {
         if (v.status === 'serving') return { ...v, status: 'served' as const };
         if (v.id === nextVisitor.id) return { ...v, status: 'serving' as const };
@@ -172,13 +237,12 @@ export const queueService = {
         recentActivity: [newActivity, ...data.recentActivity].slice(0, 50)
     };
 
-    queueService.saveQueueData(userId, updatedData);
+    queueService.saveQueueData(queueId, updatedData);
     return updatedData;
   },
 
-  // Manager Calls Specific Number
-  callByNumber: (userId: string, ticketNumber: number) => {
-      const data = queueService.getQueueData(userId);
+  callByNumber: (queueId: string, ticketNumber: number) => {
+      const data = queueService.getQueueData(queueId);
       const visitor = data.visitors.find(v => v.ticketNumber === ticketNumber);
 
       if (!visitor) return data;
@@ -205,16 +269,14 @@ export const queueService = {
           recentActivity: [newActivity, ...data.recentActivity].slice(0, 50)
       };
 
-      queueService.saveQueueData(userId, updatedData);
+      queueService.saveQueueData(queueId, updatedData);
       return updatedData;
   },
 
-  // Take Back (Undo served status of last called)
-  takeBack: (userId: string) => {
-      const data = queueService.getQueueData(userId);
+  takeBack: (queueId: string) => {
+      const data = queueService.getQueueData(queueId);
       if (data.lastCalledNumber === 0) return data;
 
-      // Find the currently serving or last served
       const updatedVisitors = data.visitors.map(v => {
           if (v.ticketNumber === data.lastCalledNumber) {
               return { ...v, status: 'waiting' as const };
@@ -222,25 +284,18 @@ export const queueService = {
           return v;
       });
 
-      // We don't decrement served count to keep history accurate, or we do? 
-      // Let's assume "Take back" means "oops, they aren't done or I clicked wrong"
-      // So we put them back in waiting.
-
       const updatedData = {
           ...data,
           visitors: updatedVisitors,
           metrics: { ...data.metrics, waiting: updatedVisitors.filter(v => v.status === 'waiting').length },
-          // Don't change lastCalledNumber immediately or set it to previous?
-          // For simplicity, just update the status.
       };
       
-      queueService.saveQueueData(userId, updatedData);
+      queueService.saveQueueData(queueId, updatedData);
       return updatedData;
   },
   
-  // Clear Queue
-  clearQueue: (userId: string) => {
-      const data = queueService.getQueueData(userId);
+  clearQueue: (queueId: string) => {
+      const data = queueService.getQueueData(queueId);
       
       const newActivity: ActivityLog = {
           ticket: 0,
@@ -255,12 +310,12 @@ export const queueService = {
           metrics: { ...data.metrics, waiting: 0 },
           recentActivity: [newActivity, ...data.recentActivity].slice(0, 50)
       };
-      queueService.saveQueueData(userId, updatedData);
+      queueService.saveQueueData(queueId, updatedData);
       return updatedData;
   },
 
-  reset: (userId: string) => {
-    localStorage.setItem(getKey(userId), JSON.stringify(INITIAL_DATA));
-    return INITIAL_DATA;
+  reset: (queueId: string) => {
+    localStorage.setItem(getDataKey(queueId), JSON.stringify({ ...INITIAL_DATA, queueId }));
+    return { ...INITIAL_DATA, queueId };
   }
 };
