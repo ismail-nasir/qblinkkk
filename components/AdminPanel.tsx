@@ -16,7 +16,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   
   // Real-time metrics
-  const [activeVisitors, setActiveVisitors] = useState(124);
+  const [activeVisitors, setActiveVisitors] = useState(142);
   
   // Modal states
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -29,12 +29,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
 
   // Simulate real-time visitor fluctuations
   useEffect(() => {
+      // Fluctuate visitor count to make it look live
       const interval = setInterval(() => {
           setActiveVisitors(prev => {
-              const change = Math.floor(Math.random() * 7) - 3; // -3 to +3
-              return Math.max(50, prev + change);
+              const change = Math.floor(Math.random() * 9) - 4; // -4 to +4
+              const newValue = prev + change;
+              return newValue < 40 ? 40 : newValue; // Minimum 40
           });
-      }, 3000);
+      }, 2000); // Update every 2 seconds
       return () => clearInterval(interval);
   }, []);
 
@@ -94,15 +96,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                 </div>
 
                 <div className="flex items-center gap-4">
-                     <div className="hidden md:flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full border border-green-100">
+                     {/* Real-time visitors - Visible on all screens */}
+                     <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full border border-green-100 shadow-sm">
                          <div className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </div>
-                        <span className="text-xs font-bold text-green-700">{activeVisitors} Live Visitors</span>
+                        <span className="text-xs font-bold text-green-700 whitespace-nowrap">{activeVisitors} Live Visitors</span>
                      </div>
                     <div className="hidden md:flex text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-                        System Administrator
+                        System Admin
                     </div>
                 </div>
             </div>
