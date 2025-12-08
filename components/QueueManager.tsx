@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
 import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save } from 'lucide-react';
@@ -39,13 +39,31 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   // Audio Context for preview
   const previewAudioContextRef = useRef<AudioContext | null>(null);
 
+  const fetchData = useCallback(() => {
+      setQueueData(queueService.getQueueData(queue.id));
+  }, [queue.id]);
+
   // Poll for updates (in case multiple devices/customers are interacting)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setQueueData(queueService.getQueueData(queue.id));
-    }, 1000); // Increased frequency for "instant" feel
-    return () => clearInterval(interval);
-  }, [queue.id]);
+    // Initial fetch
+    fetchData();
+
+    // Poll every second
+    const interval = setInterval(fetchData, 1000);
+
+    // Listen for storage events (Instant updates across tabs)
+    const handleStorageChange = (e: StorageEvent) => {
+        if (e.key && (e.key.startsWith('qblink_data_') || e.key.startsWith('qblink_queues_'))) {
+            fetchData();
+        }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+        clearInterval(interval);
+        window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [fetchData]);
 
   const playPreview = (type: string, vol: number) => {
     if (!previewAudioContextRef.current) {

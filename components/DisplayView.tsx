@@ -1,6 +1,5 @@
 
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,21 +13,33 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
   const [queueInfo, setQueueInfo] = useState<QueueInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Initial fetch
-    const fetchData = () => {
+  const fetchData = useCallback(() => {
         const data = queueService.getQueueData(queueId);
         const info = queueService.getQueueInfo(queueId);
         setQueueData(data);
         setQueueInfo(info);
         setLoading(false);
-    };
+  }, [queueId]);
+
+  useEffect(() => {
+    // Initial fetch
     fetchData();
 
     // Poll for updates
     const interval = setInterval(fetchData, 2000);
-    return () => clearInterval(interval);
-  }, [queueId]);
+
+    const handleStorageChange = (e: StorageEvent) => {
+        if (e.key && e.key.startsWith('qblink_data_')) {
+            fetchData();
+        }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+        clearInterval(interval);
+        window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [fetchData]);
 
   if (loading || !queueData) {
       return (

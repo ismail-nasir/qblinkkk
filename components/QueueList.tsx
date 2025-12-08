@@ -126,7 +126,19 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
     loadQueues();
     // Real-time polling every 3 seconds
     const interval = setInterval(loadQueues, 3000);
-    return () => clearInterval(interval);
+    
+    // Listen for storage events (Instant updates across tabs)
+    const handleStorageChange = (e: StorageEvent) => {
+        if (e.key && (e.key.startsWith('qblink_data_') || e.key.startsWith('qblink_queues_'))) {
+            loadQueues();
+        }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+        clearInterval(interval);
+        window.removeEventListener('storage', handleStorageChange);
+    };
   }, [loadQueues]);
 
   const handleCreateQueue = (e: React.FormEvent) => {

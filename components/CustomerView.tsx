@@ -1,7 +1,5 @@
 
-
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
 import { LogOut, Zap, Users, Bell, CheckCircle } from 'lucide-react';
@@ -25,18 +23,30 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const alertIntervalRef = useRef<number | null>(null);
 
-  // Poll for updates
-  useEffect(() => {
-    const fetchData = () => {
+  const fetchData = useCallback(() => {
         const data = queueService.getQueueData(queueId);
         const info = queueService.getQueueInfo(queueId);
         setQueueInfo(info);
         setQueueData(data);
-    };
+  }, [queueId]);
+
+  // Poll for updates and listen to storage events
+  useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 2000);
-    return () => clearInterval(interval);
-  }, [queueId]);
+
+    const handleStorageChange = (e: StorageEvent) => {
+        if (e.key && e.key.startsWith('qblink_data_')) {
+            fetchData();
+        }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+        clearInterval(interval);
+        window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [fetchData]);
 
   // Handle Logic updates
   useEffect(() => {
