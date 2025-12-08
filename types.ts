@@ -27,6 +27,7 @@ export interface QueueInfo {
   code: string;
   status: 'active' | 'inactive';
   createdAt: string;
+  estimatedWaitTime?: number; // Manual override for wait time
 }
 
 export interface QueueData {

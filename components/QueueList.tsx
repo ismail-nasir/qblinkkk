@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { User, QueueInfo, QueueData } from '../types';
 import { queueService } from '../services/queue';
@@ -15,6 +16,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   const [queueStats, setQueueStats] = useState<Record<string, QueueData>>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newQueueName, setNewQueueName] = useState('');
+  const [estimatedTime, setEstimatedTime] = useState('');
   
   // Aggregate Stats State
   const [stats, setStats] = useState({
@@ -69,8 +71,10 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   const handleCreateQueue = (e: React.FormEvent) => {
       e.preventDefault();
       if (!newQueueName.trim()) return;
-      queueService.createQueue(user.id, newQueueName);
+      const waitTime = estimatedTime ? parseInt(estimatedTime) : 5;
+      queueService.createQueue(user.id, newQueueName, waitTime);
       setNewQueueName('');
+      setEstimatedTime('');
       setShowCreateModal(false);
       loadQueues();
   };
@@ -270,18 +274,34 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                     className="bg-white rounded-3xl p-8 max-w-md w-full"
                   >
                       <h3 className="text-2xl font-bold mb-2">Create New Queue</h3>
-                      <p className="text-gray-500 mb-6">Give your queue a name to get started.</p>
+                      <p className="text-gray-500 mb-6">Set up your queue details.</p>
                       
                       <form onSubmit={handleCreateQueue}>
-                          <label className="block text-sm font-bold text-gray-700 mb-2">Queue Name</label>
-                          <input 
-                            autoFocus
-                            type="text" 
-                            placeholder="e.g. Counter 1, Takeout, Dr. Smith" 
-                            value={newQueueName}
-                            onChange={(e) => setNewQueueName(e.target.value)}
-                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-6 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
-                          />
+                          <div className="space-y-4 mb-6">
+                              <div>
+                                  <label className="block text-sm font-bold text-gray-700 mb-2">Queue Name</label>
+                                  <input 
+                                    autoFocus
+                                    type="text" 
+                                    placeholder="e.g. Counter 1, Takeout" 
+                                    value={newQueueName}
+                                    onChange={(e) => setNewQueueName(e.target.value)}
+                                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
+                                  />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-bold text-gray-700 mb-2">Est. Minutes per Customer</label>
+                                  <input 
+                                    type="number" 
+                                    placeholder="5" 
+                                    min="1"
+                                    value={estimatedTime}
+                                    onChange={(e) => setEstimatedTime(e.target.value)}
+                                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
+                                  />
+                                  <p className="text-xs text-gray-400 mt-1">If left blank, system will auto-estimate.</p>
+                              </div>
+                          </div>
                           
                           <div className="flex gap-3">
                               <button 

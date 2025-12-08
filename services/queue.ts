@@ -1,4 +1,5 @@
 
+
 import { QueueData, QueueMetric, ActivityLog, User, Visitor, QueueInfo } from '../types';
 
 const DATA_KEY_PREFIX = 'qblink_data_';
@@ -36,7 +37,7 @@ export const queueService = {
   },
 
   // Create a new queue
-  createQueue: (userId: string, name: string): QueueInfo => {
+  createQueue: (userId: string, name: string, estimatedWaitTime?: number): QueueInfo => {
     const queues = queueService.getUserQueues(userId);
     
     const newQueue: QueueInfo = {
@@ -45,7 +46,8 @@ export const queueService = {
       name,
       code: generateShortCode(),
       status: 'active',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      estimatedWaitTime: estimatedWaitTime || undefined
     };
 
     queues.push(newQueue);
@@ -54,7 +56,11 @@ export const queueService = {
     // Initialize Data for this queue
     const initialQueueData: QueueData = {
         ...INITIAL_DATA,
-        queueId: newQueue.id
+        queueId: newQueue.id,
+        metrics: {
+            ...INITIAL_DATA.metrics,
+            avgWaitTime: estimatedWaitTime || 5 // Use manual estimate if provided
+        }
     };
     localStorage.setItem(getDataKey(newQueue.id), JSON.stringify(initialQueueData));
 
