@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, Settings, ChevronDown, Trash2, X, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User } from '../types';
 import { authService } from '../services/auth';
 import AdminPanel from './AdminPanel';
+import QueueManager from './QueueManager';
 
 interface DashboardProps {
   user: User;
@@ -143,12 +145,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </div>
       </nav>
 
-      {/* Main Content Area - Blank with Welcome Message */}
-      <main className="container mx-auto px-4 md:px-6 pt-12 md:pt-24 relative z-0 text-center md:text-left">
-        <h1 className="text-3xl sm:text-4xl md:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight break-words">
-            Welcome, <br className="md:hidden" />
-            <span className="text-primary-600 block sm:inline">@{user.businessName}</span>
-        </h1>
+      {/* Main Content Area - Queue Manager */}
+      <main className="container mx-auto pt-6 md:pt-10 relative z-0">
+          <QueueManager user={user} />
       </main>
 
       {/* Settings Modal */}

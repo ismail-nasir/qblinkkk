@@ -1,3 +1,4 @@
+
 export interface QueueMetric {
   waiting: number;
   served: number;
@@ -7,13 +8,24 @@ export interface QueueMetric {
 export interface ActivityLog {
   ticket: number;
   time: string;
-  action: 'call' | 'skip' | 'complete';
+  action: 'call' | 'skip' | 'complete' | 'join' | 'leave';
+  details?: string;
+}
+
+export interface Visitor {
+  id: string;
+  ticketNumber: number;
+  name: string;
+  joinTime: string; // ISO string
+  status: 'waiting' | 'serving' | 'served' | 'cancelled';
 }
 
 export interface QueueData {
   currentTicket: number;
   metrics: QueueMetric;
   recentActivity: ActivityLog[];
+  visitors: Visitor[];
+  lastCalledNumber: number;
 }
 
 export interface User {
@@ -37,5 +49,7 @@ export enum AppView {
   PRIVACY = 'PRIVACY',
   TERMS = 'TERMS',
   ABOUT = 'ABOUT',
-  AUTH = 'AUTH'
+  AUTH = 'AUTH',
+  CUSTOMER = 'CUSTOMER',
+  DISPLAY = 'DISPLAY'
 }

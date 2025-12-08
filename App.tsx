@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -14,6 +15,8 @@ import About from './components/About';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Terms from './components/Terms';
 import Auth from './components/Auth';
+import CustomerView from './components/CustomerView';
+import DisplayView from './components/DisplayView';
 import { AppView, User } from './types';
 import { authService } from './services/auth';
 import { Loader2 } from 'lucide-react';
@@ -23,20 +26,39 @@ const App: React.FC = () => {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup');
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [urlParams, setUrlParams] = useState<{ queueId?: string, view?: string }>({});
 
-  // Check for session on mount
+  // Check for session & URL params on mount
   useEffect(() => {
-    const initAuth = async () => {
+    const init = async () => {
+      // 1. Parse URL Params
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view');
+      const queueIdParam = params.get('queueId');
+      
+      setUrlParams({ queueId: queueIdParam || undefined, view: viewParam || undefined });
+
+      if (viewParam === 'customer' && queueIdParam) {
+          setView(AppView.CUSTOMER);
+          setIsInitializing(false);
+          return;
+      }
+
+      if (viewParam === 'display' && queueIdParam) {
+          setView(AppView.DISPLAY);
+          setIsInitializing(false);
+          return;
+      }
+
+      // 2. Check Auth
       const currentUser = authService.getCurrentUser();
       if (currentUser) {
         setUser(currentUser);
-        // Only go to dashboard if we are already there or on landing, 
-        // otherwise let the url/view logic handle it (simple version here)
         setView(AppView.DASHBOARD);
       }
       setIsInitializing(false);
     };
-    initAuth();
+    init();
   }, []);
 
   const handleGetStarted = () => {
@@ -80,6 +102,15 @@ const App: React.FC = () => {
             <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
         </div>
     );
+  }
+
+  // Handle Standalone Views first
+  if (view === AppView.CUSTOMER && urlParams.queueId) {
+      return <CustomerView queueId={urlParams.queueId} />;
+  }
+
+  if (view === AppView.DISPLAY && urlParams.queueId) {
+      return <DisplayView queueId={urlParams.queueId} />;
   }
 
   // Render Full Page Auth
@@ -131,6 +162,7 @@ const App: React.FC = () => {
     return renderPage(<About onBack={handleBackToHome} />);
   }
 
+  // Default: Landing Page
   return (
     <div className="min-h-screen font-sans bg-[#F8FAFC] overflow-x-hidden text-gray-900 relative selection:bg-primary-100 selection:text-primary-700">
       {/* Ambient Background Gradient for Glass Effect */}
