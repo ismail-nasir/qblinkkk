@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Music, Save, Play } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
