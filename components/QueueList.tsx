@@ -23,6 +23,9 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   // State for toggling stats visibility per queue
   const [expandedQueues, setExpandedQueues] = useState<Set<string>>(new Set());
   
+  // Global Charts Visibility
+  const [showCharts, setShowCharts] = useState(false);
+  
   // Aggregate Stats State
   const [stats, setStats] = useState({
       totalQueues: 0,
@@ -184,7 +187,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
     <div className="container mx-auto px-4 max-w-6xl pb-20 pt-6">
       
       {/* Real-time Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -249,85 +252,97 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
           </motion.div>
       </div>
 
-      {/* Analytics Graphs - Visible even if data is 0 to show structure */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100"
+      {/* Analytics Toggle */}
+      <div className="flex justify-center mb-8">
+          <button 
+              onClick={() => setShowCharts(!showCharts)}
+              className="flex items-center gap-2 px-6 py-2 bg-white border border-gray-200 text-gray-600 rounded-full font-bold text-sm hover:bg-gray-50 hover:text-primary-600 transition-all shadow-sm"
           >
-              <div className="flex items-center justify-between mb-6">
-                  <div>
-                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                          <TrendingUp size={20} className="text-primary-600" /> Hourly Traffic
-                      </h3>
-                      <p className="text-xs text-gray-500">Visitors joined vs. Served today</p>
-                  </div>
-              </div>
-              <div className="h-[250px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={trafficData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <defs>
-                              <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                              </linearGradient>
-                              <linearGradient id="colorServed" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2}/>
-                                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
-                              </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                          <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
-                          <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVisitors)" name="Joined" />
-                          <Area type="monotone" dataKey="served" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorServed)" name="Served" />
-                      </AreaChart>
-                  </ResponsiveContainer>
-              </div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100"
-          >
-              <div className="flex items-center justify-between mb-6">
-                  <div>
-                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                          <BarChart3 size={20} className="text-purple-600" /> Queue Volume
-                      </h3>
-                      <p className="text-xs text-gray-500">Total visitors by queue</p>
-                  </div>
-              </div>
-              <div className="h-[250px] w-full">
-                  {volumeData.length > 0 && volumeData[0].name !== 'No Data' ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={volumeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
-                              <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
-                              <Tooltip content={<CustomTooltip />} cursor={{fill: '#f9fafb'}} />
-                              <Bar dataKey="visitors" radius={[6, 6, 0, 0]} name="Total Visitors">
-                                  {volumeData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'][index % 4]} />
-                                  ))}
-                              </Bar>
-                          </BarChart>
-                      </ResponsiveContainer>
-                  ) : (
-                      <div className="h-full w-full flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
-                          <BarChart3 size={32} className="mb-2 opacity-50" />
-                          <p className="text-sm font-medium">No activity recorded yet</p>
-                          <p className="text-xs">Data will appear here once visitors join</p>
-                      </div>
-                  )}
-              </div>
-          </motion.div>
+              {showCharts ? <ChevronUp size={16} /> : <BarChart3 size={16} />}
+              {showCharts ? 'Hide Analytics' : 'View Analytics Graphs'}
+          </button>
       </div>
+
+      {/* Analytics Graphs - Hidden by default */}
+      <AnimatePresence>
+        {showCharts && (
+            <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+            >
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+                    <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <TrendingUp size={20} className="text-primary-600" /> Hourly Traffic
+                                </h3>
+                                <p className="text-xs text-gray-500">Visitors joined vs. Served today</p>
+                            </div>
+                        </div>
+                        <div className="h-[250px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={trafficData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                        </linearGradient>
+                                        <linearGradient id="colorServed" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2}/>
+                                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                                    <Tooltip content={<CustomTooltip />} />
+                                    <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVisitors)" name="Joined" />
+                                    <Area type="monotone" dataKey="served" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorServed)" name="Served" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <BarChart3 size={20} className="text-purple-600" /> Queue Volume
+                                </h3>
+                                <p className="text-xs text-gray-500">Total visitors by queue</p>
+                            </div>
+                        </div>
+                        <div className="h-[250px] w-full">
+                            {volumeData.length > 0 && volumeData[0].name !== 'No Data' ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={volumeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                                        <Tooltip content={<CustomTooltip />} cursor={{fill: '#f9fafb'}} />
+                                        <Bar dataKey="visitors" radius={[6, 6, 0, 0]} name="Total Visitors">
+                                            {volumeData.map((entry, index) => (
+                                              <Cell key={`cell-${index}`} fill={['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'][index % 4]} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="h-full w-full flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                                    <BarChart3 size={32} className="mb-2 opacity-50" />
+                                    <p className="text-sm font-medium">No activity recorded yet</p>
+                                    <p className="text-xs">Data will appear here once visitors join</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pt-4">

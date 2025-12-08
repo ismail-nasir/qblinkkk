@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
@@ -107,7 +108,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
     const qrSize = 1000; // High resolution for download
     const padding = 60;
-    const dotSizeRatio = 0.75; // 0-1, size of dots relative to grid
+    const dotSizeRatio = 0.8; // Larger dots for better readability
     const logoSizeRatio = 0.22; // Size of logo relative to QR
 
     // 1. Generate Raw QR Data
@@ -141,21 +142,23 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
             if (qrData.modules.get(row, col)) {
                 // Determine if this is a finder pattern (the big squares)
-                // Finder patterns are 7x7 at corners (0,0), (0, max), (max, 0)
                 const isFinderPattern = 
                     (row < 7 && col < 7) || 
                     (row < 7 && col >= moduleCount - 7) || 
                     (row >= moduleCount - 7 && col < 7);
 
                 if (isFinderPattern) {
-                    // Draw Finder Pattern (Square block style)
-                    // We can just draw a rect slightly larger to prevent gaps
-                    ctx.fillRect(
+                    // Draw Finder Pattern (Rounded Square style for premium look)
+                    // We draw slightly larger than moduleSize to ensure they connect if needed
+                    roundRect(
+                        ctx,
                         padding + col * moduleSize,
                         padding + row * moduleSize,
                         moduleSize + 0.5,
-                        moduleSize + 0.5
+                        moduleSize + 0.5,
+                        moduleSize * 0.3 // Rounded corners for finder modules
                     );
+                    ctx.fill();
                 } else {
                     // Draw Rounded Dot
                     const x = padding + col * moduleSize + moduleSize / 2;
@@ -182,13 +185,13 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
             // Draw white background circle/square behind logo for contrast
             ctx.fillStyle = '#FFFFFF';
             // Round rect background
-            roundRect(ctx, logoX - 10, logoY - 10, logoPxSize + 20, logoPxSize + 20, 20);
+            roundRect(ctx, logoX - 15, logoY - 15, logoPxSize + 30, logoPxSize + 30, 30);
             ctx.fill();
 
             // Draw Logo
             ctx.save();
             // Clip to rounded rect
-            roundRect(ctx, logoX, logoY, logoPxSize, logoPxSize, 15);
+            roundRect(ctx, logoX, logoY, logoPxSize, logoPxSize, 25);
             ctx.clip();
             ctx.drawImage(img, logoX, logoY, logoPxSize, logoPxSize);
             ctx.restore();
