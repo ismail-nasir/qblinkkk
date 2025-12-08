@@ -1,4 +1,4 @@
-import { QueueData, QueueMetric, ActivityLog } from '../types';
+import { QueueData, QueueMetric, ActivityLog, User } from '../types';
 
 const DATA_KEY_PREFIX = 'qblink_data_';
 
@@ -26,6 +26,34 @@ export const queueService = {
     } catch {
       return { ...INITIAL_DATA };
     }
+  },
+
+  // Get aggregated system logs (Admin)
+  getSystemLogs: (users: User[]): (ActivityLog & { user: string, email: string })[] => {
+    let allLogs: (ActivityLog & { user: string, email: string })[] = [];
+    
+    users.forEach(user => {
+        const dataStr = localStorage.getItem(getKey(user.id));
+        if (dataStr) {
+            try {
+                const data: QueueData = JSON.parse(dataStr);
+                if (data.recentActivity && data.recentActivity.length > 0) {
+                    const labeledLogs = data.recentActivity.map(log => ({
+                        ...log,
+                        user: user.businessName,
+                        email: user.email
+                    }));
+                    allLogs = [...allLogs, ...labeledLogs];
+                }
+            } catch (e) {
+                // Ignore malformed data
+            }
+        }
+    });
+
+    // Sort roughly by time is tricky with just HH:MM, but we'll return as is or reverse
+    // A real system would use ISO timestamps
+    return allLogs.reverse(); 
   },
 
   // Update specific fields

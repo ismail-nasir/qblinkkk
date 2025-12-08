@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Settings, ChevronDown, Trash2, X } from 'lucide-react';
+import { LogOut, Settings, ChevronDown, Trash2, X, ShieldAlert } from 'lucide-react';
 import { User } from '../types';
 import { authService } from '../services/auth';
+import AdminPanel from './AdminPanel';
 
 interface DashboardProps {
   user: User;
@@ -11,8 +12,11 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = user.email === 'ismailnsm75@gmail.com';
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -78,8 +82,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   <div className="px-5 py-3 border-b border-gray-50 mb-1">
                       <p className="text-sm font-bold text-gray-900 truncate">{user.businessName}</p>
                       <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                      {isAdmin && (
+                          <span className="inline-block mt-1 text-[10px] font-bold bg-black text-white px-2 py-0.5 rounded-full uppercase tracking-wider">Admin</span>
+                      )}
                   </div>
                   
+                  {isAdmin && (
+                      <button 
+                          onClick={() => {
+                              setIsDropdownOpen(false);
+                              setIsAdminOpen(true);
+                          }}
+                          className="w-full text-left px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-black flex items-center gap-3 transition-colors font-medium"
+                      >
+                          <ShieldAlert size={18} /> Admin Panel
+                      </button>
+                  )}
+
                   <button 
                       onClick={() => {
                           setIsDropdownOpen(false);
@@ -110,6 +129,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             Welcome, <span className="text-primary-600">@{user.businessName}</span>
         </h1>
       </main>
+
+      {/* Admin Panel Modal */}
+      {isAdminOpen && <AdminPanel onClose={() => setIsAdminOpen(false)} />}
 
       {/* Settings Modal */}
       {isSettingsOpen && (

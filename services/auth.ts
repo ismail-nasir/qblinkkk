@@ -18,6 +18,18 @@ export const authService = {
     }
   },
 
+  // Get all users (Admin only)
+  getAllUsers: (): User[] => {
+    const usersStr = localStorage.getItem(USERS_KEY);
+    if (!usersStr) return [];
+    try {
+        const usersObj = JSON.parse(usersStr);
+        return Object.values(usersObj);
+    } catch {
+        return [];
+    }
+  },
+
   // Login
   login: async (email: string, password: string): Promise<User> => {
     await delay(800); // Simulate network latency
