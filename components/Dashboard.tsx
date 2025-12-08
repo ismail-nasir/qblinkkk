@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, Settings, ChevronDown, Trash2, X, ShieldAlert } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { User } from '../types';
 import { authService } from '../services/auth';
 import AdminPanel from './AdminPanel';
@@ -83,48 +84,56 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             </button>
 
             {/* Dropdown Menu */}
-            {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-60 bg-white rounded-2xl shadow-soft border border-gray-100 py-2 animate-fade-in-up origin-top-right z-50">
-                  <div className="px-5 py-3 border-b border-gray-50 mb-1">
-                      <p className="text-sm font-bold text-gray-900 truncate">{user.businessName}</p>
-                      <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                      {isAdmin && (
-                          <span className="inline-block mt-1 text-[10px] font-bold bg-black text-white px-2 py-0.5 rounded-full uppercase tracking-wider">Admin</span>
-                      )}
-                  </div>
-                  
-                  {isAdmin && (
-                      <button 
-                          onClick={() => {
-                              setIsDropdownOpen(false);
-                              setIsAdminOpen(true);
-                          }}
-                          className="w-full text-left px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-black flex items-center gap-3 transition-colors font-medium"
-                      >
-                          <ShieldAlert size={18} /> Admin Panel
-                      </button>
-                  )}
+            <AnimatePresence>
+              {isDropdownOpen && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="absolute right-0 top-full mt-2 w-60 bg-white rounded-2xl shadow-soft border border-gray-100 py-2 origin-top-right z-50 overflow-hidden"
+                >
+                    <div className="px-5 py-3 border-b border-gray-50 mb-1">
+                        <p className="text-sm font-bold text-gray-900 truncate">{user.businessName}</p>
+                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        {isAdmin && (
+                            <span className="inline-block mt-1 text-[10px] font-bold bg-black text-white px-2 py-0.5 rounded-full uppercase tracking-wider">Admin</span>
+                        )}
+                    </div>
+                    
+                    {isAdmin && (
+                        <button 
+                            onClick={() => {
+                                setIsDropdownOpen(false);
+                                setIsAdminOpen(true);
+                            }}
+                            className="w-full text-left px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-black flex items-center gap-3 transition-colors font-medium"
+                        >
+                            <ShieldAlert size={18} /> Admin Panel
+                        </button>
+                    )}
 
-                  <button 
-                      onClick={() => {
-                          setIsDropdownOpen(false);
-                          setIsSettingsOpen(true);
-                      }}
-                      className="w-full text-left px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary-600 flex items-center gap-3 transition-colors"
-                  >
-                      <Settings size={18} /> Settings
-                  </button>
-                  
-                  <div className="h-px bg-gray-50 my-1"></div>
-                  
-                  <button 
-                      onClick={onLogout}
-                      className="w-full text-left px-5 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
-                  >
-                      <LogOut size={18} /> Logout
-                  </button>
-              </div>
-            )}
+                    <button 
+                        onClick={() => {
+                            setIsDropdownOpen(false);
+                            setIsSettingsOpen(true);
+                        }}
+                        className="w-full text-left px-5 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary-600 flex items-center gap-3 transition-colors"
+                    >
+                        <Settings size={18} /> Settings
+                    </button>
+                    
+                    <div className="h-px bg-gray-50 my-1"></div>
+                    
+                    <button 
+                        onClick={onLogout}
+                        className="w-full text-left px-5 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
+                    >
+                        <LogOut size={18} /> Logout
+                    </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </nav>
@@ -137,67 +146,80 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       </main>
 
       {/* Settings Modal */}
-      {isSettingsOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/20 backdrop-blur-sm animate-fade-in">
-              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-pop-in border border-white/50">
-                  <div className="flex justify-between items-center p-6 border-b border-gray-50 bg-gray-50/50">
-                      <div className="flex items-center gap-3">
-                          <div className="p-2 bg-gray-100 rounded-xl">
-                              <Settings size={20} className="text-gray-600" />
-                          </div>
-                          <h2 className="text-lg font-bold text-gray-900">Settings</h2>
-                      </div>
-                      <button 
-                          onClick={() => setIsSettingsOpen(false)} 
-                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all"
-                      >
-                          <X size={20} />
-                      </button>
-                  </div>
-                  
-                  <div className="p-6 space-y-6">
-                      {/* Read-only User Info */}
-                      <div className="space-y-4">
-                          <div>
-                              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Business Name</label>
-                              <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-700 font-medium">
-                                  {user.businessName}
-                              </div>
-                          </div>
-                          <div>
-                              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email Address</label>
-                              <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-700 font-medium">
-                                  {user.email}
-                              </div>
-                          </div>
-                      </div>
+      <AnimatePresence>
+        {isSettingsOpen && (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/20 backdrop-blur-sm"
+            >
+                <motion.div 
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/50"
+                >
+                    <div className="flex justify-between items-center p-6 border-b border-gray-50 bg-gray-50/50">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gray-100 rounded-xl">
+                                <Settings size={20} className="text-gray-600" />
+                            </div>
+                            <h2 className="text-lg font-bold text-gray-900">Settings</h2>
+                        </div>
+                        <button 
+                            onClick={() => setIsSettingsOpen(false)} 
+                            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                    
+                    <div className="p-6 space-y-6">
+                        {/* Read-only User Info */}
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Business Name</label>
+                                <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-700 font-medium">
+                                    {user.businessName}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email Address</label>
+                                <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-700 font-medium">
+                                    {user.email}
+                                </div>
+                            </div>
+                        </div>
 
-                      <div className="h-px bg-gray-100 w-full"></div>
+                        <div className="h-px bg-gray-100 w-full"></div>
 
-                      {/* Danger Zone */}
-                      <div className="bg-red-50/50 rounded-2xl p-5 border border-red-100">
-                          <h3 className="text-sm font-bold text-red-700 mb-1 flex items-center gap-2">
-                              <Trash2 size={16} /> Danger Zone
-                          </h3>
-                          <p className="text-xs text-red-600/80 mb-4 leading-relaxed">
-                              Permanently remove your account and all associated data. This action cannot be undone.
-                          </p>
-                          <button 
-                              onClick={handleDeleteAccount}
-                              disabled={isDeleting}
-                              className="w-full py-2.5 px-4 bg-white hover:bg-red-50 text-red-600 rounded-xl font-bold text-sm transition-all shadow-sm border border-red-100 hover:border-red-200 flex items-center justify-center gap-2"
-                          >
-                              {isDeleting ? (
-                                  <>Processing...</>
-                              ) : (
-                                  <>Delete Account</>
-                              )}
-                          </button>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      )}
+                        {/* Danger Zone */}
+                        <div className="bg-red-50/50 rounded-2xl p-5 border border-red-100">
+                            <h3 className="text-sm font-bold text-red-700 mb-1 flex items-center gap-2">
+                                <Trash2 size={16} /> Danger Zone
+                            </h3>
+                            <p className="text-xs text-red-600/80 mb-4 leading-relaxed">
+                                Permanently remove your account and all associated data. This action cannot be undone.
+                            </p>
+                            <button 
+                                onClick={handleDeleteAccount}
+                                disabled={isDeleting}
+                                className="w-full py-2.5 px-4 bg-white hover:bg-red-50 text-red-600 rounded-xl font-bold text-sm transition-all shadow-sm border border-red-100 hover:border-red-200 flex items-center justify-center gap-2"
+                            >
+                                {isDeleting ? (
+                                    <>Processing...</>
+                                ) : (
+                                    <>Delete Account</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
