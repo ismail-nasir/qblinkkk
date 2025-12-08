@@ -126,7 +126,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
     const qrSize = 1000; // High resolution for download
     const padding = 60;
-    const dotSizeRatio = 0.8; // Larger dots for better readability
+    const dotSizeRatio = 0.85; // Size of dots (0-1)
     const logoSizeRatio = 0.22; // Size of logo relative to QR
 
     // 1. Generate Raw QR Data
@@ -142,56 +142,78 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, qrSize, qrSize);
 
-    // 4. Draw Modules (Dots)
-    ctx.fillStyle = '#111827'; // Dark Gray/Black for dots
-    
-    // Calculate Logo Safe Zone
+    // 4. Helper Function for Paths
+    const roundRectPath = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    };
+
+    // 5. Draw Custom Finder Patterns (The 3 big squares)
+    const drawFinderPattern = (row: number, col: number) => {
+        const x = padding + col * moduleSize;
+        const y = padding + row * moduleSize;
+        
+        ctx.fillStyle = '#111827';
+        
+        // Outer Ring (7x7 modules)
+        ctx.beginPath();
+        roundRectPath(ctx, x, y, moduleSize * 7, moduleSize * 7, moduleSize * 2); 
+        // Inner Ring Hole (5x5 modules) - Cutout
+        roundRectPath(ctx, x + moduleSize, y + moduleSize, moduleSize * 5, moduleSize * 5, moduleSize * 1.5);
+        ctx.fill('evenodd');
+
+        // Inner Solid Square (3x3 modules)
+        ctx.beginPath();
+        roundRectPath(ctx, x + moduleSize * 2, y + moduleSize * 2, moduleSize * 3, moduleSize * 3, moduleSize);
+        ctx.fill();
+    };
+
+    // Calculate Safe Zones
     const center = moduleCount / 2;
     const logoModules = Math.ceil(moduleCount * logoSizeRatio);
     const safeZoneStart = Math.floor(center - logoModules / 2);
     const safeZoneEnd = Math.ceil(center + logoModules / 2);
 
+    // 6. Draw Data Modules (Dots)
+    ctx.fillStyle = '#111827'; 
     for (let row = 0; row < moduleCount; row++) {
         for (let col = 0; col < moduleCount; col++) {
-            // Skip center safe zone for logo
+            // Skip Logo Zone
             if (row >= safeZoneStart && row < safeZoneEnd && col >= safeZoneStart && col < safeZoneEnd) {
                 continue;
             }
 
-            if (qrData.modules.get(row, col)) {
-                // Determine if this is a finder pattern (the big squares)
-                const isFinderPattern = 
-                    (row < 7 && col < 7) || 
-                    (row < 7 && col >= moduleCount - 7) || 
-                    (row >= moduleCount - 7 && col < 7);
+            // Skip Finder Pattern Zones (Top-Left, Top-Right, Bottom-Left)
+            if ((row < 7 && col < 7) || (row < 7 && col >= moduleCount - 7) || (row >= moduleCount - 7 && col < 7)) {
+                continue;
+            }
 
-                if (isFinderPattern) {
-                    // Draw Finder Pattern (Rounded Square style for premium look)
-                    // We draw slightly larger than moduleSize to ensure they connect if needed
-                    roundRect(
-                        ctx,
-                        padding + col * moduleSize,
-                        padding + row * moduleSize,
-                        moduleSize + 0.5,
-                        moduleSize + 0.5,
-                        moduleSize * 0.3 // Rounded corners for finder modules
-                    );
-                    ctx.fill();
-                } else {
-                    // Draw Rounded Dot
-                    const x = padding + col * moduleSize + moduleSize / 2;
-                    const y = padding + row * moduleSize + moduleSize / 2;
-                    const radius = (moduleSize * dotSizeRatio) / 2;
-                    
-                    ctx.beginPath();
-                    ctx.arc(x, y, radius, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+            if (qrData.modules.get(row, col)) {
+                const x = padding + col * moduleSize + moduleSize / 2;
+                const y = padding + row * moduleSize + moduleSize / 2;
+                const radius = (moduleSize * dotSizeRatio) / 2;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
     }
 
-    // 5. Draw Logo
+    // 7. Draw Finder Patterns manually at corners
+    drawFinderPattern(0, 0); // Top Left
+    drawFinderPattern(0, moduleCount - 7); // Top Right
+    drawFinderPattern(moduleCount - 7, 0); // Bottom Left
+
+    // 8. Draw Logo
     if (logoPreview) {
         const img = new Image();
         img.src = logoPreview;
@@ -200,36 +222,21 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
             const logoX = (qrSize - logoPxSize) / 2;
             const logoY = (qrSize - logoPxSize) / 2;
 
-            // Draw white background circle/square behind logo for contrast
+            // Draw white background plate
             ctx.fillStyle = '#FFFFFF';
-            // Round rect background
-            roundRect(ctx, logoX - 15, logoY - 15, logoPxSize + 30, logoPxSize + 30, 30);
+            ctx.beginPath();
+            roundRectPath(ctx, logoX - 15, logoY - 15, logoPxSize + 30, logoPxSize + 30, 30);
             ctx.fill();
 
             // Draw Logo
             ctx.save();
-            // Clip to rounded rect
-            roundRect(ctx, logoX, logoY, logoPxSize, logoPxSize, 25);
+            ctx.beginPath();
+            roundRectPath(ctx, logoX, logoY, logoPxSize, logoPxSize, 25);
             ctx.clip();
             ctx.drawImage(img, logoX, logoY, logoPxSize, logoPxSize);
             ctx.restore();
         };
     }
-  };
-
-  // Helper for rounded rectangles on canvas
-  const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
