@@ -33,25 +33,24 @@ const HowItWorks: React.FC = () => {
                 desc="Customers scan a code. No app download required."
             >
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                    {/* QR Code Background */}
-                    <div className="w-24 h-24 bg-white p-2 rounded-lg grid grid-cols-6 gap-1 opacity-50">
+                    <div className="w-24 h-24 bg-white p-2 rounded-lg grid grid-cols-6 gap-1 opacity-50 absolute">
                         {[...Array(36)].map((_, i) => (
                             <div key={i} className={`rounded-[1px] ${Math.random() > 0.4 ? 'bg-gray-800' : 'bg-transparent'}`} />
                         ))}
                     </div>
-                    {/* Scanning Phone */}
-                    <motion.div
-                        animate={{ y: [-15, 15, -15] }}
-                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                        className="absolute w-28 h-44 border-[6px] border-gray-800 rounded-[24px] bg-gray-900/5 backdrop-blur-sm flex flex-col items-center justify-center overflow-hidden shadow-2xl"
-                    >
-                         {/* Scanning Laser */}
-                         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/20 to-transparent w-full h-full animate-pulse"></div>
-                         <div className="w-full h-0.5 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] relative z-10" />
-                         
-                         {/* Screen Reflection */}
-                         <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-tr from-white/10 to-transparent pointer-events-none"></div>
-                    </motion.div>
+                    <PhoneFrame>
+                         {/* Scanning UI */}
+                         <div className="absolute inset-0 bg-gray-900/10 backdrop-blur-[2px] z-10">
+                             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent w-full h-full animate-pulse"></div>
+                             <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)]" />
+                             
+                             {/* Camera Corners */}
+                             <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-white/50 rounded-tl-lg"></div>
+                             <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-white/50 rounded-tr-lg"></div>
+                             <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-white/50 rounded-bl-lg"></div>
+                             <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-white/50 rounded-br-lg"></div>
+                         </div>
+                    </PhoneFrame>
                 </div>
             </StepCard>
 
@@ -62,36 +61,41 @@ const HowItWorks: React.FC = () => {
                 desc="They enter their name to secure a spot in line."
             >
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                    {/* Phone Mockup */}
-                    <div className="w-32 h-52 bg-white border-4 border-gray-100 rounded-[20px] shadow-sm flex flex-col p-3 gap-3 overflow-hidden relative">
-                         {/* Header */}
-                         <div className="h-2 w-1/2 bg-gray-100 rounded-full mb-2"></div>
-                         {/* Input Field Animation */}
-                         <motion.div 
-                            initial={{ width: "0%" }}
-                            whileInView={{ width: "100%" }}
-                            transition={{ duration: 1, delay: 0.5 }}
-                            className="h-8 bg-gray-50 rounded-lg border border-gray-200"
-                         />
-                         
-                         {/* Button Press Animation */}
-                         <div className="mt-auto">
+                    <PhoneFrame>
+                        <div className="h-full bg-white flex flex-col p-4 relative">
+                            {/* App Header */}
+                            <div className="h-4 w-1/3 bg-gray-100 rounded-full mb-6"></div>
+                            
+                            {/* Input Field Animation */}
+                            <div className="space-y-2 mb-auto">
+                                <div className="h-2 w-1/4 bg-gray-100 rounded-full"></div>
+                                <motion.div 
+                                    initial={{ width: "30%" }}
+                                    whileInView={{ width: "100%" }}
+                                    transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2 }}
+                                    className="h-10 bg-gray-50 rounded-xl border border-gray-200 flex items-center px-3"
+                                >
+                                    <div className="w-0.5 h-4 bg-primary-500 animate-pulse"></div>
+                                </motion.div>
+                            </div>
+                            
+                            {/* Button Press Animation */}
                             <motion.div 
                                 animate={{ scale: [1, 0.95, 1] }}
                                 transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-                                className="h-8 w-full bg-primary-600 rounded-lg flex items-center justify-center shadow-lg shadow-primary-600/20"
+                                className="h-10 w-full bg-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-600/20 mt-4"
                             >
-                                <span className="text-[8px] font-bold text-white uppercase tracking-wider">Join Queue</span>
+                                <span className="text-[10px] font-bold text-white uppercase tracking-wider">Join Queue</span>
                             </motion.div>
-                         </div>
 
-                         {/* Tap Finger */}
-                         <motion.div
-                            animate={{ scale: [1, 0.8, 1], x: [10, 0, 10], y: [10, 0, 10], opacity: [0, 1, 0] }}
-                            transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-                            className="absolute bottom-5 right-8 w-8 h-8 bg-gray-900/80 rounded-full z-20 pointer-events-none blur-[1px]"
-                         />
-                    </div>
+                            {/* Finger Tap */}
+                            <motion.div
+                                animate={{ scale: [1, 0.8, 1], x: [10, 0, 10], y: [10, 0, 10], opacity: [0, 1, 0] }}
+                                transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+                                className="absolute bottom-6 right-10 w-8 h-8 bg-gray-900/20 rounded-full z-20 pointer-events-none blur-[2px]"
+                            />
+                        </div>
+                    </PhoneFrame>
                 </div>
             </StepCard>
 
@@ -101,40 +105,34 @@ const HowItWorks: React.FC = () => {
                 title="Wait" 
                 desc="Real-time updates keep them informed while they shop."
             >
-                 <div className="absolute inset-0 flex items-center justify-center bg-blue-50/30">
-                     {/* Phone Mockup */}
-                    <div className="w-32 h-52 bg-white border-4 border-gray-100 rounded-[20px] shadow-sm relative overflow-hidden flex flex-col items-center pt-8">
-                         {/* Wallpaper */}
-                         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-white z-0"></div>
-                         
-                         {/* Clock */}
-                         <div className="z-10 text-center mb-4">
-                             <div className="h-6 w-16 bg-gray-200 rounded-md mx-auto mb-1 opacity-50"></div>
-                             <div className="h-2 w-24 bg-gray-100 rounded-full mx-auto"></div>
-                         </div>
+                 <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                     <PhoneFrame>
+                         {/* Lock Screen Wallpaper */}
+                         <div className="h-full w-full bg-gradient-to-br from-blue-500 to-indigo-600 relative p-4 flex flex-col items-center pt-8 text-white">
+                             {/* Time */}
+                             <div className="text-4xl font-thin tracking-tighter mb-1">09:41</div>
+                             <div className="text-[10px] font-medium opacity-80 mb-8">Wednesday, Jan 20</div>
 
-                         {/* Notification Pop */}
-                         <motion.div
-                            initial={{ y: 50, opacity: 0 }}
-                            whileInView={{ y: 0, opacity: 1 }}
-                            transition={{ type: "spring", bounce: 0.5, delay: 0.5 }}
-                            className="w-[90%] bg-white/80 backdrop-blur-md rounded-xl p-2 shadow-lg border border-gray-100 z-10 flex items-center gap-2"
-                         >
-                             <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center shrink-0">
-                                 <motion.div 
-                                    animate={{ rotate: [0, 15, -15, 0] }}
-                                    transition={{ repeat: Infinity, repeatDelay: 2, duration: 0.5 }}
-                                    className="text-[10px]"
-                                 >
-                                     🔔
-                                 </motion.div>
-                             </div>
-                             <div className="flex-1 space-y-1">
-                                 <div className="h-1.5 w-16 bg-gray-800 rounded-full"></div>
-                                 <div className="h-1 w-10 bg-gray-300 rounded-full"></div>
-                             </div>
-                         </motion.div>
-                    </div>
+                             {/* Notification */}
+                             <motion.div
+                                initial={{ y: 20, opacity: 0, scale: 0.9 }}
+                                whileInView={{ y: 0, opacity: 1, scale: 1 }}
+                                transition={{ type: "spring", bounce: 0.5, delay: 0.5, repeat: Infinity, repeatDelay: 4 }}
+                                className="w-full bg-white/20 backdrop-blur-md rounded-2xl p-3 shadow-lg border border-white/20 flex items-start gap-3"
+                             >
+                                 <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0">
+                                     <span className="text-primary-600 text-xs font-bold">Q</span>
+                                 </div>
+                                 <div className="flex-1 min-w-0">
+                                     <div className="flex justify-between items-baseline mb-0.5">
+                                         <span className="text-[10px] font-bold">Qblink</span>
+                                         <span className="text-[8px] opacity-70">Now</span>
+                                     </div>
+                                     <p className="text-[10px] leading-tight font-medium">It's almost your turn! You are 3rd in line.</p>
+                                 </div>
+                             </motion.div>
+                         </div>
+                     </PhoneFrame>
                  </div>
             </StepCard>
 
@@ -144,41 +142,44 @@ const HowItWorks: React.FC = () => {
                 title="Served" 
                 desc="They arrive exactly when it's their turn."
             >
-                <div className="absolute inset-0 flex items-center justify-center bg-green-50/30">
-                     {/* Phone Mockup */}
-                     <div className="w-32 h-52 bg-white border-4 border-gray-100 rounded-[20px] shadow-sm relative overflow-hidden flex flex-col items-center justify-center p-4">
-                        <motion.div
-                            initial={{ scale: 0 }}
-                            whileInView={{ scale: 1 }}
-                            transition={{ type: "spring", duration: 0.6 }}
-                            className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/30 relative z-10"
-                        >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-white">
-                                <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                        </motion.div>
-                        
-                        <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="mt-4 text-[10px] font-bold text-gray-900 uppercase tracking-widest text-center"
-                        >
-                            You're Up!
-                        </motion.div>
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                     <PhoneFrame>
+                         <div className="h-full bg-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                            {/* Success Icon */}
+                            <motion.div
+                                animate={{ scale: [1, 1.1, 1] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                                className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/30 relative z-10"
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-white">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                            </motion.div>
+                            
+                            <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                className="mt-6 text-sm font-bold text-gray-900 uppercase tracking-widest text-center"
+                            >
+                                You're Up!
+                            </motion.div>
 
-                        {/* Confetti / Rings */}
-                        <motion.div
-                             animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
-                             transition={{ duration: 1.5, repeat: Infinity }}
-                             className="absolute w-16 h-16 bg-green-400 rounded-full opacity-20 z-0"
-                        />
-                         <motion.div
-                             animate={{ scale: [1, 2], opacity: [0.3, 0] }}
-                             transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
-                             className="absolute w-16 h-16 bg-green-300 rounded-full opacity-20 z-0"
-                        />
-                     </div>
+                             {/* Confetti Particles */}
+                             {[...Array(6)].map((_, i) => (
+                                <motion.div
+                                    key={i}
+                                    animate={{ 
+                                        y: [0, -100],
+                                        x: [0, (i % 2 === 0 ? 20 : -20)],
+                                        opacity: [1, 0],
+                                        rotate: [0, 180] 
+                                    }}
+                                    transition={{ duration: 2, repeat: Infinity, delay: i * 0.2 }}
+                                    className={`absolute top-1/2 left-1/2 w-2 h-2 rounded-sm ${i % 2 === 0 ? 'bg-blue-400' : 'bg-yellow-400'}`}
+                                />
+                             ))}
+                         </div>
+                     </PhoneFrame>
                 </div>
             </StepCard>
         </div>
@@ -186,6 +187,26 @@ const HowItWorks: React.FC = () => {
     </section>
   );
 };
+
+// Reusable Dark Phone Frame to match "Step 1" style
+const PhoneFrame = ({ children }: { children?: React.ReactNode }) => (
+    <motion.div
+        animate={{ y: [-8, 8, -8] }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        className="relative w-36 h-64 border-[6px] border-gray-800 rounded-[32px] bg-gray-800 overflow-hidden shadow-2xl"
+    >
+        {/* Dynamic Island / Notch */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 h-4 w-12 bg-gray-800 rounded-b-xl z-30"></div>
+        
+        {/* Screen Area */}
+        <div className="absolute inset-0 bg-gray-900 overflow-hidden rounded-[26px]">
+            {children}
+        </div>
+        
+        {/* Glass Reflection Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none z-40 rounded-[26px]"></div>
+    </motion.div>
+);
 
 const StepCard = ({ step, title, desc, children }: { step: number, title: string, desc: string, children?: React.ReactNode }) => (
     <motion.div 
