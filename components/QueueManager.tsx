@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { User, QueueData, Visitor, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
@@ -233,41 +234,78 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
       {/* MODALS */}
       
-      {/* QR Modal */}
+      {/* QR Modal (Premium Design) */}
       <AnimatePresence>
           {showQrModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-md">
                   <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-white rounded-3xl p-8 max-w-sm w-full text-center"
+                    className="relative w-full max-w-sm"
                   >
-                      <h3 className="text-xl font-bold mb-2">{queue.name}</h3>
-                      <p className="text-gray-500 text-sm mb-6">Scan to join the queue instantly</p>
-                      
-                      <div className="bg-white p-4 rounded-2xl border-2 border-gray-100 inline-block mb-6 shadow-sm">
-                           <img 
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`} 
-                                alt="Queue QR Code" 
-                                className="w-48 h-48"
-                           />
-                      </div>
-                      
-                      <div className="flex flex-col gap-3">
-                        <button 
-                             onClick={() => {
-                                 const link = document.createElement('a');
-                                 link.href = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(joinUrl)}`;
-                                 link.download = `queue-qr-${queue.code}.png`;
-                                 link.target = '_blank';
-                                 link.click();
-                             }}
-                             className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2"
-                        >
-                            <Download size={18} /> Download QR
-                        </button>
-                        <button onClick={() => setShowQrModal(false)} className="text-gray-500 font-bold text-sm py-2">Close</button>
+                      {/* Close Button */}
+                      <button 
+                        onClick={() => setShowQrModal(false)}
+                        className="absolute -top-12 right-0 p-2 text-white/50 hover:text-white transition-colors"
+                      >
+                          <X size={24} />
+                      </button>
+
+                      {/* Placard Container */}
+                      <div className="bg-gradient-to-br from-primary-600 to-indigo-700 p-1 rounded-[36px] shadow-2xl shadow-primary-900/50">
+                           <div className="bg-white rounded-[34px] overflow-hidden flex flex-col items-center">
+                               {/* Placard Header */}
+                               <div className="w-full bg-gray-50 border-b border-gray-100 p-6 pb-8 text-center relative overflow-hidden">
+                                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-400 to-indigo-500"></div>
+                                   <div className="absolute top-[-20%] right-[-10%] w-24 h-24 bg-primary-100/50 rounded-full blur-xl"></div>
+                                   
+                                   <div className="flex items-center justify-center gap-2 mb-2">
+                                       <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center text-white">
+                                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                                           </svg>
+                                       </div>
+                                       <span className="font-bold text-gray-900 tracking-tight">Qblink</span>
+                                   </div>
+                                   
+                                   <h3 className="text-2xl font-black text-gray-900 mb-1 leading-tight">{queue.name}</h3>
+                                   <p className="text-gray-500 text-sm font-medium">Scan to join the queue</p>
+                               </div>
+
+                               {/* QR Area */}
+                               <div className="p-8 pb-4 relative">
+                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-white rotate-45 border-l border-t border-gray-100"></div>
+                                    <div className="border-4 border-gray-900 rounded-3xl p-3 bg-white shadow-lg">
+                                        <img 
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(joinUrl)}&margin=10`} 
+                                            alt="Queue QR Code" 
+                                            className="w-48 h-48 rounded-lg mix-blend-multiply"
+                                        />
+                                    </div>
+                               </div>
+
+                               {/* Placard Footer */}
+                               <div className="w-full p-6 pt-2 text-center pb-8">
+                                   <div className="bg-gray-50 rounded-xl py-3 px-4 border border-gray-100 mb-6">
+                                       <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Queue Code</p>
+                                       <p className="text-2xl font-mono font-bold text-gray-900 tracking-wider">{queue.code}</p>
+                                   </div>
+                                   
+                                   <button 
+                                        onClick={() => {
+                                            const link = document.createElement('a');
+                                            link.href = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(joinUrl)}`;
+                                            link.download = `queue-qr-${queue.code}.png`;
+                                            link.target = '_blank';
+                                            link.click();
+                                        }}
+                                        className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-gray-900/20 hover:scale-105 transition-transform"
+                                   >
+                                       <Download size={18} /> Download Printable
+                                   </button>
+                               </div>
+                           </div>
                       </div>
                   </motion.div>
               </div>

@@ -282,19 +282,46 @@ export const queueService = {
 
   takeBack: (queueId: string) => {
       const data = queueService.getQueueData(queueId);
+      // If no one was called recently, do nothing
       if (data.lastCalledNumber === 0) return data;
+
+      // Find the visitor who was last called (ticket == lastCalledNumber)
+      const targetVisitor = data.visitors.find(v => v.ticketNumber === data.lastCalledNumber);
+      
+      // If visitor not found (e.g. deleted), do nothing
+      if (!targetVisitor) return data;
 
       const updatedVisitors = data.visitors.map(v => {
           if (v.ticketNumber === data.lastCalledNumber) {
+              // Revert status to waiting and turn off alert
               return { ...v, status: 'waiting' as const, isAlerting: false };
           }
           return v;
       });
 
+      // Update metrics: increment waiting, decrement served
+      const newMetrics = {
+          ...data.metrics,
+          waiting: updatedVisitors.filter(v => v.status === 'waiting').length,
+          served: Math.max(0, data.metrics.served - 1)
+      };
+
+      // Log the action
+      const newActivity: ActivityLog = {
+          ticket: targetVisitor.ticketNumber,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          action: 'skip', // Using 'skip' type for takeback or add a new type if preferred
+          details: 'Take Back'
+      };
+
       const updatedData = {
           ...data,
           visitors: updatedVisitors,
-          metrics: { ...data.metrics, waiting: updatedVisitors.filter(v => v.status === 'waiting').length },
+          metrics: newMetrics,
+          recentActivity: [newActivity, ...data.recentActivity].slice(0, 50)
+          // We do NOT change lastCalledNumber usually, because we want the next "Call Next" 
+          // to pick this person up again (since they are now waiting with low number) 
+          // or pick the actual next person. 
       };
       
       queueService.saveQueueData(queueId, updatedData);

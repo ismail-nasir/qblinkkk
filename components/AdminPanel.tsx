@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, ActivityLog, QueueData } from '../types';
-import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Eye, Calendar, Mail, CheckCircle, AlertTriangle, Plus, Shield } from 'lucide-react';
+import { User, ActivityLog, QueueData, AdminAuditLog } from '../types';
+import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Eye, Calendar, Mail, CheckCircle, AlertTriangle, Plus, Shield, ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authService } from '../services/auth';
 import { queueService } from '../services/queue';
@@ -10,9 +11,10 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'audit'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<(ActivityLog & { user: string, email: string })[]>([]);
+  const [adminLogs, setAdminLogs] = useState<AdminAuditLog[]>([]);
   const [admins, setAdmins] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -25,6 +27,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState('');
+
+  // Get current admin user
+  const currentUser = authService.getCurrentUser();
+  const currentAdminEmail = currentUser?.email || 'Unknown Admin';
 
   useEffect(() => {
     refreshData();
@@ -47,6 +53,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       const allUsers = authService.getAllUsers();
       setUsers(allUsers);
       setLogs(queueService.getSystemLogs(allUsers));
+      setAdminLogs(authService.getAdminLogs());
       setAdmins(authService.getAdmins());
   };
 
@@ -59,6 +66,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const confirmDeleteUser = async () => {
       if (userToDelete) {
           await authService.deleteAccount(userToDelete.email);
+          authService.logAdminAction(currentAdminEmail, 'Delete User', userToDelete.email);
           refreshData();
           setUserToDelete(null);
           setSelectedUser(null); // Close details if open
@@ -68,6 +76,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const handleAddAdmin = async () => {
       if (newAdminEmail && newAdminEmail.includes('@')) {
           await authService.addAdmin(newAdminEmail);
+          authService.logAdminAction(currentAdminEmail, 'Add Admin', newAdminEmail);
           setNewAdminEmail('');
           refreshData();
       }
@@ -77,6 +86,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       if (confirm(`Remove admin privileges for ${email}?`)) {
           try {
               await authService.removeAdmin(email);
+              authService.logAdminAction(currentAdminEmail, 'Remove Admin', email);
               refreshData();
           } catch (e: any) {
               alert(e.message);
@@ -102,6 +112,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
         l.ticket.toString().includes(term)
     );
   }, [logs, searchTerm]);
+
+  const filteredAuditLogs = useMemo(() => {
+      const term = searchTerm.toLowerCase();
+      return adminLogs.filter(l => 
+          l.adminEmail.toLowerCase().includes(term) ||
+          l.action.toLowerCase().includes(term) ||
+          (l.target && l.target.toLowerCase().includes(term))
+      );
+  }, [adminLogs, searchTerm]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] animate-fade-in relative">
@@ -163,7 +182,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                             onClick={() => setActiveTab('logs')}
                             className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'logs' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            <FileText size={18} /> Logs
+                            <FileText size={18} /> System Logs
+                        </button>
+                         <button 
+                            onClick={() => setActiveTab('audit')}
+                            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'audit' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <ClipboardList size={18} /> Audit
                         </button>
                     </div>
                     
@@ -253,6 +278,51 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                                 <Users size={48} className="mb-4 opacity-20" />
                                                 <p className="text-lg font-medium text-gray-900">No users found</p>
                                                 <p className="text-sm">Try adjusting your search terms</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    ) : activeTab === 'audit' ? (
+                        <table className="w-full text-left border-collapse min-w-[600px]">
+                            <thead>
+                                <tr className="bg-gray-50/50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500">
+                                    <th className="p-4 md:p-6 font-semibold">Timestamp</th>
+                                    <th className="p-4 md:p-6 font-semibold">Admin</th>
+                                    <th className="p-4 md:p-6 font-semibold">Action</th>
+                                    <th className="p-4 md:p-6 font-semibold">Target</th>
+                                </tr>
+                            </thead>
+                             <tbody className="divide-y divide-gray-50">
+                                {filteredAuditLogs.map((log) => (
+                                    <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
+                                        <td className="p-4 md:p-6 text-sm text-gray-600 font-mono whitespace-nowrap">
+                                            {new Date(log.timestamp).toLocaleString()}
+                                        </td>
+                                        <td className="p-4 md:p-6 text-sm font-medium text-gray-900">
+                                            {log.adminEmail}
+                                        </td>
+                                        <td className="p-4 md:p-6">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border whitespace-nowrap
+                                                ${log.action === 'Delete User' ? 'bg-red-50 text-red-700 border-red-100' : ''}
+                                                ${log.action === 'Add Admin' ? 'bg-blue-50 text-blue-700 border-blue-100' : ''}
+                                                ${log.action === 'Remove Admin' ? 'bg-orange-50 text-orange-700 border-orange-100' : ''}
+                                            `}>
+                                                {log.action}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 md:p-6 text-sm text-gray-500">
+                                            {log.target || '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredAuditLogs.length === 0 && (
+                                    <tr>
+                                        <td colSpan={4} className="p-12 text-center">
+                                             <div className="flex flex-col items-center justify-center text-gray-400">
+                                                <Shield size={48} className="mb-4 opacity-20" />
+                                                <p className="text-lg font-medium text-gray-900">No audit logs found</p>
                                             </div>
                                         </td>
                                     </tr>

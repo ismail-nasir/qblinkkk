@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
@@ -113,16 +114,17 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
     osc.connect(gainNode);
     gainNode.connect(ctx.destination);
 
-    // Alert sound pattern (High pitch pulse)
-    osc.type = 'sine';
+    // Alert sound pattern - CHANGED to SQUARE wave for higher perceived loudness
+    osc.type = 'square';
     osc.frequency.setValueAtTime(800, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.2);
+    osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
 
-    gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+    // CHANGED gain to 1.0 (Maximum Web Audio Volume)
+    gainNode.gain.setValueAtTime(1.0, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
 
     osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.2);
+    osc.stop(ctx.currentTime + 0.3);
   };
 
   const handleJoin = (e: React.FormEvent) => {

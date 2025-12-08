@@ -1,8 +1,10 @@
-import { User } from '../types';
+
+import { User, AdminAuditLog } from '../types';
 
 const USERS_KEY = 'qblink_users_v1';
 const SESSION_KEY = 'qblink_session_v1';
 const ADMINS_KEY = 'qblink_admins_v1';
+const ADMIN_LOGS_KEY = 'qblink_admin_logs_v1';
 const ROOT_ADMIN = 'ismailnsm75@gmail.com';
 
 // Helper to delay execution to simulate network request
@@ -248,5 +250,32 @@ export const authService = {
     let storedAdmins: string[] = adminsStr ? JSON.parse(adminsStr) : [];
     storedAdmins = storedAdmins.filter(a => a !== normalized);
     localStorage.setItem(ADMINS_KEY, JSON.stringify(storedAdmins));
+  },
+
+  // --- Admin Audit Logging ---
+  
+  logAdminAction: (adminEmail: string, action: string, target?: string) => {
+      const logsStr = localStorage.getItem(ADMIN_LOGS_KEY);
+      const logs: AdminAuditLog[] = logsStr ? JSON.parse(logsStr) : [];
+      
+      const newLog: AdminAuditLog = {
+          id: crypto.randomUUID(),
+          adminEmail: adminEmail,
+          action: action,
+          target: target,
+          timestamp: new Date().toISOString()
+      };
+      
+      // Store newest first
+      logs.unshift(newLog);
+      // Keep only last 100 logs
+      if (logs.length > 100) logs.pop();
+      
+      localStorage.setItem(ADMIN_LOGS_KEY, JSON.stringify(logs));
+  },
+
+  getAdminLogs: (): AdminAuditLog[] => {
+      const logsStr = localStorage.getItem(ADMIN_LOGS_KEY);
+      return logsStr ? JSON.parse(logsStr) : [];
   }
 };

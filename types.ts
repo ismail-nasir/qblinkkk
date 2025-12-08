@@ -1,4 +1,5 @@
 
+
 export interface QueueMetric {
   waiting: number;
   served: number;
@@ -10,6 +11,14 @@ export interface ActivityLog {
   time: string;
   action: 'call' | 'skip' | 'complete' | 'join' | 'leave';
   details?: string;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  adminEmail: string;
+  action: string;
+  target?: string;
+  timestamp: string;
 }
 
 export interface Visitor {
