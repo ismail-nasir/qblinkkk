@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, QueueInfo, QueueData } from '../types';
 import { queueService } from '../services/queue';
-import { Plus, LayoutGrid, Clock, Users, ExternalLink, Activity, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle, BarChart3 } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, Users, ExternalLink, Activity, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 // @ts-ignore
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -18,6 +19,9 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   const [queueToDelete, setQueueToDelete] = useState<string | null>(null);
   const [newQueueName, setNewQueueName] = useState('');
   const [estimatedTime, setEstimatedTime] = useState('');
+  
+  // State for toggling stats visibility per queue
+  const [expandedQueues, setExpandedQueues] = useState<Set<string>>(new Set());
   
   // Aggregate Stats State
   const [stats, setStats] = useState({
@@ -144,6 +148,19 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
           loadQueues();
           setQueueToDelete(null);
       }
+  };
+
+  const toggleStats = (e: React.MouseEvent, queueId: string) => {
+      e.stopPropagation();
+      setExpandedQueues(prev => {
+          const next = new Set(prev);
+          if (next.has(queueId)) {
+              next.delete(queueId);
+          } else {
+              next.add(queueId);
+          }
+          return next;
+      });
   };
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -349,15 +366,17 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   {queues.map((queue, index) => {
                       const stats = queueStats[queue.id];
+                      const isExpanded = expandedQueues.has(queue.id);
+                      
                       return (
                         <motion.div
                             key={queue.id}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.1 }}
-                            className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300 relative group"
+                            className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300 relative group flex flex-col"
                         >
-                            <div className="flex justify-between items-start mb-6">
+                            <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h3 className="text-2xl font-bold text-gray-900 mb-1">{queue.name}</h3>
                                     <div className="flex items-center gap-2 text-sm text-gray-500 font-mono">
@@ -369,27 +388,52 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-3 mb-8">
-                                <div className="bg-blue-50/50 rounded-2xl p-4 flex flex-col items-center justify-center border border-blue-100">
-                                    <Activity size={16} className="text-blue-500 mb-2" />
-                                    <span className="text-2xl font-bold text-gray-900">#{String(stats?.currentTicket || 0).padStart(2, '0')}</span>
-                                    <span className="text-[10px] uppercase font-bold text-gray-400 mt-1">Current</span>
-                                </div>
-                                <div className="bg-green-50/50 rounded-2xl p-4 flex flex-col items-center justify-center border border-green-100">
-                                    <Users size={16} className="text-green-500 mb-2" />
-                                    <span className="text-2xl font-bold text-gray-900">{stats?.metrics.served || 0}</span>
-                                    <span className="text-[10px] uppercase font-bold text-gray-400 mt-1">Served</span>
-                                </div>
-                                <div className="bg-gray-50 rounded-2xl p-4 flex flex-col items-center justify-center border border-gray-100">
-                                    <Clock size={16} className="text-gray-500 mb-2" />
-                                    <span className="text-2xl font-bold text-gray-900">
-                                        {stats?.metrics.avgWaitTime || 0}
-                                    </span>
-                                    <span className="text-[10px] uppercase font-bold text-gray-400 mt-1">min/avg</span>
-                                </div>
+                            {/* Stats Toggle Button */}
+                            <div className="flex justify-end mb-4">
+                                <button 
+                                    onClick={(e) => toggleStats(e, queue.id)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${isExpanded ? 'bg-primary-50 text-primary-700' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                    <BarChart3 size={14} />
+                                    {isExpanded ? 'Hide Statistics' : 'Show Statistics'}
+                                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                </button>
                             </div>
 
-                            <div className="flex gap-3">
+                            {/* Collapsible Stats Grid */}
+                            <AnimatePresence>
+                                {isExpanded && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="grid grid-cols-3 gap-3 mb-6">
+                                            <div className="bg-orange-50/50 rounded-2xl p-3 flex flex-col items-center justify-center border border-orange-100">
+                                                <Hourglass size={16} className="text-orange-500 mb-1.5" />
+                                                <span className="text-xl font-bold text-gray-900">{stats?.metrics.waiting || 0}</span>
+                                                <span className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">Waiting</span>
+                                            </div>
+                                            <div className="bg-green-50/50 rounded-2xl p-3 flex flex-col items-center justify-center border border-green-100">
+                                                <Users size={16} className="text-green-500 mb-1.5" />
+                                                <span className="text-xl font-bold text-gray-900">{stats?.metrics.served || 0}</span>
+                                                <span className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">Served</span>
+                                            </div>
+                                            <div className="bg-blue-50/50 rounded-2xl p-3 flex flex-col items-center justify-center border border-blue-100">
+                                                <Clock size={16} className="text-blue-500 mb-1.5" />
+                                                <span className="text-xl font-bold text-gray-900">
+                                                    {stats?.metrics.avgWaitTime || 0}
+                                                </span>
+                                                <span className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">min/avg</span>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            <div className="flex gap-3 mt-auto">
                                 <button 
                                     onClick={() => onSelectQueue(queue)}
                                     className="flex-1 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all"

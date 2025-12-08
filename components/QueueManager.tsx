@@ -1,6 +1,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
