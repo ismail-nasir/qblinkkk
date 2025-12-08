@@ -161,7 +161,7 @@ const UseCases: React.FC = () => {
                             <div className={`absolute top-0 left-0 right-0 h-2 ${activeCase.mockupData.color}`}></div>
                             
                             <span className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4 mt-2">Current Ticket</span>
-                            <div className="text-7xl font-black text-gray-900 mb-4 tracking-tighter">A-12</div>
+                            <div className="text-7xl font-black text-gray-900 mb-4 tracking-tighter">12</div>
                             
                             <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold ${activeCase.mockupData.bg} ${activeCase.mockupData.accent}`}>
                                 <activeCase.icon size={16} />
@@ -186,7 +186,7 @@ const UseCases: React.FC = () => {
                     {/* Footer Mock */}
                     <div className="p-6 pt-0 z-10">
                         <div className={`w-full py-4 ${activeCase.mockupData.color} text-white rounded-2xl font-bold text-sm flex items-center justify-center shadow-lg shadow-gray-200`}>
-                           Check Status
+                           Leave Queue
                         </div>
                     </div>
                 </div>
