@@ -1,7 +1,5 @@
 
 
-
-
 import { QueueData, QueueMetric, ActivityLog, User, Visitor, QueueInfo } from '../types';
 
 const DATA_KEY_PREFIX = 'qblink_data_';
@@ -93,13 +91,6 @@ export const queueService = {
 
   // Get metadata for a specific queue by ID (useful for public views)
   getQueueInfo: (queueId: string): QueueInfo | null => {
-      // In a real DB, we'd query by ID. 
-      // In localStorage, we have to iterate all users or store a global map.
-      // For this demo, we assume we might not need the owner info immediately, 
-      // OR we scan keys. Scanning keys is safer for this 'database'.
-      
-      // Optimization: We can store a global map of queueId -> userId, 
-      // but let's just search since it's local.
       for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith(QUEUES_KEY_PREFIX)) {
@@ -118,8 +109,6 @@ export const queueService = {
   getQueueData: (queueId: string): QueueData => {
     const dataStr = localStorage.getItem(getDataKey(queueId));
     if (!dataStr) {
-      // Fallback for legacy data (if queueId passed was actually userId in old version)
-      // or just return empty initial data
       return { ...INITIAL_DATA, queueId };
     }
     try {
@@ -134,11 +123,26 @@ export const queueService = {
     localStorage.setItem(getDataKey(queueId), JSON.stringify(data));
   },
 
+  // Reorder queue (drag and drop)
+  reorderQueue: (queueId: string, visitors: Visitor[]) => {
+      const data = queueService.getQueueData(queueId);
+      
+      // We assume 'visitors' contains the full list, or we are passed the full list
+      // In this app structure, we will just update the visitors array directly
+      
+      const updatedData = {
+          ...data,
+          visitors: visitors
+      };
+      
+      queueService.saveQueueData(queueId, updatedData);
+      return updatedData;
+  },
+
   // Get aggregated system logs (Admin)
   getSystemLogs: (users: User[]): (ActivityLog & { user: string, email: string })[] => {
     let allLogs: (ActivityLog & { user: string, email: string })[] = [];
     
-    // Iterate users, then their queues
     users.forEach(user => {
         const queues = queueService.getUserQueues(user.id);
         queues.forEach(queue => {
@@ -226,14 +230,14 @@ export const queueService = {
   callNext: (queueId: string) => {
     const data = queueService.getQueueData(queueId);
     
-    const nextVisitor = data.visitors
-        .filter(v => v.status === 'waiting')
-        .sort((a, b) => a.ticketNumber - b.ticketNumber)[0];
+    // MODIFIED: Find first waiting visitor by ARRAY ORDER, not sorted by ticket number.
+    // This respects manual drag-and-drop reordering.
+    const nextVisitor = data.visitors.find(v => v.status === 'waiting');
 
     if (!nextVisitor) return data;
 
     const updatedVisitors = data.visitors.map(v => {
-        if (v.status === 'serving') return { ...v, status: 'served' as const, isAlerting: false };
+        if (v.status === 'serving') return { ...v, status: 'served' as const, isAlerting: false, servedTime: new Date().toISOString() };
         if (v.id === nextVisitor.id) return { ...v, status: 'serving' as const, isAlerting: true }; // Trigger alert on call
         return v;
     });
@@ -270,7 +274,7 @@ export const queueService = {
       if (!visitor) return data;
 
       const updatedVisitors = data.visitors.map(v => {
-          if (v.status === 'serving') return { ...v, status: 'served' as const, isAlerting: false };
+          if (v.status === 'serving') return { ...v, status: 'served' as const, isAlerting: false, servedTime: new Date().toISOString() };
           if (v.ticketNumber === ticketNumber) return { ...v, status: 'serving' as const, isAlerting: true };
           return v;
       });
@@ -295,37 +299,65 @@ export const queueService = {
       return updatedData;
   },
 
+  recallVisitor: (queueId: string, visitorId: string) => {
+      const data = queueService.getQueueData(queueId);
+      const visitor = data.visitors.find(v => v.id === visitorId);
+
+      if (!visitor || visitor.status !== 'served') return data;
+
+      const updatedVisitors = data.visitors.map(v => {
+          if (v.status === 'serving') {
+              return { ...v, status: 'served' as const, isAlerting: false, servedTime: new Date().toISOString() };
+          }
+          if (v.id === visitorId) {
+              return { ...v, status: 'serving' as const, isAlerting: true }; 
+          }
+          return v;
+      });
+
+      const newActivity: ActivityLog = {
+          ticket: visitor.ticketNumber,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          action: 'call',
+          details: 'Recall'
+      };
+
+      const updatedData = {
+          ...data,
+          currentTicket: visitor.ticketNumber,
+          lastCalledNumber: visitor.ticketNumber,
+          visitors: updatedVisitors,
+          recentActivity: [newActivity, ...data.recentActivity].slice(0, 50)
+      };
+
+      queueService.saveQueueData(queueId, updatedData);
+      return updatedData;
+  },
+
   takeBack: (queueId: string) => {
       const data = queueService.getQueueData(queueId);
-      // If no one was called recently, do nothing
       if (data.lastCalledNumber === 0) return data;
 
-      // Find the visitor who was last called (ticket == lastCalledNumber)
       const targetVisitor = data.visitors.find(v => v.ticketNumber === data.lastCalledNumber);
-      
-      // If visitor not found (e.g. deleted), do nothing
       if (!targetVisitor) return data;
 
       const updatedVisitors = data.visitors.map(v => {
           if (v.ticketNumber === data.lastCalledNumber) {
-              // Revert status to waiting and turn off alert
               return { ...v, status: 'waiting' as const, isAlerting: false };
           }
           return v;
       });
 
-      // Update metrics: increment waiting, decrement served
       const newMetrics = {
           ...data.metrics,
           waiting: updatedVisitors.filter(v => v.status === 'waiting').length,
           served: Math.max(0, data.metrics.served - 1)
       };
 
-      // Log the action
       const newActivity: ActivityLog = {
           ticket: targetVisitor.ticketNumber,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          action: 'skip', // Using 'skip' type for takeback or add a new type if preferred
+          action: 'skip', 
           details: 'Take Back'
       };
 
@@ -334,9 +366,6 @@ export const queueService = {
           visitors: updatedVisitors,
           metrics: newMetrics,
           recentActivity: [newActivity, ...data.recentActivity].slice(0, 50)
-          // We do NOT change lastCalledNumber usually, because we want the next "Call Next" 
-          // to pick this person up again (since they are now waiting with low number) 
-          // or pick the actual next person. 
       };
       
       queueService.saveQueueData(queueId, updatedData);
@@ -368,7 +397,6 @@ export const queueService = {
     return { ...INITIAL_DATA, queueId };
   },
 
-  // Alert Control
   triggerAlert: (queueId: string, visitorId: string) => {
       const data = queueService.getQueueData(queueId);
       const updatedVisitors = data.visitors.map(v => 

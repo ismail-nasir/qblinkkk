@@ -28,6 +28,7 @@ export interface Visitor {
   joinTime: string; // ISO string
   status: 'waiting' | 'serving' | 'served' | 'cancelled';
   isAlerting?: boolean; // New flag for sound control
+  servedTime?: string; // Time when status changed to served
 }
 
 export interface QueueInfo {

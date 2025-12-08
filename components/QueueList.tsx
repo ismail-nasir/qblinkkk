@@ -1,8 +1,7 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, QueueInfo, QueueData } from '../types';
 import { queueService } from '../services/queue';
-import { Plus, LayoutGrid, Clock, Users, ArrowRight, ExternalLink, Activity, Copy, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle, BarChart3, PieChart } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, Users, ExternalLink, Activity, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 // @ts-ignore
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -32,15 +31,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   const [trafficData, setTrafficData] = useState<any[]>([]);
   const [volumeData, setVolumeData] = useState<any[]>([]);
 
-  // Initial load and polling setup
-  useEffect(() => {
-    loadQueues();
-    // Real-time polling every 3 seconds
-    const interval = setInterval(loadQueues, 3000);
-    return () => clearInterval(interval);
-  }, [user.id]);
-
-  const loadQueues = () => {
+  const loadQueues = useCallback(() => {
     const userQueues = queueService.getUserQueues(user.id);
     setQueues(userQueues);
     
@@ -52,12 +43,11 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
     let activeQueuesCount = 0;
     
     // For Charts
-    const hourlyTraffic: Record<string, { time: string, visitors: number, served: number }> = {};
+    const hourlyTraffic: Record<number, { time: string, visitors: number, served: number }> = {};
     const queueVolumes: { name: string, visitors: number }[] = [];
 
-    // Initialize hourly buckets (9 AM to 6 PM default, or current day hours)
-    const currentHour = new Date().getHours();
-    for (let i = Math.max(8, currentHour - 8); i <= Math.max(18, currentHour + 1); i++) {
+    // Initialize hourly buckets (8 AM to 8 PM) to ensure chart always has axis
+    for (let i = 8; i <= 20; i++) {
         const hourLabel = `${i > 12 ? i - 12 : i} ${i >= 12 ? 'PM' : 'AM'}`;
         hourlyTraffic[i] = { time: hourLabel, visitors: 0, served: 0 };
     }
@@ -76,23 +66,24 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
 
         // --- Process Graph Data ---
         // 1. Volume per Queue
-        queueVolumes.push({
-            name: q.name,
-            visitors: data.metrics.waiting + data.metrics.served
-        });
+        if (data.metrics.waiting + data.metrics.served > 0) {
+            queueVolumes.push({
+                name: q.name,
+                visitors: data.metrics.waiting + data.metrics.served
+            });
+        }
 
         // 2. Hourly Traffic (Join vs Served)
         data.recentActivity.forEach(log => {
-            // Parse log time "HH:MM AM/PM"
-            // Note: This is a simplified parser assuming logs are from Today. 
-            // Real apps would use ISO timestamps in logs.
             try {
+                // Approximate parsing of "HH:MM AM/PM"
                 const [timeStr, modifier] = log.time.split(' ');
                 let [hours, minutes] = timeStr.split(':');
                 let h = parseInt(hours);
                 if (modifier === 'PM' && h < 12) h += 12;
                 if (modifier === 'AM' && h === 12) h = 0;
                 
+                // Only track if within our visualization window (or add dynamic expansion)
                 if (hourlyTraffic[h]) {
                     if (log.action === 'join') hourlyTraffic[h].visitors++;
                     if (log.action === 'complete' || log.action === 'call') hourlyTraffic[h].served++;
@@ -111,9 +102,25 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
         avgWaitTime: activeQueuesCount > 0 ? Math.round(totalWaitTime / activeQueuesCount) : 0
     });
 
-    setTrafficData(Object.values(hourlyTraffic));
-    setVolumeData(queueVolumes);
-  };
+    // Sort hourly traffic by hour index to ensure line chart is chronological
+    const sortedTraffic = Object.keys(hourlyTraffic)
+        .map(Number)
+        .sort((a, b) => a - b)
+        .map(key => hourlyTraffic[key]);
+
+    setTrafficData(sortedTraffic);
+    
+    // Ensure volume data exists even if empty for rendering
+    setVolumeData(queueVolumes.length > 0 ? queueVolumes : [{name: 'No Data', visitors: 0}]);
+  }, [user.id]);
+
+  // Initial load and polling setup
+  useEffect(() => {
+    loadQueues();
+    // Real-time polling every 3 seconds
+    const interval = setInterval(loadQueues, 3000);
+    return () => clearInterval(interval);
+  }, [loadQueues]);
 
   const handleCreateQueue = (e: React.FormEvent) => {
       e.preventDefault();
@@ -225,63 +232,63 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
           </motion.div>
       </div>
 
-      {/* Analytics Graphs */}
-      {queues.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 }}
-                className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100"
-              >
-                  <div className="flex items-center justify-between mb-6">
-                      <div>
-                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                             <TrendingUp size={20} className="text-primary-600" /> Hourly Traffic
-                          </h3>
-                          <p className="text-xs text-gray-500">Visitors joined vs. Served today</p>
-                      </div>
+      {/* Analytics Graphs - Visible even if data is 0 to show structure */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+            className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100"
+          >
+              <div className="flex items-center justify-between mb-6">
+                  <div>
+                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                          <TrendingUp size={20} className="text-primary-600" /> Hourly Traffic
+                      </h3>
+                      <p className="text-xs text-gray-500">Visitors joined vs. Served today</p>
                   </div>
-                  <div className="h-[250px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={trafficData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                              <defs>
-                                  <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                  </linearGradient>
-                                  <linearGradient id="colorServed" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2}/>
-                                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
-                                  </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                              <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
-                              <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
-                              <Tooltip content={<CustomTooltip />} />
-                              <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVisitors)" name="Joined" />
-                              <Area type="monotone" dataKey="served" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorServed)" name="Served" />
-                          </AreaChart>
-                      </ResponsiveContainer>
-                  </div>
-              </motion.div>
+              </div>
+              <div className="h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={trafficData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <defs>
+                              <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                              </linearGradient>
+                              <linearGradient id="colorServed" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2}/>
+                                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                              </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                          <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVisitors)" name="Joined" />
+                          <Area type="monotone" dataKey="served" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorServed)" name="Served" />
+                      </AreaChart>
+                  </ResponsiveContainer>
+              </div>
+          </motion.div>
 
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5 }}
-                className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100"
-              >
-                  <div className="flex items-center justify-between mb-6">
-                      <div>
-                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                             <BarChart3 size={20} className="text-purple-600" /> Queue Volume
-                          </h3>
-                          <p className="text-xs text-gray-500">Total visitors by queue</p>
-                      </div>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5 }}
+            className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100"
+          >
+              <div className="flex items-center justify-between mb-6">
+                  <div>
+                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                          <BarChart3 size={20} className="text-purple-600" /> Queue Volume
+                      </h3>
+                      <p className="text-xs text-gray-500">Total visitors by queue</p>
                   </div>
-                  <div className="h-[250px] w-full">
-                       <ResponsiveContainer width="100%" height="100%">
+              </div>
+              <div className="h-[250px] w-full">
+                  {volumeData.length > 0 && volumeData[0].name !== 'No Data' ? (
+                      <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={volumeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#9ca3af'}} />
@@ -294,10 +301,16 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                               </Bar>
                           </BarChart>
                       </ResponsiveContainer>
-                  </div>
-              </motion.div>
-          </div>
-      )}
+                  ) : (
+                      <div className="h-full w-full flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                          <BarChart3 size={32} className="mb-2 opacity-50" />
+                          <p className="text-sm font-medium">No activity recorded yet</p>
+                          <p className="text-xs">Data will appear here once visitors join</p>
+                      </div>
+                  )}
+              </div>
+          </motion.div>
+      </div>
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pt-4">
