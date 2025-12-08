@@ -38,6 +38,7 @@ export interface QueueInfo {
   status: 'active' | 'inactive';
   createdAt: string;
   estimatedWaitTime?: number; // Manual override for wait time
+  logo?: string; // Base64 or URL of the queue logo
 }
 
 export interface QueueData {

@@ -1,6 +1,7 @@
 
 
 
+
 import { QueueData, QueueMetric, ActivityLog, User, Visitor, QueueInfo } from '../types';
 
 const DATA_KEY_PREFIX = 'qblink_data_';
@@ -66,6 +67,20 @@ export const queueService = {
     localStorage.setItem(getDataKey(newQueue.id), JSON.stringify(initialQueueData));
 
     return newQueue;
+  },
+
+  // Update a queue (e.g. settings, logo)
+  updateQueue: (userId: string, queueId: string, updates: Partial<QueueInfo>): QueueInfo | null => {
+      const queues = queueService.getUserQueues(userId);
+      const index = queues.findIndex(q => q.id === queueId);
+      
+      if (index === -1) return null;
+
+      const updatedQueue = { ...queues[index], ...updates };
+      queues[index] = updatedQueue;
+      
+      localStorage.setItem(getUserQueuesKey(userId), JSON.stringify(queues));
+      return updatedQueue;
   },
 
   // Delete a queue

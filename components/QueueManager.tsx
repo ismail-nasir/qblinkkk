@@ -1,10 +1,12 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, QueueData, Visitor, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Upload, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+// @ts-ignore
+import QRCode from 'qrcode';
 
 interface QueueManagerProps {
   user: User;
@@ -14,11 +16,17 @@ interface QueueManagerProps {
 
 const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [queueData, setQueueData] = useState<QueueData>(queueService.getQueueData(queue.id));
+  const [currentQueue, setCurrentQueue] = useState<QueueInfo>(queue);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newVisitorName, setNewVisitorName] = useState('');
   const [callNumberInput, setCallNumberInput] = useState('');
   const [showCallModal, setShowCallModal] = useState(false);
+
+  // QR Generation State
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(queue.logo || null);
 
   // Poll for updates (in case multiple devices/customers are interacting)
   useEffect(() => {
@@ -28,6 +36,152 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     return () => clearInterval(interval);
   }, [queue.id]);
 
+  // QR Code Rendering Logic (Advanced Dot Style with Logo)
+  useEffect(() => {
+    if (showQrModal && canvasRef.current) {
+        generateCustomQRCode();
+    }
+  }, [showQrModal, logoPreview]);
+
+  const generateCustomQRCode = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
+    const qrSize = 1000; // High resolution for download
+    const padding = 60;
+    const dotSizeRatio = 0.75; // 0-1, size of dots relative to grid
+    const logoSizeRatio = 0.22; // Size of logo relative to QR
+
+    // 1. Generate Raw QR Data
+    const qrData = QRCode.create(joinUrl, { errorCorrectionLevel: 'H' });
+    const moduleCount = qrData.modules.size;
+    const moduleSize = (qrSize - 2 * padding) / moduleCount;
+
+    // 2. Set Canvas Size
+    canvas.width = qrSize;
+    canvas.height = qrSize;
+
+    // 3. Clear Background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, qrSize, qrSize);
+
+    // 4. Draw Modules (Dots)
+    ctx.fillStyle = '#111827'; // Dark Gray/Black for dots
+    
+    // Calculate Logo Safe Zone
+    const center = moduleCount / 2;
+    const logoModules = Math.ceil(moduleCount * logoSizeRatio);
+    const safeZoneStart = Math.floor(center - logoModules / 2);
+    const safeZoneEnd = Math.ceil(center + logoModules / 2);
+
+    for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+            // Skip center safe zone for logo
+            if (row >= safeZoneStart && row < safeZoneEnd && col >= safeZoneStart && col < safeZoneEnd) {
+                continue;
+            }
+
+            if (qrData.modules.get(row, col)) {
+                // Determine if this is a finder pattern (the big squares)
+                // Finder patterns are 7x7 at corners (0,0), (0, max), (max, 0)
+                const isFinderPattern = 
+                    (row < 7 && col < 7) || 
+                    (row < 7 && col >= moduleCount - 7) || 
+                    (row >= moduleCount - 7 && col < 7);
+
+                if (isFinderPattern) {
+                    // Draw Finder Pattern (Square block style)
+                    // We can just draw a rect slightly larger to prevent gaps
+                    ctx.fillRect(
+                        padding + col * moduleSize,
+                        padding + row * moduleSize,
+                        moduleSize + 0.5,
+                        moduleSize + 0.5
+                    );
+                } else {
+                    // Draw Rounded Dot
+                    const x = padding + col * moduleSize + moduleSize / 2;
+                    const y = padding + row * moduleSize + moduleSize / 2;
+                    const radius = (moduleSize * dotSizeRatio) / 2;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+    }
+
+    // 5. Draw Logo
+    if (logoPreview) {
+        const img = new Image();
+        img.src = logoPreview;
+        img.onload = () => {
+            const logoPxSize = qrSize * logoSizeRatio;
+            const logoX = (qrSize - logoPxSize) / 2;
+            const logoY = (qrSize - logoPxSize) / 2;
+
+            // Draw white background circle/square behind logo for contrast
+            ctx.fillStyle = '#FFFFFF';
+            // Round rect background
+            roundRect(ctx, logoX - 10, logoY - 10, logoPxSize + 20, logoPxSize + 20, 20);
+            ctx.fill();
+
+            // Draw Logo
+            ctx.save();
+            // Clip to rounded rect
+            roundRect(ctx, logoX, logoY, logoPxSize, logoPxSize, 15);
+            ctx.clip();
+            ctx.drawImage(img, logoX, logoY, logoPxSize, logoPxSize);
+            ctx.restore();
+        };
+    }
+  };
+
+  // Helper for rounded rectangles on canvas
+  const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              const base64 = reader.result as string;
+              setLogoPreview(base64);
+              // Update Queue Service
+              const updated = queueService.updateQueue(user.id, queue.id, { logo: base64 });
+              if (updated) setCurrentQueue(updated);
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const handleDownloadQR = () => {
+      if (canvasRef.current) {
+          const link = document.createElement('a');
+          link.download = `qblink-qr-${queue.code}.png`;
+          link.href = canvasRef.current.toDataURL('image/png');
+          link.click();
+      }
+  };
+
+  // ... (Existing Event Handlers: handleCallNext, handleAddVisitor, etc.)
   const handleCallNext = () => {
     const newData = queueService.callNext(queue.id);
     setQueueData(newData);
@@ -75,9 +229,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting');
   const currentVisitor = queueData.visitors.find(v => v.status === 'serving');
   
-  // URL for the QR Code
-  const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
-
   return (
     <div className="container mx-auto px-4 pb-20 max-w-5xl">
       {/* Top Bar */}
@@ -234,7 +385,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
       {/* MODALS */}
       
-      {/* QR Modal (Premium Design) */}
+      {/* QR Modal (Premium Design with Logo Upload) */}
       <AnimatePresence>
           {showQrModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-md">
@@ -273,16 +424,35 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                    <p className="text-gray-500 text-sm font-medium">Scan to join the queue</p>
                                </div>
 
-                               {/* QR Area */}
-                               <div className="p-8 pb-4 relative">
-                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-white rotate-45 border-l border-t border-gray-100"></div>
-                                    <div className="border-4 border-gray-900 rounded-3xl p-3 bg-white shadow-lg">
-                                        <img 
-                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(joinUrl)}&margin=10`} 
-                                            alt="Queue QR Code" 
-                                            className="w-48 h-48 rounded-lg mix-blend-multiply"
+                               {/* QR Area with Custom Canvas */}
+                               <div className="p-8 pb-4 relative flex flex-col items-center">
+                                    <div className="border-4 border-gray-900 rounded-3xl p-3 bg-white shadow-lg relative">
+                                        {/* Canvas that renders the Dot QR with embedded logo */}
+                                        <canvas 
+                                            ref={canvasRef} 
+                                            className="w-48 h-48 rounded-lg"
+                                            style={{ imageRendering: 'pixelated' }}
+                                        />
+                                        
+                                        {/* Logo Upload Overlay Button */}
+                                        <button 
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="absolute -bottom-3 -right-3 w-10 h-10 bg-primary-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary-700 hover:scale-105 transition-all z-20"
+                                            title="Upload Logo"
+                                        >
+                                            <ImageIcon size={18} />
+                                        </button>
+                                        <input 
+                                            type="file" 
+                                            ref={fileInputRef} 
+                                            className="hidden" 
+                                            accept="image/*"
+                                            onChange={handleLogoUpload}
                                         />
                                     </div>
+                                    <p className="text-[10px] text-gray-400 font-medium mt-3">
+                                        Click icon to add your logo
+                                    </p>
                                </div>
 
                                {/* Placard Footer */}
@@ -293,13 +463,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                    </div>
                                    
                                    <button 
-                                        onClick={() => {
-                                            const link = document.createElement('a');
-                                            link.href = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(joinUrl)}`;
-                                            link.download = `queue-qr-${queue.code}.png`;
-                                            link.target = '_blank';
-                                            link.click();
-                                        }}
+                                        onClick={handleDownloadQR}
                                         className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-gray-900/20 hover:scale-105 transition-transform"
                                    >
                                        <Download size={18} /> Download Printable
