@@ -46,6 +46,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       }
   };
 
+  // If Admin Panel is open, render it as the full view
+  if (isAdminOpen) {
+      return <AdminPanel onClose={() => setIsAdminOpen(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] animate-fade-in relative">
       {/* Navbar */}
@@ -130,9 +135,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             Welcome, <span className="text-primary-600">@{user.businessName}</span>
         </h1>
       </main>
-
-      {/* Admin Panel Modal */}
-      {isAdminOpen && <AdminPanel onClose={() => setIsAdminOpen(false)} />}
 
       {/* Settings Modal */}
       {isSettingsOpen && (
