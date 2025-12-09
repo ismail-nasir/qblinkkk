@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Mail, KeyRound, ChevronLeft, Settings, Server } from 'lucide-react';
+import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Mail, KeyRound, ChevronLeft, Settings, Server, Wifi } from 'lucide-react';
 import { authService } from '../services/auth';
 import { User, AppView } from '../types';
 import { api } from '../services/api';
@@ -83,6 +83,10 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
         setView('verify');
     } catch (err: any) {
         setError(err.message || "Signup failed.");
+        // Auto-show config if network error
+        if (err.message && (err.message.includes('connect') || err.message.includes('fetch'))) {
+            setTimeout(() => setShowServerConfig(true), 1000);
+        }
     } finally {
         setIsLoading(false);
     }
@@ -102,6 +106,10 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
         onLogin(user);
     } catch (err: any) {
         setError(err.message || "Login failed.");
+        // Auto-show config if network error
+        if (err.message && (err.message.includes('connect') || err.message.includes('fetch'))) {
+            setTimeout(() => setShowServerConfig(true), 1000);
+        }
     } finally {
         setIsLoading(false);
     }
@@ -570,20 +578,24 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
                         initial={{ opacity: 0, height: 0 }} 
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="p-4 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3 overflow-hidden"
+                        className="p-4 rounded-xl bg-red-50 border border-red-100 flex flex-col items-start gap-3 overflow-hidden"
                     >
-                        <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                        <div>
-                            <p className="text-sm text-red-600 font-medium">{error}</p>
-                            {error.includes('Cannot connect') && (
-                                <button 
-                                    onClick={() => setShowServerConfig(true)}
-                                    className="text-xs text-red-700 underline mt-1 font-bold"
-                                >
-                                    Check Server Settings
-                                </button>
-                            )}
+                        <div className="flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-sm text-red-600 font-medium">{error}</p>
+                            </div>
                         </div>
+                        
+                        {/* Smart Fix Button for Network Errors */}
+                        {(error.includes('connect') || error.includes('fetch') || error.includes('Network')) && (
+                            <button 
+                                onClick={() => setShowServerConfig(true)}
+                                className="w-full py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors mt-1"
+                            >
+                                <Wifi size={14} /> Fix Connection Settings
+                            </button>
+                        )}
                     </motion.div>
                 )}
                 {successMsg && (
@@ -647,8 +659,12 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
                       </div>
                       
                       <div className="bg-blue-50 p-4 rounded-xl mb-4 border border-blue-100">
-                          <p className="text-xs text-blue-700 leading-relaxed">
-                              If you are testing on another device (like a phone), enter your computer's IP address here (e.g. <code>http://192.168.1.5:3000</code>).
+                          <h4 className="text-sm font-bold text-blue-800 mb-1">Using another device?</h4>
+                          <p className="text-xs text-blue-700 leading-relaxed mb-2">
+                              Your phone cannot reach <code>localhost</code>. You must use your computer's local IP address.
+                          </p>
+                          <p className="text-xs text-blue-800 font-mono bg-blue-100/50 p-2 rounded border border-blue-200">
+                              e.g. http://192.168.1.5:3000
                           </p>
                       </div>
 
@@ -659,14 +675,14 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
                                 type="text" 
                                 value={serverUrl}
                                 onChange={(e) => setServerUrl(e.target.value)}
-                                placeholder="http://localhost:3000"
+                                placeholder="http://192.168.1.x:3000"
                                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-mono text-sm"
                               />
                           </div>
                           
                           <button 
                             onClick={saveServerUrl}
-                            className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors"
+                            className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20"
                           >
                               Save & Reload
                           </button>
