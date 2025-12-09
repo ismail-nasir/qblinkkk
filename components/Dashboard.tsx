@@ -1,9 +1,11 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Settings, ChevronDown, Trash2, X, ShieldAlert } from 'lucide-react';
+import { LogOut, Settings, ChevronDown, Trash2, X, ShieldAlert, Cloud, Download, Upload, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, QueueInfo } from '../types';
 import { authService } from '../services/auth';
+import { queueService } from '../services/queue';
 import AdminPanel from './AdminPanel';
 import QueueManager from './QueueManager';
 import QueueList from './QueueList';
@@ -18,11 +20,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   
   // Navigation State
   const [selectedQueue, setSelectedQueue] = useState<QueueInfo | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check for admin privileges
   const isAdmin = authService.isAdmin(user.email || '');
@@ -51,6 +55,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               alert("Failed to delete account. Please try again.");
               setIsDeleting(false);
           }
+      }
+  };
+
+  const handleExportData = () => {
+      queueService.exportUserData(user.id);
+  };
+
+  const handleImportClick = () => {
+      fileInputRef.current?.click();
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          if(confirm("This will overwrite your current dashboard data with the backup file. Continue?")) {
+              setIsImporting(true);
+              const success = await queueService.importUserData(user.id, e.target.files[0]);
+              if (success) {
+                  alert("Data restored successfully! The page will now refresh.");
+                  window.location.reload();
+              } else {
+                  alert("Failed to import data. Please check the file format.");
+                  setIsImporting(false);
+              }
+          }
+          // Reset input
+          e.target.value = '';
       }
   };
 
@@ -224,6 +254,43 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                 <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-700 font-medium truncate">
                                     {user.email}
                                 </div>
+                            </div>
+                        </div>
+
+                        <div className="h-px bg-gray-100 w-full"></div>
+
+                        {/* Data Sync Section (Cloud Simulation) */}
+                        <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100">
+                             <h3 className="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2">
+                                <Cloud size={16} /> Data Sync (Manual)
+                            </h3>
+                            <p className="text-xs text-blue-600/80 mb-4 leading-relaxed">
+                                Qblink stores data locally on your device for privacy. To move your queues to another device, export a backup and restore it there.
+                            </p>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                                <button 
+                                    onClick={handleExportData}
+                                    className="flex flex-col items-center justify-center p-3 bg-white border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors shadow-sm"
+                                >
+                                    <Download size={20} className="text-blue-600 mb-1" />
+                                    <span className="text-xs font-bold text-gray-700">Backup Data</span>
+                                </button>
+                                
+                                <button 
+                                    onClick={handleImportClick}
+                                    className="flex flex-col items-center justify-center p-3 bg-white border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors shadow-sm relative"
+                                >
+                                    {isImporting ? <RefreshCw size={20} className="text-blue-600 mb-1 animate-spin" /> : <Upload size={20} className="text-blue-600 mb-1" />}
+                                    <span className="text-xs font-bold text-gray-700">Restore Data</span>
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        className="hidden" 
+                                        accept=".json"
+                                        onChange={handleImportFile}
+                                    />
+                                </button>
                             </div>
                         </div>
 

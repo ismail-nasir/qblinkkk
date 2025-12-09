@@ -436,5 +436,57 @@ export const queueService = {
       const updatedData = { ...data, visitors: updatedVisitors };
       queueService.saveQueueData(queueId, updatedData);
       return updatedData;
+  },
+
+  // --- DATA SYNC (Manual Cloud) ---
+  
+  exportUserData: (userId: string) => {
+    const queues = queueService.getUserQueues(userId);
+    const data: Record<string, any> = {};
+    queues.forEach(q => {
+        data[q.id] = queueService.getQueueData(q.id);
+    });
+    
+    // Create download package
+    const blob = new Blob([JSON.stringify({ queues, data })], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `qblink_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  importUserData: async (userId: string, file: File): Promise<boolean> => {
+      return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+              try {
+                  const json = e.target?.result as string;
+                  const parsed = JSON.parse(json);
+                  
+                  if (!parsed.queues || !parsed.data) {
+                      throw new Error("Invalid backup format");
+                  }
+
+                  // 1. Restore Queues List
+                  localStorage.setItem(getUserQueuesKey(userId), JSON.stringify(parsed.queues));
+                  
+                  // 2. Restore Individual Queue Data
+                  Object.keys(parsed.data).forEach(queueId => {
+                      queueService.saveQueueData(queueId, parsed.data[queueId]);
+                  });
+
+                  resolve(true);
+              } catch (err) {
+                  console.error("Import failed:", err);
+                  resolve(false);
+              }
+          };
+          reader.readAsText(file);
+      });
   }
 };
