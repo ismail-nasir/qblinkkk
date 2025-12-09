@@ -1,4 +1,3 @@
-
 import { API_BASE_URL } from './config';
 
 class ApiClient {
@@ -18,25 +17,35 @@ class ApiClient {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
     const url = `${this.baseUrl}/${cleanEndpoint}`;
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    try {
+        const response = await fetch(url, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+        });
 
-    if (response.status === 401) {
-        localStorage.removeItem('qblink_token');
-        localStorage.removeItem('qblink_user');
-        window.location.href = '/'; 
-        throw new Error('Unauthorized');
+        if (response.status === 401) {
+            // Token expired or invalid
+            localStorage.removeItem('qblink_token');
+            localStorage.removeItem('qblink_user');
+            // Only redirect if not already on auth page
+            if (!window.location.pathname.includes('/auth') && window.location.pathname !== '/') {
+                window.location.href = '/'; 
+            }
+            throw new Error('Unauthorized');
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'Request failed');
+        }
+
+        return data;
+    } catch (error: any) {
+        console.error(`API Request Failed: ${method} ${url}`, error);
+        throw error;
     }
-
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Request failed');
-    }
-
-    return response.json();
   }
 
   get(endpoint: string) { return this.request(endpoint, 'GET'); }

@@ -1,4 +1,3 @@
-
 import { User, AdminAuditLog } from '../types';
 import { api } from './api';
 
@@ -39,7 +38,7 @@ export const authService = {
       authService.logout();
   },
 
-  // Stubs for verification
+  // Stubs for verification (backend implementation required for real email sending)
   verifyEmail: async (email: string, code: string) => { return authService.getCurrentUser()!; },
   resendVerification: async (email: string) => {},
   requestPasswordReset: async (email: string) => {},
@@ -54,6 +53,6 @@ export const authService = {
   getAdminLogs: async (): Promise<AdminAuditLog[]> => await api.get('/admin/logs'),
   isAdmin: (email: string): boolean => {
       const user = authService.getCurrentUser();
-      return user?.role === 'admin' || user?.role === 'superadmin' || email === 'ismailnsm75@gmail.com';
+      return user?.role === 'admin' || user?.role === 'superadmin';
   }
 };

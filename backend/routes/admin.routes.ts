@@ -1,10 +1,10 @@
-
 import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller';
 import { authenticate, requireRole, asyncHandler } from '../middleware';
 
 export const adminRouter = Router();
 
+// All routes require 'admin' or 'superadmin' role
 adminRouter.use(authenticate, requireRole(['admin', 'superadmin']));
 
 adminRouter.get('/users', asyncHandler(AdminController.getAllUsers));

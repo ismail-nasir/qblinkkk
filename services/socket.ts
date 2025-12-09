@@ -1,4 +1,3 @@
-
 import { io, Socket } from 'socket.io-client';
 import { SOCKET_BASE_URL } from './config';
 
@@ -10,7 +9,18 @@ class SocketService {
 
     this.socket = io(SOCKET_BASE_URL, {
       transports: ['websocket'],
-      autoConnect: true
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+
+    this.socket.on('connect', () => {
+        console.log('✅ Connected to WebSocket');
+    });
+
+    this.socket.on('disconnect', () => {
+        console.log('❌ Disconnected from WebSocket');
     });
   }
 

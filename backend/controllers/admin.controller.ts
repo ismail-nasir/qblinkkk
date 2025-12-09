@@ -1,4 +1,3 @@
-
 import { Response } from 'express';
 import { AuthRequest } from '../middleware';
 import { db } from '../db';
@@ -12,8 +11,12 @@ export class AdminController {
     static async getSystemLogs(req: AuthRequest, res: Response) {
         const result = await db.query(`
             SELECT l.action_type as action, l.timestamp as time, v.ticket_number as ticket, u.business_name as user, u.email
-            FROM queue_logs l JOIN queues q ON l.queue_id = q.id JOIN users u ON q.user_id = u.id LEFT JOIN visitors v ON l.visitor_id = v.id
-            ORDER BY l.timestamp DESC LIMIT 50`);
+            FROM queue_logs l 
+            JOIN queues q ON l.queue_id = q.id 
+            JOIN users u ON q.user_id = u.id 
+            LEFT JOIN visitors v ON l.visitor_id = v.id
+            ORDER BY l.timestamp DESC LIMIT 50`
+        );
         const formatted = result.rows.map(r => ({...r, time: new Date(r.time).toLocaleString()}));
         res.json(formatted);
     }
@@ -35,12 +38,14 @@ export class AdminController {
     }
     
     static async addAdmin(req: AuthRequest, res: Response) {
-        await db.query("UPDATE users SET role = 'admin' WHERE email = $1", [req.body.email]);
+        const { email } = req.body;
+        await db.query("UPDATE users SET role = 'admin' WHERE email = $1", [email]);
         res.json({success:true});
     }
     
     static async removeAdmin(req: AuthRequest, res: Response) {
-        await db.query("UPDATE users SET role = 'owner' WHERE email = $1", [req.body.email]);
+        const { email } = req.body;
+        await db.query("UPDATE users SET role = 'owner' WHERE email = $1", [email]);
         res.json({success:true});
     }
 }

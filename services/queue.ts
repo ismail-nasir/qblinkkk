@@ -1,4 +1,3 @@
-
 import { QueueData, QueueInfo, Visitor, ActivityLog } from '../types';
 import { api } from './api';
 
@@ -25,7 +24,7 @@ export const queueService = {
   
   getSystemLogs: async (): Promise<(ActivityLog & { user: string, email: string })[]> => await api.get('/admin/system-logs'),
 
-  // Export/Import not supported in cloud version initially (could implement as file upload API)
+  // Export/Import stubbed for cloud version
   exportUserData: async (userId: string) => {},
   importUserData: async (userId: string, file: File) => false,
 };
