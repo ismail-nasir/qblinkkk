@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Mail, KeyRound, ChevronLeft, Settings, Server, Wifi } from 'lucide-react';
+import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Mail, ChevronLeft } from 'lucide-react';
 import { authService } from '../services/auth';
 import { User, AppView } from '../types';
-import { api } from '../services/api';
 
 interface AuthProps {
   initialMode?: 'login' | 'signup';
@@ -22,29 +21,24 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   
-  // Server Config State
-  const [showServerConfig, setShowServerConfig] = useState(false);
-  const [serverUrl, setServerUrl] = useState(api.currentUrl);
-  
   // Data State
   const [formData, setFormData] = useState({
     businessName: '',
     email: '',
     password: '',
-    confirmPassword: '', // for reset
-    code: '', // for verify/reset
+    confirmPassword: '', 
+    code: '', 
     agreedTerms: false,
     agreedPrivacy: false
   });
 
-  // Track the email currently being processed (for verification/reset steps)
   const [activeEmail, setActiveEmail] = useState('');
 
   // Clear messages on view switch
   useEffect(() => {
     setError(null);
     setSuccessMsg(null);
-    setFormData(prev => ({ ...prev, code: '', password: '', confirmPassword: '' })); // Clear sensitive fields
+    setFormData(prev => ({ ...prev, code: '', password: '', confirmPassword: '' })); 
   }, [view]);
 
   // Password Strength Logic
@@ -83,10 +77,6 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
         setView('verify');
     } catch (err: any) {
         setError(err.message || "Signup failed.");
-        // Auto-show config if network error
-        if (err.message && (err.message.includes('connect') || err.message.includes('fetch'))) {
-            setTimeout(() => setShowServerConfig(true), 1000);
-        }
     } finally {
         setIsLoading(false);
     }
@@ -106,10 +96,6 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
         onLogin(user);
     } catch (err: any) {
         setError(err.message || "Login failed.");
-        // Auto-show config if network error
-        if (err.message && (err.message.includes('connect') || err.message.includes('fetch'))) {
-            setTimeout(() => setShowServerConfig(true), 1000);
-        }
     } finally {
         setIsLoading(false);
     }
@@ -173,13 +159,6 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
       }
   };
 
-  const saveServerUrl = () => {
-      api.setBaseUrl(serverUrl);
-      setShowServerConfig(false);
-      window.location.reload(); // Reload to re-init socket
-  };
-
-  // Scroll to top on mount
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -458,8 +437,6 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
                           </div>
                       </div>
                       
-                      {/* Reuse strength meter if needed or keep simple */}
-                      
                       <button 
                           type="submit"
                           disabled={isLoading}
@@ -538,14 +515,6 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
          <button onClick={onBack} className="absolute top-6 left-6 lg:hidden flex items-center gap-2 text-gray-500 hover:text-gray-900">
             <ArrowLeft size={20} /> Back
          </button>
-         
-         <button 
-            onClick={() => setShowServerConfig(true)} 
-            className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all"
-            title="Server Configuration"
-         >
-            <Settings size={20} />
-         </button>
 
         <div className="w-full max-w-md space-y-8">
             <div className="text-center lg:text-left">
@@ -586,16 +555,6 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
                                 <p className="text-sm text-red-600 font-medium">{error}</p>
                             </div>
                         </div>
-                        
-                        {/* Smart Fix Button for Network Errors */}
-                        {(error.includes('connect') || error.includes('fetch') || error.includes('Network')) && (
-                            <button 
-                                onClick={() => setShowServerConfig(true)}
-                                className="w-full py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors mt-1"
-                            >
-                                <Wifi size={14} /> Fix Connection Settings
-                            </button>
-                        )}
                     </motion.div>
                 )}
                 {successMsg && (
@@ -638,59 +597,6 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
             )}
         </div>
       </div>
-      
-      {/* Server Configuration Modal */}
-      <AnimatePresence>
-          {showServerConfig && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-                  <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl"
-                  >
-                      <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                             <Server size={20} className="text-primary-600" /> Server Connection
-                          </h3>
-                          <button onClick={() => setShowServerConfig(false)} className="text-gray-400 hover:text-gray-600">
-                              <X size={20} />
-                          </button>
-                      </div>
-                      
-                      <div className="bg-blue-50 p-4 rounded-xl mb-4 border border-blue-100">
-                          <h4 className="text-sm font-bold text-blue-800 mb-1">Using another device?</h4>
-                          <p className="text-xs text-blue-700 leading-relaxed mb-2">
-                              Your phone cannot reach <code>localhost</code>. You must use your computer's local IP address.
-                          </p>
-                          <p className="text-xs text-blue-800 font-mono bg-blue-100/50 p-2 rounded border border-blue-200">
-                              e.g. http://192.168.1.5:3000
-                          </p>
-                      </div>
-
-                      <div className="space-y-4">
-                          <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-2">Backend URL</label>
-                              <input 
-                                type="text" 
-                                value={serverUrl}
-                                onChange={(e) => setServerUrl(e.target.value)}
-                                placeholder="http://192.168.1.x:3000"
-                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-mono text-sm"
-                              />
-                          </div>
-                          
-                          <button 
-                            onClick={saveServerUrl}
-                            className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20"
-                          >
-                              Save & Reload
-                          </button>
-                      </div>
-                  </motion.div>
-              </div>
-          )}
-      </AnimatePresence>
     </div>
   );
 };
