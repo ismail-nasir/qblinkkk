@@ -1,7 +1,12 @@
+
 import { io, Socket } from 'socket.io-client';
 import { authService } from './auth';
 
-const SOCKET_URL = 'http://localhost:5000';
+const getSocketUrl = () => {
+    const stored = localStorage.getItem('qblink_socket_url');
+    // Default to port 3000 to match backend/server.ts
+    return stored || 'http://localhost:3000';
+};
 
 class SocketService {
   private socket: Socket | null = null;
@@ -10,11 +15,13 @@ class SocketService {
     if (this.socket?.connected) return;
 
     const token = authService.getToken();
+    const url = getSocketUrl();
 
-    this.socket = io(SOCKET_URL, {
+    this.socket = io(url, {
       auth: { token },
       transports: ['websocket'],
       autoConnect: true,
+      reconnectionAttempts: 5
     });
 
     this.socket.on('connect', () => {

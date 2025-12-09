@@ -1,6 +1,12 @@
+
 import { authService } from './auth';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+// Allow dynamic configuration of API URL for cross-device testing
+const getBaseUrl = () => {
+    const stored = localStorage.getItem('qblink_api_url');
+    // Default to port 3000 to match backend/server.ts
+    return stored || 'http://localhost:3000/api';
+};
 
 interface RequestOptions extends RequestInit {
   token?: string | null;
@@ -50,7 +56,7 @@ const keysToSnake = (o: any): any => {
 
 class ApiService {
   private async request(endpoint: string, options: RequestOptions = {}) {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = `${getBaseUrl()}${endpoint}`;
     
     // Auto-attach token if exists
     const token = options.token || authService.getToken();
@@ -79,27 +85,34 @@ class ApiService {
       headers,
     };
 
-    let response = await fetch(url, config);
+    try {
+        let response = await fetch(url, config);
 
-    // Handle 401 - Token Expired
-    if (response.status === 401 && !url.includes('login')) {
-      // Try refresh logic here (omitted for brevity, typically calls /refresh then retries)
-      // For now, logout
-      await authService.logout();
-      window.location.href = '/';
-      throw new Error('Session expired');
+        // Handle 401 - Token Expired
+        if (response.status === 401 && !url.includes('login')) {
+          await authService.logout();
+          // Don't throw here, let the UI handle the redirect via auth state clearing
+          throw new Error('Session expired');
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || errorData.message || 'API Request Failed');
+        }
+
+        // Return empty if no content
+        if (response.status === 204) return null;
+
+        const data = await response.json();
+        return keysToCamel(data);
+    } catch (e: any) {
+        // Enhance network error message
+        if (e.message === 'Failed to fetch' || e.name === 'TypeError') {
+            console.error("Network Error Details:", e);
+            throw new Error(`Cannot connect to server at ${getBaseUrl()}. Ensure backend is running.`);
+        }
+        throw e;
     }
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'API Request Failed');
-    }
-
-    // Return empty if no content
-    if (response.status === 204) return null;
-
-    const data = await response.json();
-    return keysToCamel(data);
   }
 
   get(endpoint: string) {
@@ -122,6 +135,20 @@ class ApiService {
 
   delete(endpoint: string) {
     return this.request(endpoint, { method: 'DELETE' });
+  }
+
+  // Utility to set URL
+  setBaseUrl(url: string) {
+      // Remove trailing slash and /api if present to normalize
+      let cleanUrl = url.replace(/\/$/, '').replace(/\/api$/, '');
+      if (!cleanUrl.startsWith('http')) cleanUrl = `http://${cleanUrl}`;
+      
+      localStorage.setItem('qblink_api_url', `${cleanUrl}/api`);
+      localStorage.setItem('qblink_socket_url', cleanUrl);
+  }
+  
+  get currentUrl() {
+      return getBaseUrl().replace('/api', '');
   }
 }
 

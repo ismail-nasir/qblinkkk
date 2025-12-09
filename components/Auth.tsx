@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Mail, KeyRound, ChevronLeft } from 'lucide-react';
+import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Mail, KeyRound, ChevronLeft, Settings, Server } from 'lucide-react';
 import { authService } from '../services/auth';
 import { User, AppView } from '../types';
+import { api } from '../services/api';
 
 interface AuthProps {
   initialMode?: 'login' | 'signup';
@@ -19,6 +21,10 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Server Config State
+  const [showServerConfig, setShowServerConfig] = useState(false);
+  const [serverUrl, setServerUrl] = useState(api.currentUrl);
   
   // Data State
   const [formData, setFormData] = useState({
@@ -157,6 +163,12 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
       } finally {
           setIsLoading(false);
       }
+  };
+
+  const saveServerUrl = () => {
+      api.setBaseUrl(serverUrl);
+      setShowServerConfig(false);
+      window.location.reload(); // Reload to re-init socket
   };
 
   // Scroll to top on mount
@@ -518,6 +530,14 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
          <button onClick={onBack} className="absolute top-6 left-6 lg:hidden flex items-center gap-2 text-gray-500 hover:text-gray-900">
             <ArrowLeft size={20} /> Back
          </button>
+         
+         <button 
+            onClick={() => setShowServerConfig(true)} 
+            className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all"
+            title="Server Configuration"
+         >
+            <Settings size={20} />
+         </button>
 
         <div className="w-full max-w-md space-y-8">
             <div className="text-center lg:text-left">
@@ -553,7 +573,17 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
                         className="p-4 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3 overflow-hidden"
                     >
                         <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                        <p className="text-sm text-red-600 font-medium">{error}</p>
+                        <div>
+                            <p className="text-sm text-red-600 font-medium">{error}</p>
+                            {error.includes('Cannot connect') && (
+                                <button 
+                                    onClick={() => setShowServerConfig(true)}
+                                    className="text-xs text-red-700 underline mt-1 font-bold"
+                                >
+                                    Check Server Settings
+                                </button>
+                            )}
+                        </div>
                     </motion.div>
                 )}
                 {successMsg && (
@@ -596,6 +626,55 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'signup', onLogin, onBack, on
             )}
         </div>
       </div>
+      
+      {/* Server Configuration Modal */}
+      <AnimatePresence>
+          {showServerConfig && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl"
+                  >
+                      <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                             <Server size={20} className="text-primary-600" /> Server Connection
+                          </h3>
+                          <button onClick={() => setShowServerConfig(false)} className="text-gray-400 hover:text-gray-600">
+                              <X size={20} />
+                          </button>
+                      </div>
+                      
+                      <div className="bg-blue-50 p-4 rounded-xl mb-4 border border-blue-100">
+                          <p className="text-xs text-blue-700 leading-relaxed">
+                              If you are testing on another device (like a phone), enter your computer's IP address here (e.g. <code>http://192.168.1.5:3000</code>).
+                          </p>
+                      </div>
+
+                      <div className="space-y-4">
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Backend URL</label>
+                              <input 
+                                type="text" 
+                                value={serverUrl}
+                                onChange={(e) => setServerUrl(e.target.value)}
+                                placeholder="http://localhost:3000"
+                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-mono text-sm"
+                              />
+                          </div>
+                          
+                          <button 
+                            onClick={saveServerUrl}
+                            className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors"
+                          >
+                              Save & Reload
+                          </button>
+                      </div>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
     </div>
   );
 };

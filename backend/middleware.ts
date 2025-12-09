@@ -1,4 +1,5 @@
-import { Request as ExpressRequest, Response, NextFunction } from 'express';
+
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { ZodSchema } from 'zod';
 import dotenv from 'dotenv';
@@ -7,14 +8,14 @@ dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
-export interface AuthRequest extends ExpressRequest {
+export type AuthRequest = Request & {
     user?: {
         id: string;
         role: string;
         businessId?: string;
         email?: string;
     };
-}
+};
 
 // 1. Authentication Middleware
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -43,7 +44,7 @@ export const requireRole = (roles: string[]) => {
 
 // 3. Validation Middleware (Zod)
 export const validate = (schema: ZodSchema) => {
-    return (req: ExpressRequest, res: Response, next: NextFunction) => {
+    return (req: Request, res: Response, next: NextFunction) => {
         try {
             schema.parse(req.body);
             next();
@@ -54,6 +55,6 @@ export const validate = (schema: ZodSchema) => {
 };
 
 // 4. Async Error Wrapper
-export const asyncHandler = (fn: Function) => (req: ExpressRequest, res: Response, next: NextFunction) => {
+export const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
 };

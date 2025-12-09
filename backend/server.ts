@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { authRouter } from './auth';
 import { queueRouter } from './routes/queue.routes';
+import { adminRouter } from './routes/admin.routes';
 import { initSocket } from './socket';
 
 dotenv.config();
@@ -30,6 +31,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/queue', queueRouter);
+app.use('/api/admin', adminRouter);
 
 // Global Error Handler (Fallback)
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

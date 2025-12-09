@@ -1,6 +1,6 @@
 
 import { Router } from 'express';
-import { authenticate } from './auth';
+import { authenticate } from './middleware';
 import { Pool } from 'pg';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
