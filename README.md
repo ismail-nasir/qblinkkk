@@ -1,20 +1,44 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# Qblink - Queue Management System
 
-This contains everything you need to run your app locally.
+Qblink is a modern, real-time queue management system.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1T6GUC9pGprs0-NCD0MkZYAU314DuJQ6p
+## 🚀 Deployment Guide
 
-## Run Locally
+This application consists of a React Frontend and a Node.js/Express Backend.
 
-**Prerequisites:**  Node.js
+### 1. Database Setup (PostgreSQL)
+You need a hosted PostgreSQL database.
+- **Providers:** Neon.tech, Supabase, Railway, Render.
+- **Action:** Create a database and copy the **Connection String**.
+- **Schema:** Run the contents of `backend/schema.sql` in your database SQL editor to create the tables.
 
+### 2. Backend Deployment
+Deploy the `backend` folder to a Node.js host.
+- **Providers:** Render, Railway, Heroku.
+- **Environment Variables:**
+  - `PORT`: `3000` (or set by provider)
+  - `DATABASE_URL`: Your PostgreSQL Connection String
+  - `JWT_SECRET`: A long random string
+- **Build Command:** `npm install && npx tsc`
+- **Start Command:** `node backend/server.js` (or `npx ts-node backend/server.ts`)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 3. Frontend Deployment
+Deploy the project root to a static site host.
+- **Providers:** Vercel, Netlify.
+- **Environment Variables:**
+  - `VITE_API_URL`: The URL of your deployed backend + `/api` (e.g., `https://my-backend.onrender.com/api`)
+  - `VITE_SOCKET_URL`: The URL of your deployed backend (e.g., `https://my-backend.onrender.com`)
+- **Build Command:** `npm run build`
+- **Output Directory:** `dist`
+
+## 🛠 Local Development
+1. Start Backend:
+   ```bash
+   # Set .env with local DB credentials
+   npx ts-node backend/server.ts
+   ```
+2. Start Frontend:
+   ```bash
+   npm start
+   ```

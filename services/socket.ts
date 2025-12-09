@@ -1,65 +1,59 @@
 
-// VIRTUAL SOCKET SERVICE (Using BroadcastChannel for Cross-Tab Comms)
+import { io, Socket } from 'socket.io-client';
+import { SOCKET_BASE_URL } from './config';
 
-type Listener = (data: any) => void;
+class SocketService {
+  private socket: Socket | null = null;
 
-class VirtualSocket {
-  private channel: BroadcastChannel;
-  private listeners: Map<string, Listener[]> = new Map();
+  connect() {
+    if (this.socket?.connected) return;
 
-  constructor() {
-    this.channel = new BroadcastChannel('qblink_realtime');
-    
-    this.channel.onmessage = (event) => {
-      const { type, data } = event.data;
-      this.notify(type, data);
-    };
+    this.socket = io(SOCKET_BASE_URL, {
+      transports: ['websocket'],
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
 
-    // Listen to local storage events as a backup/trigger
-    window.addEventListener('storage', () => {
-       // When storage changes (e.g. data updated in api.ts), trigger generic update
-       this.notify('queue:update', {});
+    this.socket.on('connect', () => {
+      console.log('⚡ Connected to WebSocket Server:', this.socket?.id);
+    });
+
+    this.socket.on('connect_error', (err) => {
+      console.error('WebSocket Connection Error:', err);
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      console.warn('WebSocket Disconnected:', reason);
     });
   }
 
-  connect() {
-    // No-op for virtual socket
-    console.log('⚡ Virtual Socket Connected');
-  }
-
   disconnect() {
-    // No-op
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
   }
 
   joinQueue(queueId: string) {
-    // In a real socket we'd emit 'join', here we just logically know we care about this queue
+    if (!this.socket) this.connect();
+    this.socket?.emit('join_queue', queueId);
   }
 
-  on(event: string, callback: Listener) {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, []);
-    }
-    this.listeners.get(event)?.push(callback);
+  on(event: string, callback: (data: any) => void) {
+    if (!this.socket) this.connect();
+    this.socket?.on(event, callback);
   }
 
   off(event: string) {
-    this.listeners.delete(event);
+    this.socket?.off(event);
   }
 
-  // Emit event to OTHER tabs
-  emit(event: string, data?: any) {
-    // 1. Send to other tabs
-    this.channel.postMessage({ type: event, data });
-    // 2. Trigger locally immediately (so the sender updates too)
-    this.notify(event, data);
-  }
-
-  private notify(event: string, data: any) {
-    const callbacks = this.listeners.get(event);
-    if (callbacks) {
-      callbacks.forEach(cb => cb(data));
-    }
+  emit(event: string, data: any) {
+    if (!this.socket) this.connect();
+    this.socket?.emit(event, data);
   }
 }
 
-export const socketService = new VirtualSocket();
+export const socketService = new SocketService();

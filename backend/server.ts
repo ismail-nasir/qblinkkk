@@ -9,46 +9,54 @@ import { queueRouter } from './routes/queue.routes';
 import { adminRouter } from './routes/admin.routes';
 import { initSocket } from './socket';
 
+// Load environment variables
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
 
-// Initialize WebSocket Singleton
-// Allow * origin for socket.io as well
+// Initialize WebSocket with permissive CORS for connectivity
 initSocket(server, "*");
 
-// Global Middleware
+// Security Middleware
 app.use(helmet());
 
-// CRITICAL FIX: Allow all origins (CORS) so mobile devices accessing via IP (e.g. 192.168.1.5) can connect
+// CORS Configuration: Allow All Origins (for easiest deployment/mobile access)
+// In strict production, replace '*' with specific domain list
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Body Parsing (Increased limit for logo uploads)
 app.use(express.json({ limit: '10mb' }));
 
-// Logging
+// Request Logging
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
 });
 
-// Routes
+// API Routes
 app.use('/api/auth', authRouter);
 app.use('/api/queue', queueRouter);
 app.use('/api/admin', adminRouter);
 
-// Global Error Handler (Fallback)
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date() });
+});
+
+// Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error('Unhandled Error:', err.stack);
+    console.error('Unhandled Server Error:', err);
     res.status(500).json({ error: 'Internal Server Error' });
 });
 
+// Start Server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => { // Listen on 0.0.0.0 to accept external connections
-    console.log(`🚀 Qblink Production Backend running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => { 
+    console.log(`🚀 Qblink Backend running on port ${PORT}`);
     console.log(`📡 WebSocket Server ready`);
 });

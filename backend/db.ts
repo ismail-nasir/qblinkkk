@@ -1,14 +1,20 @@
-
 import { Pool, QueryResult } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Ensure DATABASE_URL is set
+if (!process.env.DATABASE_URL) {
+  console.warn("⚠️  WARNING: DATABASE_URL is not defined. Database connections will fail.");
+}
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: 20, // Max clients in pool
+    // SSL is often required for cloud databases (Neon, Heroku, etc.)
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: 20, 
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 5000,
 });
 
 pool.on('error', (err) => {
@@ -18,5 +24,5 @@ pool.on('error', (err) => {
 
 export const db = {
     query: (text: string, params?: any[]): Promise<QueryResult> => pool.query(text, params),
-    getClient: () => pool.connect(), // For transactions
+    getClient: () => pool.connect(), 
 };

@@ -28,7 +28,6 @@ const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [urlParams, setUrlParams] = useState<{ queueId?: string, view?: string }>({});
 
-  // Check for session & URL params on mount
   useEffect(() => {
     const init = async () => {
       // 1. Parse URL Params
@@ -51,10 +50,14 @@ const App: React.FC = () => {
       }
 
       // 2. Check Auth
-      const currentUser = authService.getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        setView(AppView.DASHBOARD);
+      try {
+        const currentUser = authService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+          setView(AppView.DASHBOARD);
+        }
+      } catch (e) {
+        console.error("Auth check failed:", e);
       }
       setIsInitializing(false);
     };
@@ -165,7 +168,6 @@ const App: React.FC = () => {
   // Default: Landing Page
   return (
     <div className="min-h-screen font-sans bg-[#F8FAFC] overflow-x-hidden text-gray-900 relative selection:bg-primary-100 selection:text-primary-700">
-      {/* Ambient Background Gradient for Glass Effect */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-200/30 rounded-full blur-[120px] animate-blob"></div>
         <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-blue-200/30 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
@@ -176,32 +178,13 @@ const App: React.FC = () => {
       
       <main className="relative z-10">
         <Hero onGetStarted={handleGetStarted} />
-        
-        <div id="trusted-by">
-          <TrustedBy />
-        </div>
-        
+        <div id="trusted-by"><TrustedBy /></div>
         <PainPoints />
-        
-        <div id="how-it-works">
-          <HowItWorks />
-        </div>
-        
-        <div id="features">
-          <Features />
-        </div>
-        
-        <div id="use-cases">
-          <UseCases />
-        </div>
-        
-        <div id="pricing">
-          <Pricing onGetStarted={handleGetStarted} />
-        </div>
-        
-        <div id="faq">
-          <FAQ />
-        </div>
+        <div id="how-it-works"><HowItWorks /></div>
+        <div id="features"><Features /></div>
+        <div id="use-cases"><UseCases /></div>
+        <div id="pricing"><Pricing onGetStarted={handleGetStarted} /></div>
+        <div id="faq"><FAQ /></div>
       </main>
 
       <Footer onNavigate={handleNavigate} />
