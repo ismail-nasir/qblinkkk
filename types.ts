@@ -60,9 +60,9 @@ export interface User {
   id: string;
   email: string;
   businessName: string;
-  joinedAt: Date;
+  joinedAt: string; // API returns ISO string
   isVerified: boolean;
-  role?: string;
+  role: 'owner' | 'staff' | 'admin' | 'superadmin';
 }
 
 export interface Customer {

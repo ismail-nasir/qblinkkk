@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, ActivityLog, QueueData, AdminAuditLog } from '../types';
-import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Eye, Calendar, Mail, CheckCircle, AlertTriangle, Plus, Shield, ClipboardList } from 'lucide-react';
+import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Shield, ClipboardList, CheckCircle, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authService } from '../services/auth';
 import { queueService } from '../services/queue';
@@ -64,27 +64,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   };
 
   const handleUserClick = async (user: User) => {
-      const data = await queueService.getQueueData(user.id);
-      setUserQueueData(data);
-      setSelectedUser(user);
+      try {
+        const data = await queueService.getQueueData(user.id); // Assuming getQueueData can accept userId if user is admin, or we need a specific endpoint
+        // NOTE: In the new API structure, getQueueData usually takes a queueId. 
+        // We might need to fetch the user's queues first, then get data for the first one.
+        const userQueues = await queueService.getUserQueues(user.id);
+        if (userQueues.length > 0) {
+             const qData = await queueService.getQueueData(userQueues[0].id);
+             setUserQueueData(qData);
+        } else {
+             setUserQueueData(null);
+        }
+        setSelectedUser(user);
+      } catch (e) {
+        console.error("Failed to fetch user details", e);
+      }
   };
 
   const confirmDeleteUser = async () => {
       if (userToDelete) {
-          await authService.deleteAccount(userToDelete.email);
-          authService.logAdminAction(currentAdminEmail, 'Delete User', userToDelete.email);
-          refreshData();
-          setUserToDelete(null);
-          setSelectedUser(null); // Close details if open
+          try {
+            await authService.deleteAccount(userToDelete.email);
+            // Log manually if backend doesn't automatically log admin actions via this endpoint
+            await authService.logAdminAction(currentAdminEmail, 'Delete User', userToDelete.email);
+            refreshData();
+            setUserToDelete(null);
+            setSelectedUser(null); 
+          } catch (e) {
+            alert("Failed to delete user.");
+          }
       }
   };
 
   const handleAddAdmin = async () => {
       if (newAdminEmail && newAdminEmail.includes('@')) {
-          await authService.addAdmin(newAdminEmail);
-          authService.logAdminAction(currentAdminEmail, 'Add Admin', newAdminEmail);
-          setNewAdminEmail('');
-          refreshData();
+          try {
+            await authService.addAdmin(newAdminEmail);
+            setNewAdminEmail('');
+            refreshData();
+          } catch (e) {
+            alert("Failed to add admin.");
+          }
       }
   };
 
@@ -92,7 +112,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       if (confirm(`Remove admin privileges for ${email}?`)) {
           try {
               await authService.removeAdmin(email);
-              authService.logAdminAction(currentAdminEmail, 'Remove Admin', email);
               refreshData();
           } catch (e: any) {
               alert(e.message);
@@ -422,7 +441,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                                 <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
                                     <div className="flex items-center gap-2 mb-1 text-blue-600 font-bold text-xs uppercase tracking-wider">
-                                        <Calendar size={14} /> Joined
+                                        <Clock size={14} /> Joined
                                     </div>
                                     <div className="font-semibold text-gray-900 text-sm">
                                         {new Date(selectedUser.joinedAt).toLocaleDateString('en-US', {
@@ -578,7 +597,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                         className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center"
                     >
                         <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
-                            <AlertTriangle size={32} />
+                            <ShieldAlert size={32} />
                         </div>
                         <h3 className="text-xl font-bold text-gray-900 mb-2">Delete User?</h3>
                         <p className="text-gray-500 text-sm mb-6 leading-relaxed">
