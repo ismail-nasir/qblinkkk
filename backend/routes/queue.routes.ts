@@ -1,37 +1,27 @@
 
 import { Router } from 'express';
 import { QueueController } from '../controllers/queue.controller';
-import { authenticate, asyncHandler, validate } from '../middleware';
-import { z } from 'zod';
+import { authenticate, asyncHandler } from '../middleware';
 
 export const queueRouter = Router();
 
-// Schemas
-const CreateQueueSchema = z.object({
-    name: z.string().min(2),
-    estimatedWaitTime: z.number().min(1).optional()
-});
+// Public
+queueRouter.post('/join', asyncHandler(QueueController.joinQueue));
+queueRouter.post('/:id/leave', asyncHandler(QueueController.leaveQueue));
+queueRouter.post('/:id/alert', asyncHandler(QueueController.handleAlert)); // For customer "I'm Coming"
 
-const JoinQueueSchema = z.object({
-    queueId: z.string().uuid(),
-    name: z.string().min(1)
-});
-
-// Routes
+// Protected
 queueRouter.get('/', authenticate, asyncHandler(QueueController.getUserQueues));
+queueRouter.post('/', authenticate, asyncHandler(QueueController.createQueue));
+queueRouter.delete('/:id', authenticate, asyncHandler(QueueController.deleteQueue));
+queueRouter.put('/:id', authenticate, asyncHandler(QueueController.updateQueue));
 
-queueRouter.post('/', 
-    authenticate, 
-    validate(CreateQueueSchema), 
-    asyncHandler(QueueController.createQueue)
-);
-
-// Public route (no auth required for customer)
-queueRouter.post('/join', 
-    validate(JoinQueueSchema), 
-    asyncHandler(QueueController.joinQueue)
-);
+queueRouter.get('/:id/data', asyncHandler(QueueController.getQueueData)); // Can be public for display
+queueRouter.get('/:id/info', asyncHandler(QueueController.getQueueInfo));
 
 queueRouter.post('/:id/call', authenticate, asyncHandler(QueueController.callNext));
+queueRouter.post('/:id/call-number', authenticate, asyncHandler(QueueController.callByNumber));
 queueRouter.post('/:id/recall', authenticate, asyncHandler(QueueController.recall));
-queueRouter.get('/:id/metrics', authenticate, asyncHandler(QueueController.getMetrics));
+queueRouter.post('/:id/take-back', authenticate, asyncHandler(QueueController.takeBack));
+queueRouter.post('/:id/clear', authenticate, asyncHandler(QueueController.clearQueue));
+queueRouter.post('/:id/reorder', authenticate, asyncHandler(QueueController.reorder));

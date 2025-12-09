@@ -1,44 +1,47 @@
 
-# Qblink - Queue Management System
+# Qblink - Cloud Deployment Guide
 
-Qblink is a modern, real-time queue management system.
+Qblink is a production-ready Queue Management System.
 
-## 🚀 Deployment Guide
+## Architecture
+- **Frontend**: React + TypeScript (Vite)
+- **Backend**: Node.js + Express (TypeScript)
+- **Database**: PostgreSQL
+- **Real-time**: Socket.io
 
-This application consists of a React Frontend and a Node.js/Express Backend.
+## 1. Deploying the Backend & Database
 
-### 1. Database Setup (PostgreSQL)
-You need a hosted PostgreSQL database.
-- **Providers:** Neon.tech, Supabase, Railway, Render.
-- **Action:** Create a database and copy the **Connection String**.
-- **Schema:** Run the contents of `backend/schema.sql` in your database SQL editor to create the tables.
+You can deploy the backend to **Render**, **Railway**, or **Heroku**.
 
-### 2. Backend Deployment
-Deploy the `backend` folder to a Node.js host.
-- **Providers:** Render, Railway, Heroku.
-- **Environment Variables:**
-  - `PORT`: `3000` (or set by provider)
-  - `DATABASE_URL`: Your PostgreSQL Connection String
-  - `JWT_SECRET`: A long random string
-- **Build Command:** `npm install && npx tsc`
-- **Start Command:** `node backend/server.js` (or `npx ts-node backend/server.ts`)
+### Option A: Render.com (Recommended)
+1. Create a new **PostgreSQL** service on Render. Copy the `Internal Database URL`.
+2. Create a new **Web Service** connected to your GitHub repo.
+3. **Build Command**: `npm install && npm run build:backend` (Ensure you have a build script or use `npx tsc`)
+4. **Start Command**: `node backend/server.js` (or `npx ts-node backend/server.ts`)
+5. **Environment Variables**:
+   - `DATABASE_URL`: Your Render Postgres URL.
+   - `JWT_SECRET`: A long random string.
+   - `PORT`: `3000` (Render sets this automatically).
 
-### 3. Frontend Deployment
-Deploy the project root to a static site host.
-- **Providers:** Vercel, Netlify.
-- **Environment Variables:**
-  - `VITE_API_URL`: The URL of your deployed backend + `/api` (e.g., `https://my-backend.onrender.com/api`)
-  - `VITE_SOCKET_URL`: The URL of your deployed backend (e.g., `https://my-backend.onrender.com`)
-- **Build Command:** `npm run build`
-- **Output Directory:** `dist`
+**Database Setup**:
+Once the database is running, connect to it using a tool like TablePlus or DBeaver and run the contents of `backend/schema.sql`.
 
-## 🛠 Local Development
-1. Start Backend:
-   ```bash
-   # Set .env with local DB credentials
-   npx ts-node backend/server.ts
-   ```
-2. Start Frontend:
-   ```bash
-   npm start
-   ```
+## 2. Deploying the Frontend
+
+Deploy the frontend to **Vercel** or **Netlify**.
+
+1. Import your GitHub repo.
+2. **Build Command**: `npm run build`
+3. **Output Directory**: `dist`
+4. **Environment Variables**:
+   - `VITE_API_URL`: The URL of your deployed backend + `/api` (e.g., `https://qblink-backend.onrender.com/api`)
+   - `VITE_SOCKET_URL`: The URL of your deployed backend (e.g., `https://qblink-backend.onrender.com`)
+
+## 3. Local Development
+
+1. **Backend**:
+   - Create a `.env` file in `backend/` with `DATABASE_URL` (local postgres) and `JWT_SECRET`.
+   - Run: `npx ts-node backend/server.ts`
+2. **Frontend**:
+   - Run: `npm start`
+   - By default, it connects to localhost if env vars are missing.
