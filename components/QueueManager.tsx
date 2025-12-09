@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
+import { socketService } from '../services/socket';
 import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 // @ts-ignore
@@ -14,7 +14,7 @@ interface QueueManagerProps {
 }
 
 const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
-  const [queueData, setQueueData] = useState<QueueData>(queueService.getQueueData(queue.id));
+  const [queueData, setQueueData] = useState<QueueData | null>(null);
   const [currentQueue, setCurrentQueue] = useState<QueueInfo>(queue);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -39,31 +39,38 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   // Audio Context for preview
   const previewAudioContextRef = useRef<AudioContext | null>(null);
 
-  const fetchData = useCallback(() => {
-      setQueueData(queueService.getQueueData(queue.id));
+  const fetchData = useCallback(async () => {
+      try {
+          const data = await queueService.getQueueData(queue.id);
+          setQueueData(data);
+      } catch (e) {
+          console.error("Failed to fetch queue data", e);
+      }
   }, [queue.id]);
 
-  // Poll for updates (in case multiple devices/customers are interacting)
   useEffect(() => {
     // Initial fetch
     fetchData();
 
-    // Poll every second
-    const interval = setInterval(fetchData, 1000);
+    // Join Socket Room
+    socketService.joinQueue(queue.id);
 
-    // Listen for storage events (Instant updates across tabs)
-    const handleStorageChange = (e: StorageEvent) => {
-        if (e.key && (e.key.startsWith('qblink_data_') || e.key.startsWith('qblink_queues_'))) {
-            fetchData();
-        }
-    };
-    window.addEventListener('storage', handleStorageChange);
+    // Listen for events
+    socketService.on('queue:update', (data: any) => {
+        // Optimistic update or refetch
+        fetchData();
+    });
+
+    socketService.on('customer_response', (data: any) => {
+        // Customer acknowledged alert
+        fetchData();
+    });
 
     return () => {
-        clearInterval(interval);
-        window.removeEventListener('storage', handleStorageChange);
+        socketService.off('queue:update');
+        socketService.off('customer_response');
     };
-  }, [fetchData]);
+  }, [fetchData, queue.id]);
 
   const playPreview = (type: string, vol: number) => {
     if (!previewAudioContextRef.current) {
@@ -243,19 +250,19 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
           const reader = new FileReader();
-          reader.onloadend = () => {
+          reader.onloadend = async () => {
               const base64 = reader.result as string;
               setLogoPreview(base64);
               // Update Queue Service
-              const updated = queueService.updateQueue(user.id, queue.id, { logo: base64 });
+              const updated = await queueService.updateQueue(user.id, queue.id, { logo: base64 });
               if (updated) setCurrentQueue(updated);
           };
           reader.readAsDataURL(file);
       }
   };
   
-  const handleSaveSettings = () => {
-      const updated = queueService.updateQueue(user.id, queue.id, { settings });
+  const handleSaveSettings = async () => {
+      const updated = await queueService.updateQueue(user.id, queue.id, { settings });
       if (updated) setCurrentQueue(updated);
       setShowSettingsModal(false);
   };
@@ -269,54 +276,56 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       }
   };
 
-  const handleCallNext = () => {
-    const newData = queueService.callNext(queue.id);
-    setQueueData(newData);
+  const handleCallNext = async () => {
+    await queueService.callNext(queue.id);
+    fetchData();
   };
 
-  const handleCallByNumber = (e: React.FormEvent) => {
+  const handleCallByNumber = async (e: React.FormEvent) => {
       e.preventDefault();
       const num = parseInt(callNumberInput);
       if (!isNaN(num)) {
-          const newData = queueService.callByNumber(queue.id, num);
-          setQueueData(newData);
+          await queueService.callByNumber(queue.id, num);
+          fetchData();
           setShowCallModal(false);
           setCallNumberInput('');
       }
   };
 
-  const handleAddVisitor = (e: React.FormEvent) => {
+  const handleAddVisitor = async (e: React.FormEvent) => {
       e.preventDefault();
-      queueService.joinQueue(queue.id, newVisitorName);
-      setQueueData(queueService.getQueueData(queue.id)); // Refresh
+      await queueService.joinQueue(queue.id, newVisitorName);
+      fetchData();
       setNewVisitorName('');
       setShowAddModal(false);
   };
 
-  const handleRemoveVisitors = () => {
+  const handleRemoveVisitors = async () => {
       if (confirm("Are you sure you want to clear the entire waiting list?")) {
-          const newData = queueService.clearQueue(queue.id);
-          setQueueData(newData);
+          await queueService.clearQueue(queue.id);
+          fetchData();
       }
   };
 
-  const handleTakeBack = () => {
-      const newData = queueService.takeBack(queue.id);
-      setQueueData(newData);
+  const handleTakeBack = async () => {
+      await queueService.takeBack(queue.id);
+      fetchData();
   };
   
-  const handleRecall = (visitorId: string) => {
-      const newData = queueService.recallVisitor(queue.id, visitorId);
-      setQueueData(newData);
+  const handleRecall = async (visitorId: string) => {
+      await queueService.recallVisitor(queue.id, visitorId);
+      fetchData();
   };
 
-  const handleNotifyCurrent = () => {
-      const currentVisitor = queueData.visitors.find(v => v.status === 'serving');
+  const handleNotifyCurrent = async () => {
+      const currentVisitor = queueData?.visitors.find(v => v.status === 'serving');
       if (currentVisitor) {
-          const newData = queueService.triggerAlert(queue.id, currentVisitor.id);
-          setQueueData(newData);
+          await queueService.triggerAlert(queue.id, currentVisitor.id);
+          fetchData();
       }
   };
+
+  if (!queueData) return <div>Loading...</div>;
 
   const waitingVisitors = queueData.visitors.filter(v => 
       v.status === 'waiting' && 
@@ -336,19 +345,18 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const currentVisitor = queueData.visitors.find(v => v.status === 'serving');
 
   // Handle Drag Reorder
-  const handleReorder = (newOrder: Visitor[]) => {
+  const handleReorder = async (newOrder: Visitor[]) => {
       // Reorder only works on the 'waiting' subset visually
       // We need to merge this back into the full list
       // 1. Get all non-waiting visitors (serving, served, cancelled)
       const otherVisitors = queueData.visitors.filter(v => v.status !== 'waiting');
       
       // 2. Combine (Preserve original structure, just update order of waiting)
-      // Note: Reorder.Group gives us the new order of 'waitingVisitors'
       const fullNewList = [...otherVisitors, ...newOrder];
       
       // 3. Update Service
-      const newData = queueService.reorderQueue(queue.id, fullNewList);
-      setQueueData(newData);
+      await queueService.reorderQueue(queue.id, fullNewList);
+      fetchData();
   };
   
   return (
@@ -628,10 +636,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
             </div>
       </div>
 
-      {/* MODALS */}
-
-      {/* Settings Modal */}
-      <AnimatePresence>
+      {/* MODALS - Same as before but triggers handle functions above */}
+       {/* Settings Modal */}
+       <AnimatePresence>
           {showSettingsModal && (
               <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
                    <motion.div 
@@ -640,7 +647,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                     exit={{ scale: 0.9, opacity: 0 }}
                     className="bg-white rounded-3xl p-6 max-w-sm w-full"
                   >
-                      <div className="flex items-center justify-between mb-6">
+                      {/* ... (Settings modal content remains same, just uses handleSaveSettings) ... */}
+                       <div className="flex items-center justify-between mb-6">
                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                <Settings size={20} className="text-gray-500" /> Queue Settings
                            </h3>
@@ -732,6 +740,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           )}
       </AnimatePresence>
       
+      {/* ... QR Modal, Add Visitor Modal, Call Modal reused with updated handler functions ... */}
       {/* QR Modal (Premium Design with Logo Upload) */}
       <AnimatePresence>
           {showQrModal && (

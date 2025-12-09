@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
+import { socketService } from '../services/socket';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface DisplayViewProps {
@@ -13,33 +13,33 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
   const [queueInfo, setQueueInfo] = useState<QueueInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchData = useCallback(() => {
-        const data = queueService.getQueueData(queueId);
-        const info = queueService.getQueueInfo(queueId);
-        setQueueData(data);
-        setQueueInfo(info);
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+      try {
+          const data = await queueService.getQueueData(queueId);
+          const info = await queueService.getQueueInfo(queueId);
+          setQueueData(data);
+          setQueueInfo(info);
+          setLoading(false);
+      } catch (e) {
+          console.error(e);
+      }
   }, [queueId]);
 
   useEffect(() => {
-    // Initial fetch
     fetchData();
 
-    // Poll for updates
-    const interval = setInterval(fetchData, 2000);
+    // Join Room
+    socketService.joinQueue(queueId);
 
-    const handleStorageChange = (e: StorageEvent) => {
-        if (e.key && e.key.startsWith('qblink_data_')) {
-            fetchData();
-        }
-    };
-    window.addEventListener('storage', handleStorageChange);
+    // Listen
+    socketService.on('queue:update', () => {
+        fetchData();
+    });
 
     return () => {
-        clearInterval(interval);
-        window.removeEventListener('storage', handleStorageChange);
+        socketService.off('queue:update');
     };
-  }, [fetchData]);
+  }, [fetchData, queueId]);
 
   if (loading || !queueData) {
       return (

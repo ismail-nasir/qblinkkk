@@ -1,5 +1,3 @@
-
-
 export interface QueueMetric {
   waiting: number;
   served: number;
@@ -64,6 +62,7 @@ export interface User {
   businessName: string;
   joinedAt: Date;
   isVerified: boolean;
+  role?: string;
 }
 
 export interface Customer {

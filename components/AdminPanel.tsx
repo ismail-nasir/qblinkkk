@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, ActivityLog, QueueData, AdminAuditLog } from '../types';
 import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Eye, Calendar, Mail, CheckCircle, AlertTriangle, Plus, Shield, ClipboardList } from 'lucide-react';
@@ -49,16 +48,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       return () => clearInterval(interval);
   }, []);
 
-  const refreshData = () => {
-      const allUsers = authService.getAllUsers();
-      setUsers(allUsers);
-      setLogs(queueService.getSystemLogs(allUsers));
-      setAdminLogs(authService.getAdminLogs());
-      setAdmins(authService.getAdmins());
+  const refreshData = async () => {
+      try {
+        const allUsers = await authService.getAllUsers();
+        setUsers(allUsers);
+        const sysLogs = await queueService.getSystemLogs();
+        setLogs(sysLogs);
+        const auditLogs = await authService.getAdminLogs();
+        setAdminLogs(auditLogs);
+        const adminList = await authService.getAdmins();
+        setAdmins(adminList);
+      } catch (e) {
+        console.error("Error refreshing admin data", e);
+      }
   };
 
-  const handleUserClick = (user: User) => {
-      const data = queueService.getQueueData(user.id);
+  const handleUserClick = async (user: User) => {
+      const data = await queueService.getQueueData(user.id);
       setUserQueueData(data);
       setSelectedUser(user);
   };

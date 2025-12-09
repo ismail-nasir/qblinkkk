@@ -1,11 +1,10 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, Settings, ChevronDown, Trash2, X, ShieldAlert, Cloud, Download, Upload, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, QueueInfo } from '../types';
 import { authService } from '../services/auth';
 import { queueService } from '../services/queue';
+import { socketService } from '../services/socket';
 import AdminPanel from './AdminPanel';
 import QueueManager from './QueueManager';
 import QueueList from './QueueList';
@@ -30,6 +29,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   // Check for admin privileges
   const isAdmin = authService.isAdmin(user.email || '');
+
+  // Initialize Socket Connection
+  useEffect(() => {
+    socketService.connect();
+    return () => {
+        socketService.disconnect();
+    };
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {

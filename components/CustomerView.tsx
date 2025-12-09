@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
+import { socketService } from '../services/socket';
 import { LogOut, Zap, Users, Bell, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,30 +23,40 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const alertIntervalRef = useRef<number | null>(null);
 
-  const fetchData = useCallback(() => {
-        const data = queueService.getQueueData(queueId);
-        const info = queueService.getQueueInfo(queueId);
-        setQueueInfo(info);
-        setQueueData(data);
+  const fetchData = useCallback(async () => {
+        try {
+            const data = await queueService.getQueueData(queueId);
+            const info = await queueService.getQueueInfo(queueId);
+            setQueueInfo(info);
+            setQueueData(data);
+        } catch (e) {
+            console.error(e);
+        }
   }, [queueId]);
 
-  // Poll for updates and listen to storage events
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 2000);
+    
+    // Connect to Socket Room
+    socketService.joinQueue(queueId);
 
-    const handleStorageChange = (e: StorageEvent) => {
-        if (e.key && e.key.startsWith('qblink_data_')) {
-            fetchData();
+    // Listen for events
+    socketService.on('queue:update', () => {
+        fetchData();
+    });
+
+    socketService.on('alert:ack', (data: any) => {
+        if (data.visitorId === myVisitorId) {
+            stopAlertLoop();
+            setIsAlerting(false);
         }
-    };
-    window.addEventListener('storage', handleStorageChange);
+    });
 
     return () => {
-        clearInterval(interval);
-        window.removeEventListener('storage', handleStorageChange);
+        socketService.off('queue:update');
+        socketService.off('alert:ack');
     };
-  }, [fetchData]);
+  }, [fetchData, queueId, myVisitorId]);
 
   // Handle Logic updates
   useEffect(() => {
@@ -75,17 +85,13 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 }
             }
         } else {
-            // Expired or Removed or doesn't exist anymore
-            // We only unjoin if we are sure queueData is robust.
+            // Expired or Removed
             if (isJoined && queueData.visitors.length > 0) {
-                 // Double check if actually removed or just data sync issue?
-                 // For safety, only reset if queueData is robust.
                  setIsJoined(false);
                  setMyVisitorId(null);
                  localStorage.removeItem(`qblink_visit_${queueId}`);
                  stopAlertLoop();
             } else if (!isJoined && visitor) {
-                 // Recovery logic for refresh
                  setIsJoined(true);
             }
         }
@@ -138,7 +144,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
     // Generate Sound based on Type
     switch (soundType) {
         case 'chime':
-            // Soft sine wave with long decay
             osc.type = 'sine';
             osc.frequency.setValueAtTime(800, ctx.currentTime);
             osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
@@ -148,7 +153,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
             break;
 
         case 'alarm':
-            // Harsh sawtooth wave
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(600, ctx.currentTime);
             osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
@@ -160,7 +164,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
         case 'beep':
         default:
-             // Standard Square Wave Beep
             osc.type = 'square';
             osc.frequency.setValueAtTime(800, ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
@@ -171,22 +174,26 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
     }
   };
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
       e.preventDefault();
       requestNotificationPermission();
       
       // Initialize Audio Context on user gesture
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
 
-      const { visitor } = queueService.joinQueue(queueId, joinName);
-      setMyVisitorId(visitor.id);
-      localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
-      setIsJoined(true);
+      try {
+        const { visitor } = await queueService.joinQueue(queueId, joinName);
+        setMyVisitorId(visitor.id);
+        localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
+        setIsJoined(true);
+      } catch (e) {
+        alert("Failed to join queue. Please try again.");
+      }
   };
 
-  const handleLeave = () => {
+  const handleLeave = async () => {
       if (myVisitorId) {
-          queueService.leaveQueue(queueId, myVisitorId);
+          await queueService.leaveQueue(queueId, myVisitorId);
           localStorage.removeItem(`qblink_visit_${queueId}`);
           setMyVisitorId(null);
           setIsJoined(false);
@@ -199,13 +206,12 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const handleImComing = () => {
       if (myVisitorId) {
           queueService.dismissAlert(queueId, myVisitorId);
+          socketService.emit('customer_ack', { queueId, visitorId: myVisitorId });
           setIsAlerting(false);
           stopAlertLoop();
       }
   };
 
-  // Loading state handling for persistence check
-  // If we have a stored ID but no queueData yet, show loading
   if (myVisitorId && !queueData) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500 font-sans gap-4">
@@ -214,9 +220,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
           </div>
       );
   }
-
-  // If we have queueData but the visitor ID is not in it (and we had a stored ID), it means we were removed/served long ago
-  // The useEffect handles the cleanup of isJoined/localStorage in that case.
 
   if (!queueData) return <div className="min-h-screen flex items-center justify-center text-gray-500 font-sans">Loading Queue...</div>;
 
@@ -257,9 +260,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   }
 
   const myVisitor = queueData.visitors.find(v => v.id === myVisitorId);
-  // Fallback if joined state is true but visitor not found (e.g. slight sync delay or removed)
   if (!myVisitor) {
-       // Logic to return to home handled by useEffect, but render safe fallback
        return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <p className="text-gray-500">Updating status...</p>
@@ -268,7 +269,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   }
 
   const peopleAhead = queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < myVisitor.ticketNumber).length;
-  // Use manual estimate from config if available, else calculated metric
   const waitTime = Math.max(1, peopleAhead * queueData.metrics.avgWaitTime);
   const isOnTime = myVisitor.status === 'serving' || (peopleAhead === 0 && myVisitor.status === 'waiting');
 

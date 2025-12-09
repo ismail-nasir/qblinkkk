@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, QueueInfo, QueueData } from '../types';
 import { queueService } from '../services/queue';
+import { socketService } from '../services/socket';
 import { Plus, LayoutGrid, Clock, Users, ExternalLink, Activity, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 // @ts-ignore
@@ -38,114 +38,103 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   const [trafficData, setTrafficData] = useState<any[]>([]);
   const [volumeData, setVolumeData] = useState<any[]>([]);
 
-  const loadQueues = useCallback(() => {
-    const userQueues = queueService.getUserQueues(user.id);
-    setQueues(userQueues);
-    
-    // Load stats for each queue and calculate aggregates
-    const currentStats: Record<string, QueueData> = {};
-    let servedCount = 0;
-    let waitingCount = 0;
-    let totalWaitTime = 0;
-    let activeQueuesCount = 0;
-    
-    // For Charts
-    const hourlyTraffic: Record<number, { time: string, visitors: number, served: number }> = {};
-    const queueVolumes: { name: string, visitors: number }[] = [];
-
-    // Initialize hourly buckets (8 AM to 8 PM) to ensure chart always has axis
-    for (let i = 8; i <= 20; i++) {
-        const hourLabel = `${i > 12 ? i - 12 : i} ${i >= 12 ? 'PM' : 'AM'}`;
-        hourlyTraffic[i] = { time: hourLabel, visitors: 0, served: 0 };
-    }
-
-    userQueues.forEach(q => {
-        const data = queueService.getQueueData(q.id);
-        currentStats[q.id] = data;
+  const loadQueues = useCallback(async () => {
+    try {
+        const userQueues = await queueService.getUserQueues(user.id);
+        setQueues(userQueues);
         
-        servedCount += data.metrics.served;
-        waitingCount += data.metrics.waiting;
+        // Load stats for each queue and calculate aggregates
+        const currentStats: Record<string, QueueData> = {};
+        let servedCount = 0;
+        let waitingCount = 0;
+        let totalWaitTime = 0;
+        let activeQueuesCount = 0;
         
-        if (data.metrics.waiting > 0) {
-            totalWaitTime += data.metrics.avgWaitTime;
-            activeQueuesCount++;
+        // For Charts
+        const hourlyTraffic: Record<number, { time: string, visitors: number, served: number }> = {};
+        const queueVolumes: { name: string, visitors: number }[] = [];
+
+        // Initialize hourly buckets (8 AM to 8 PM)
+        for (let i = 8; i <= 20; i++) {
+            const hourLabel = `${i > 12 ? i - 12 : i} ${i >= 12 ? 'PM' : 'AM'}`;
+            hourlyTraffic[i] = { time: hourLabel, visitors: 0, served: 0 };
         }
 
-        // --- Process Graph Data ---
-        // 1. Volume per Queue
-        if (data.metrics.waiting + data.metrics.served > 0) {
-            queueVolumes.push({
-                name: q.name,
-                visitors: data.metrics.waiting + data.metrics.served
-            });
-        }
-
-        // 2. Hourly Traffic (Join vs Served)
-        data.recentActivity.forEach(log => {
-            try {
-                // Approximate parsing of "HH:MM AM/PM"
-                const [timeStr, modifier] = log.time.split(' ');
-                let [hours, minutes] = timeStr.split(':');
-                let h = parseInt(hours);
-                if (modifier === 'PM' && h < 12) h += 12;
-                if (modifier === 'AM' && h === 12) h = 0;
-                
-                // Only track if within our visualization window (or add dynamic expansion)
-                if (hourlyTraffic[h]) {
-                    if (log.action === 'join') hourlyTraffic[h].visitors++;
-                    if (log.action === 'complete' || log.action === 'call') hourlyTraffic[h].served++;
-                }
-            } catch (e) {
-                // Ignore parse errors
+        // Fetch data for all queues concurrently
+        await Promise.all(userQueues.map(async (q) => {
+            const data = await queueService.getQueueData(q.id);
+            currentStats[q.id] = data;
+            
+            servedCount += data.metrics.served;
+            waitingCount += data.metrics.waiting;
+            
+            if (data.metrics.waiting > 0) {
+                totalWaitTime += data.metrics.avgWaitTime;
+                activeQueuesCount++;
             }
+
+            // --- Process Graph Data ---
+            if (data.metrics.waiting + data.metrics.served > 0) {
+                queueVolumes.push({
+                    name: q.name,
+                    visitors: data.metrics.waiting + data.metrics.served
+                });
+            }
+
+            data.recentActivity.forEach(log => {
+                try {
+                    const [timeStr, modifier] = log.time.split(' ');
+                    let [hours, minutes] = timeStr.split(':');
+                    let h = parseInt(hours);
+                    if (modifier === 'PM' && h < 12) h += 12;
+                    if (modifier === 'AM' && h === 12) h = 0;
+                    
+                    if (hourlyTraffic[h]) {
+                        if (log.action === 'join') hourlyTraffic[h].visitors++;
+                        if (log.action === 'complete' || log.action === 'call') hourlyTraffic[h].served++;
+                    }
+                } catch (e) {}
+            });
+        }));
+
+        setQueueStats(currentStats);
+        setStats({
+            totalQueues: userQueues.length,
+            totalServed: servedCount,
+            totalWaiting: waitingCount,
+            avgWaitTime: activeQueuesCount > 0 ? Math.round(totalWaitTime / activeQueuesCount) : 0
         });
-    });
 
-    setQueueStats(currentStats);
-    setStats({
-        totalQueues: userQueues.length,
-        totalServed: servedCount,
-        totalWaiting: waitingCount,
-        avgWaitTime: activeQueuesCount > 0 ? Math.round(totalWaitTime / activeQueuesCount) : 0
-    });
+        const sortedTraffic = Object.keys(hourlyTraffic)
+            .map(Number)
+            .sort((a, b) => a - b)
+            .map(key => hourlyTraffic[key]);
 
-    // Sort hourly traffic by hour index to ensure line chart is chronological
-    const sortedTraffic = Object.keys(hourlyTraffic)
-        .map(Number)
-        .sort((a, b) => a - b)
-        .map(key => hourlyTraffic[key]);
-
-    setTrafficData(sortedTraffic);
-    
-    // Ensure volume data exists even if empty for rendering
-    setVolumeData(queueVolumes.length > 0 ? queueVolumes : [{name: 'No Data', visitors: 0}]);
+        setTrafficData(sortedTraffic);
+        setVolumeData(queueVolumes.length > 0 ? queueVolumes : [{name: 'No Data', visitors: 0}]);
+    } catch (e) {
+        console.error("Failed to load queues", e);
+    }
   }, [user.id]);
 
-  // Initial load and polling setup
   useEffect(() => {
     loadQueues();
-    // Real-time polling every 3 seconds
-    const interval = setInterval(loadQueues, 3000);
-    
-    // Listen for storage events (Instant updates across tabs)
-    const handleStorageChange = (e: StorageEvent) => {
-        if (e.key && (e.key.startsWith('qblink_data_') || e.key.startsWith('qblink_queues_'))) {
-            loadQueues();
-        }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    
+
+    // Listen for global queue updates via socket
+    socketService.on('queue:update', () => {
+        loadQueues();
+    });
+
     return () => {
-        clearInterval(interval);
-        window.removeEventListener('storage', handleStorageChange);
+        socketService.off('queue:update');
     };
   }, [loadQueues]);
 
-  const handleCreateQueue = (e: React.FormEvent) => {
+  const handleCreateQueue = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newQueueName.trim()) return;
       const waitTime = estimatedTime ? parseInt(estimatedTime) : 5;
-      queueService.createQueue(user.id, newQueueName, waitTime);
+      await queueService.createQueue(user.id, newQueueName, waitTime);
       setNewQueueName('');
       setEstimatedTime('');
       setShowCreateModal(false);
@@ -157,9 +146,9 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
       setQueueToDelete(queueId);
   };
 
-  const confirmDeleteQueue = () => {
+  const confirmDeleteQueue = async () => {
       if (queueToDelete) {
-          queueService.deleteQueue(user.id, queueToDelete);
+          await queueService.deleteQueue(user.id, queueToDelete);
           loadQueues();
           setQueueToDelete(null);
       }
@@ -178,6 +167,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
       });
   };
 
+  // ... (CustomTooltip component remains same) ...
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -198,7 +188,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   return (
     <div className="container mx-auto px-4 max-w-6xl pb-20 pt-6">
       
-      {/* Real-time Stats Cards */}
+      {/* Real-time Stats Cards - Same layout, data from new API stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
@@ -491,7 +481,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
           )}
       </div>
 
-      {/* Create Queue Modal */}
+      {/* Create Queue Modal - same structure, uses new handleCreateQueue */}
       <AnimatePresence>
           {showCreateModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
@@ -552,7 +542,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
           )}
       </AnimatePresence>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal - same as before */}
       <AnimatePresence>
           {queueToDelete && (
               <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
