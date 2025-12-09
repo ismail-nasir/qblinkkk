@@ -1,10 +1,11 @@
+
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { ZodSchema } from 'zod';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key_change_in_prod';
 
-// Extend Express Request to include User
+// Extend Express Request to include User using intersection type
 export type AuthRequest = Request & {
     user?: {
         id: string;
@@ -37,18 +38,6 @@ export const requireRole = (roles: string[]) => {
             return res.status(403).json({ error: 'Access denied: Insufficient permissions' });
         }
         next();
-    };
-};
-
-// Zod Input Validation
-export const validate = (schema: ZodSchema) => {
-    return (req: Request, res: Response, next: NextFunction) => {
-        try {
-            schema.parse(req.body);
-            next();
-        } catch (error: any) {
-            return res.status(400).json({ error: 'Validation failed', details: error.errors });
-        }
     };
 };
 

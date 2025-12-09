@@ -1,3 +1,4 @@
+
 import { User, AdminAuditLog } from '../types';
 import { api } from './api';
 
@@ -38,7 +39,6 @@ export const authService = {
       authService.logout();
   },
 
-  // Stubs for verification (backend implementation required for real email sending)
   verifyEmail: async (email: string, code: string) => { return authService.getCurrentUser()!; },
   resendVerification: async (email: string) => {},
   requestPasswordReset: async (email: string) => {},

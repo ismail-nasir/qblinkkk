@@ -1,3 +1,4 @@
+
 import { Router } from 'express';
 import { QueueController } from '../controllers/queue.controller';
 import { authenticate, asyncHandler } from '../middleware';

@@ -1,3 +1,4 @@
+
 # Qblink Queue Management System - Cloud Ready
 
 A fully operational, full-stack queue management system designed for cloud deployment.

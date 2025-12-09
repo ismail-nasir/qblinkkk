@@ -1,6 +1,6 @@
+
 // Configuration Service
-// In Vite/React, use import.meta.env
-// In Create React App (CRA), use process.env.REACT_APP_...
+// VITE uses import.meta.env
 // We fallback to a relative path for production deployments where API is served from same origin
 
 const getEnv = (key: string) => {
@@ -17,7 +17,7 @@ const getEnv = (key: string) => {
     return '';
 };
 
-// Fallback logic: If env vars are missing, assume we are in local dev on default ports OR same-origin in prod
+// Fallback logic: If env vars are missing, assume we are in local dev on default ports
 const DEV_API_URL = 'http://localhost:3000/api';
 const DEV_SOCKET_URL = 'http://localhost:3000';
 
