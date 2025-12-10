@@ -751,7 +751,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                     className="bg-white rounded-3xl p-8 max-w-sm w-full flex flex-col items-center text-center"
                   >
                       <h3 className="text-xl font-bold mb-4">Scan to Join</h3>
-                      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6 w-64 h-auto flex items-center justify-center mx-auto overflow-hidden">
+                      {/* Reduced Visual Size Container */}
+                      <div className="bg-white p-2 rounded-xl border border-gray-100 shadow-sm mb-6 w-52 flex items-center justify-center mx-auto overflow-hidden">
                           <canvas ref={canvasRef} className="w-full h-auto object-contain rounded-lg" />
                       </div>
                       <div className="flex gap-2 w-full">
