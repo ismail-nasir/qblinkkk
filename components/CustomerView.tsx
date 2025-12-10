@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { LogOut, Zap, Users, Bell, CheckCircle } from 'lucide-react';
+import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CustomerViewProps {
@@ -186,8 +187,8 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         setMyVisitorId(visitor.id);
         localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
         setIsJoined(true);
-      } catch (e) {
-        alert("Failed to join queue. Please try again.");
+      } catch (e: any) {
+        alert(e.message || "Failed to join queue. Please try again.");
       }
   };
 
@@ -239,20 +240,28 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                       <h1 className="text-2xl font-bold text-gray-900">{queueInfo ? queueInfo.name : 'Join Queue'}</h1>
                       <p className="text-gray-500 mt-2">Enter your name to hold your spot.</p>
                   </div>
-                  
-                  <form onSubmit={handleJoin}>
-                      <input 
-                        required
-                        type="text" 
-                        placeholder="Your Name" 
-                        value={joinName}
-                        onChange={(e) => setJoinName(e.target.value)}
-                        className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg"
-                      />
-                      <button type="submit" className="w-full py-4 bg-primary-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-primary-700 transition-all">
-                          Get a Number
-                      </button>
-                  </form>
+
+                  {queueInfo?.isPaused ? (
+                       <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center">
+                           <PauseCircle size={32} className="text-red-500 mx-auto mb-3" />
+                           <h3 className="text-lg font-bold text-red-700 mb-1">Queue Paused</h3>
+                           <p className="text-sm text-red-600">The queue is currently not accepting new visitors. Please check back later.</p>
+                       </div>
+                  ) : (
+                      <form onSubmit={handleJoin}>
+                          <input 
+                            required
+                            type="text" 
+                            placeholder="Your Name" 
+                            value={joinName}
+                            onChange={(e) => setJoinName(e.target.value)}
+                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg"
+                          />
+                          <button type="submit" className="w-full py-4 bg-primary-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-primary-700 transition-all">
+                              Get a Number
+                          </button>
+                      </form>
+                  )}
                   <p className="text-center text-xs text-gray-400 mt-6">Powered by Qblink</p>
               </motion.div>
           </div>
@@ -273,7 +282,22 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const isOnTime = myVisitor.status === 'serving' || (peopleAhead === 0 && myVisitor.status === 'waiting');
 
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-900 flex flex-col">
+    <div className="min-h-screen bg-white font-sans text-gray-900 flex flex-col relative">
+        {/* Announcement Banner */}
+        <AnimatePresence>
+            {queueInfo?.announcement && (
+                <motion.div 
+                    initial={{ y: -50, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -50, opacity: 0 }}
+                    className="bg-orange-500 text-white p-3 text-center text-sm font-bold flex items-center justify-center gap-2 shadow-sm relative z-50"
+                >
+                    <Megaphone size={16} />
+                    {queueInfo.announcement}
+                </motion.div>
+            )}
+        </AnimatePresence>
+
         {/* Main Content */}
         <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-8">
             

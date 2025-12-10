@@ -1,3 +1,4 @@
+
 export interface QueueMetric {
   waiting: number;
   served: number;
@@ -27,6 +28,8 @@ export interface Visitor {
   status: 'waiting' | 'serving' | 'served' | 'cancelled';
   isAlerting?: boolean; // New flag for sound control
   servedTime?: string; // Time when status changed to served
+  source?: 'manual' | 'qr'; // Track how visitor was added
+  isPriority?: boolean; // New: VIP Status
 }
 
 export interface QueueSettings {
@@ -45,6 +48,8 @@ export interface QueueInfo {
   estimatedWaitTime?: number; // Manual override for wait time
   logo?: string; // Base64 or URL of the queue logo
   settings: QueueSettings;
+  isPaused?: boolean; // New: Pause new joins
+  announcement?: string; // New: Global message
 }
 
 export interface QueueData {

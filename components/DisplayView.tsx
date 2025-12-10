@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Megaphone } from 'lucide-react';
 
 interface DisplayViewProps {
   queueId: string;
@@ -59,9 +61,25 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
     .slice(0, 5); // Show next 5
 
   return (
-    <div className="h-screen w-screen bg-gray-950 text-white p-4 md:p-6 flex flex-col overflow-hidden font-sans selection:bg-primary-500/30">
+    <div className="h-screen w-screen bg-gray-950 text-white p-4 md:p-6 flex flex-col overflow-hidden font-sans selection:bg-primary-500/30 relative">
+      
+      {/* Announcement Overlay */}
+      <AnimatePresence>
+          {queueInfo?.announcement && (
+              <motion.div 
+                initial={{ y: -100 }}
+                animate={{ y: 0 }}
+                exit={{ y: -100 }}
+                className="absolute top-0 left-0 right-0 bg-orange-600 text-white z-50 py-3 px-6 text-center font-bold text-xl md:text-2xl shadow-xl flex items-center justify-center gap-3"
+              >
+                  <Megaphone size={28} />
+                  {queueInfo.announcement}
+              </motion.div>
+          )}
+      </AnimatePresence>
+
       {/* Header */}
-      <div className="flex justify-between items-center mb-4 md:mb-6 border-b border-gray-800 pb-4 shrink-0">
+      <div className={`flex justify-between items-center mb-4 md:mb-6 border-b border-gray-800 pb-4 shrink-0 transition-all ${queueInfo?.announcement ? 'mt-14' : ''}`}>
           <div className="flex items-center gap-4 md:gap-6">
               <div className="w-12 h-12 md:w-16 md:h-16 bg-primary-600 rounded-2xl flex items-center justify-center font-bold text-2xl md:text-4xl shadow-lg shadow-primary-600/20 text-white">
                 Q
@@ -133,18 +151,18 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
                                 animate={{ x: 0, opacity: 1 }}
                                 exit={{ x: -50, opacity: 0 }}
                                 transition={{ delay: i * 0.1 }}
-                                className="group bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 md:p-5 flex items-center justify-between transition-colors shadow-lg"
+                                className={`group border rounded-2xl p-4 md:p-5 flex items-center justify-between transition-colors shadow-lg ${v.isPriority ? 'bg-amber-950/30 border-amber-800/50' : 'bg-gray-900 border-gray-800 hover:border-gray-700'}`}
                               >
                                   <div className="flex items-center gap-4 md:gap-6 min-w-0">
-                                      <div className="w-12 h-12 md:w-14 md:h-14 bg-gray-800 rounded-xl flex items-center justify-center text-xl md:text-2xl font-bold text-white group-hover:bg-gray-700 transition-colors border border-gray-700 shrink-0">
+                                      <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center text-xl md:text-2xl font-bold text-white transition-colors border shrink-0 ${v.isPriority ? 'bg-amber-600 border-amber-500' : 'bg-gray-800 border-gray-700 group-hover:bg-gray-700'}`}>
                                           {String(v.ticketNumber).padStart(3, '0')}
                                       </div>
                                       <div className="flex flex-col min-w-0">
-                                          <span className="text-base md:text-lg text-gray-200 font-bold truncate">{v.name}</span>
+                                          <span className={`text-base md:text-lg font-bold truncate ${v.isPriority ? 'text-amber-400' : 'text-gray-200'}`}>{v.name}</span>
                                           <span className="text-xs text-gray-500 font-mono">Visitor</span>
                                       </div>
                                   </div>
-                                  <div className="w-2 h-2 rounded-full bg-gray-700 group-hover:bg-primary-500 transition-colors shrink-0"></div>
+                                  <div className={`w-2 h-2 rounded-full transition-colors shrink-0 ${v.isPriority ? 'bg-amber-500' : 'bg-gray-700 group-hover:bg-primary-500'}`}></div>
                               </motion.div>
                           ))}
                       </AnimatePresence>

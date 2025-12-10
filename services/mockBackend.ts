@@ -114,7 +114,9 @@ class MockBackendService {
         status: 'active',
         createdAt: new Date().toISOString(),
         estimatedWaitTime: estimatedWaitTime || 5,
-        settings: { soundEnabled: true, soundVolume: 1, soundType: 'beep' }
+        settings: { soundEnabled: true, soundVolume: 1, soundType: 'beep' },
+        isPaused: false,
+        announcement: ''
       };
       this.queues.push(newQueue);
       this.save();
@@ -164,8 +166,13 @@ class MockBackendService {
 
     // --- ACTIONS ---
     if (endpoint === '/queue/join') {
-        const { queueId, name } = body;
+        const { queueId, name, source } = body;
         
+        // Check if Paused
+        const queue = this.queues.find(q => q.id === queueId);
+        if (!queue) throw new Error("Queue not found");
+        if (queue.isPaused) throw new Error("Queue is currently paused");
+
         const qVisitors = this.visitors.filter(v => (v as any).queueId === queueId);
         const maxTicket = qVisitors.reduce((max, v) => Math.max(max, v.ticketNumber), 0);
         
@@ -175,7 +182,9 @@ class MockBackendService {
             name: name || `Guest ${maxTicket + 1}`,
             joinTime: new Date().toISOString(),
             status: 'waiting',
-            queueId
+            queueId,
+            source: source || 'qr',
+            isPriority: false
         };
         
         this.visitors.push(newVisitor);
@@ -195,6 +204,9 @@ class MockBackendService {
             serving.isAlerting = false;
         }
 
+        // Prioritize VIPs? No, manual sort control is better for simplicity, 
+        // but default sort can prefer VIPs if ticket number is close, or stick to FIFO.
+        // Stick to FIFO for predictability, VIP is just a visual flag for the host.
         const next = this.visitors
             .filter(v => (v as any).queueId === queueId && v.status === 'waiting')
             .sort((a,b) => a.ticketNumber - b.ticketNumber)[0];
@@ -216,6 +228,18 @@ class MockBackendService {
         const visitor = this.visitors.find(v => v.id === visitorId);
         if (visitor) {
             visitor.isAlerting = type === 'trigger';
+            this.save();
+            this.emit('queue:update', queueId);
+        }
+        return { success: true };
+    }
+    
+    if (endpoint.endsWith('/priority')) {
+        const queueId = endpoint.split('/')[2];
+        const { visitorId, isPriority } = body;
+        const visitor = this.visitors.find(v => v.id === visitorId);
+        if (visitor) {
+            visitor.isPriority = isPriority;
             this.save();
             this.emit('queue:update', queueId);
         }
@@ -287,4 +311,3 @@ class MockBackendService {
 }
 
 export const mockBackend = new MockBackendService();
-    
