@@ -1,5 +1,4 @@
 
-
 export interface QueueMetric {
   waiting: number;
   served: number;
@@ -41,7 +40,7 @@ export interface Visitor {
 export interface QueueSettings {
   soundEnabled: boolean;
   soundVolume: number; // 0.1 to 1.0
-  soundType: 'beep' | 'chime' | 'alarm';
+  soundType: 'beep' | 'chime' | 'alarm' | 'ding' | 'success'; // Extended sound types
   autoSkipMinutes?: number; // Added autoSkipMinutes
 }
 

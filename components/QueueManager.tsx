@@ -114,40 +114,65 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
         const ctx = previewAudioContextRef.current;
         if (ctx.state === 'suspended') ctx.resume();
 
-        const osc = ctx.createOscillator();
         const gainNode = ctx.createGain();
-
-        osc.connect(gainNode);
         gainNode.connect(ctx.destination);
-
         gainNode.gain.setValueAtTime(vol, ctx.currentTime);
 
         switch (type) {
             case 'chime':
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(800, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                const oscChime = ctx.createOscillator();
+                oscChime.type = 'sine';
+                oscChime.frequency.setValueAtTime(800, ctx.currentTime);
+                oscChime.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 1.5);
+                oscChime.connect(gainNode);
+                oscChime.start(ctx.currentTime);
+                oscChime.stop(ctx.currentTime + 1.5);
                 break;
             case 'alarm':
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(600, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
-                gainNode.gain.setValueAtTime(vol, ctx.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.5);
+                const oscAlarm = ctx.createOscillator();
+                oscAlarm.type = 'sawtooth';
+                oscAlarm.frequency.setValueAtTime(600, ctx.currentTime);
+                oscAlarm.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                oscAlarm.connect(gainNode);
+                oscAlarm.start(ctx.currentTime);
+                oscAlarm.stop(ctx.currentTime + 0.5);
+                break;
+            case 'ding':
+                const oscDing = ctx.createOscillator();
+                oscDing.type = 'sine';
+                oscDing.frequency.setValueAtTime(1200, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.0);
+                oscDing.connect(gainNode);
+                oscDing.start(ctx.currentTime);
+                oscDing.stop(ctx.currentTime + 1.0);
+                break;
+            case 'success':
+                const oscS1 = ctx.createOscillator();
+                const oscS2 = ctx.createOscillator();
+                oscS1.type = 'sine';
+                oscS2.type = 'triangle';
+                oscS1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+                oscS2.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+                oscS1.connect(gainNode);
+                oscS2.connect(gainNode);
+                gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+                oscS1.start(ctx.currentTime);
+                oscS1.stop(ctx.currentTime + 0.8);
+                oscS2.start(ctx.currentTime + 0.1);
+                oscS2.stop(ctx.currentTime + 0.8);
                 break;
             case 'beep':
             default:
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(800, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+                const oscBeep = ctx.createOscillator();
+                oscBeep.type = 'square';
+                oscBeep.frequency.setValueAtTime(800, ctx.currentTime);
+                oscBeep.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.3);
+                oscBeep.connect(gainNode);
+                oscBeep.start(ctx.currentTime);
+                oscBeep.stop(ctx.currentTime + 0.3);
                 break;
         }
     } catch (e) {
@@ -395,6 +420,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   const waitingVisitors = queueData.visitors
     .filter(v => v.status === 'waiting')
+    // We trust the backend order, which uses 'order' field or ticket number
+    // but here we ensure they are displayed in the correct order for drag/drop
     .sort((a, b) => {
         if (a.order && b.order) return a.order - b.order;
         return a.ticketNumber - b.ticketNumber;
@@ -595,22 +622,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               </div>
           </div>
       </div>
-
-      {/* Analytics: Last 7 Days History */}
-      {queueData.history && queueData.history.length > 0 && (
-          <div className="mb-8">
-              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2">Performance (Last 7 Days)</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
-                  {queueData.history.map((day, i) => (
-                      <div key={i} className={`p-3 rounded-2xl border text-center ${i === 0 ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
-                          <div className="text-xs font-bold text-gray-400 uppercase mb-1">{day.date}</div>
-                          <div className="text-xl font-black text-gray-900">{day.served}</div>
-                          <div className="text-[10px] font-medium text-gray-500">{day.avgWait}m avg wait</div>
-                      </div>
-                  ))}
-              </div>
-          </div>
-      )}
 
       {/* Actions Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
@@ -961,12 +972,12 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                   <div className="space-y-4 bg-gray-50 p-4 rounded-xl">
                                       <div>
                                           <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Sound Type</label>
-                                          <div className="flex gap-2">
-                                              {['beep', 'chime', 'alarm'].map((type) => (
+                                          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                              {['beep', 'chime', 'alarm', 'ding', 'success'].map((type) => (
                                                   <button 
                                                     key={type}
                                                     onClick={() => setSettings({...settings, soundType: type as any})}
-                                                    className={`flex-1 py-2 rounded-lg text-xs font-bold capitalize transition-colors ${settings.soundType === type ? 'bg-white text-primary-600 shadow-sm border border-gray-200' : 'text-gray-500 hover:bg-gray-200/50'}`}
+                                                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-xs font-bold capitalize transition-colors ${settings.soundType === type ? 'bg-white text-primary-600 shadow-sm border border-gray-200' : 'text-gray-500 hover:bg-gray-200/50'}`}
                                                   >
                                                       {type}
                                                   </button>
@@ -975,7 +986,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                       </div>
                                       
                                       <div>
-                                          <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Volume</label>
+                                          <div className="flex justify-between mb-2">
+                                              <label className="text-xs font-bold text-gray-500 uppercase">Volume</label>
+                                              <span className="text-xs font-bold text-primary-600">{Math.round(settings.soundVolume * 100)}%</span>
+                                          </div>
                                           <input 
                                             type="range" 
                                             min="0" 

@@ -202,40 +202,65 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         const ctx = audioContextRef.current;
         if (ctx.state === 'suspended') ctx.resume();
 
-        const osc = ctx.createOscillator();
         const gainNode = ctx.createGain();
-
-        osc.connect(gainNode);
         gainNode.connect(ctx.destination);
-
         gainNode.gain.setValueAtTime(volume, ctx.currentTime);
 
         switch (soundType) {
             case 'chime':
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(800, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                const oscChime = ctx.createOscillator();
+                oscChime.type = 'sine';
+                oscChime.frequency.setValueAtTime(800, ctx.currentTime);
+                oscChime.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 1.5);
+                oscChime.connect(gainNode);
+                oscChime.start(ctx.currentTime);
+                oscChime.stop(ctx.currentTime + 1.5);
                 break;
             case 'alarm':
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(600, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
-                gainNode.gain.setValueAtTime(volume, ctx.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.5);
+                const oscAlarm = ctx.createOscillator();
+                oscAlarm.type = 'sawtooth';
+                oscAlarm.frequency.setValueAtTime(600, ctx.currentTime);
+                oscAlarm.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                oscAlarm.connect(gainNode);
+                oscAlarm.start(ctx.currentTime);
+                oscAlarm.stop(ctx.currentTime + 0.5);
+                break;
+            case 'ding':
+                const oscDing = ctx.createOscillator();
+                oscDing.type = 'sine';
+                oscDing.frequency.setValueAtTime(1200, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.0);
+                oscDing.connect(gainNode);
+                oscDing.start(ctx.currentTime);
+                oscDing.stop(ctx.currentTime + 1.0);
+                break;
+            case 'success':
+                const oscS1 = ctx.createOscillator();
+                const oscS2 = ctx.createOscillator();
+                oscS1.type = 'sine';
+                oscS2.type = 'triangle';
+                oscS1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+                oscS2.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+                oscS1.connect(gainNode);
+                oscS2.connect(gainNode);
+                gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+                oscS1.start(ctx.currentTime);
+                oscS1.stop(ctx.currentTime + 0.8);
+                oscS2.start(ctx.currentTime + 0.1);
+                oscS2.stop(ctx.currentTime + 0.8);
                 break;
             case 'beep':
             default:
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(800, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+                const oscBeep = ctx.createOscillator();
+                oscBeep.type = 'square';
+                oscBeep.frequency.setValueAtTime(800, ctx.currentTime);
+                oscBeep.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.3);
+                oscBeep.connect(gainNode);
+                oscBeep.start(ctx.currentTime);
+                oscBeep.stop(ctx.currentTime + 0.3);
                 break;
         }
     } catch (e) {
