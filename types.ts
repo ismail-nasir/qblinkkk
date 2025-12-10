@@ -20,15 +20,18 @@ export interface AdminAuditLog {
   timestamp: string;
 }
 
+export type UserSource = 'manual' | 'qr';
+
 export interface Visitor {
   id: string;
   ticketNumber: number;
   name: string;
+  phoneNumber?: string; // Added for duplicate check
   joinTime: string; // ISO string
   status: 'waiting' | 'serving' | 'served' | 'cancelled';
   isAlerting?: boolean; // New flag for sound control
   servedTime?: string; // Time when status changed to served
-  source?: 'manual' | 'qr'; // Track how visitor was added
+  source?: UserSource; // Track how visitor was added
   isPriority?: boolean; // New: VIP Status
 }
 

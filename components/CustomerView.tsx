@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { QueueData, QueueInfo } from '../types';
+import { QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin } from 'lucide-react';
-import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface CustomerViewProps {
   queueId: string;
@@ -13,8 +13,13 @@ interface CustomerViewProps {
 const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [queueData, setQueueData] = useState<QueueData | null>(null);
   const [myVisitorId, setMyVisitorId] = useState<string | null>(localStorage.getItem(`qblink_visit_${queueId}`));
+  const [myVisitor, setMyVisitor] = useState<Visitor | null>(null);
+  
+  // Join Form State
   const [joinName, setJoinName] = useState('');
-  const [isJoined, setIsJoined] = useState(false);
+  const [joinPhone, setJoinPhone] = useState('');
+  const [joinError, setJoinError] = useState('');
+  
   const [queueInfo, setQueueInfo] = useState<QueueInfo | null>(null);
   const [alertShown, setAlertShown] = useState(false);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
@@ -30,6 +35,9 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const alertIntervalRef = useRef<number | null>(null);
 
+  // Background Tab handling (Title blink)
+  const titleIntervalRef = useRef<number | null>(null);
+
   const fetchData = useCallback(async () => {
         try {
             const data = await queueService.getQueueData(queueId);
@@ -43,11 +51,8 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   useEffect(() => {
     fetchData();
-    
-    // Connect to Socket Room
     socketService.joinQueue(queueId);
 
-    // Listen for events
     socketService.on('queue:update', () => {
         fetchData();
     });
@@ -69,18 +74,18 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   useEffect(() => {
     if (myVisitorId && queueData) {
         const visitor = queueData.visitors.find(v => v.id === myVisitorId);
+        setMyVisitor(visitor || null);
         
-        if (visitor && (visitor.status === 'waiting' || visitor.status === 'serving')) {
-            // Confirm joined if we found the visitor in valid state
-            if (!isJoined) setIsJoined(true);
-            
+        if (visitor) {
             // Check for Alert Trigger
             if (visitor.isAlerting && !isAlerting) {
                  setIsAlerting(true);
                  startAlertLoop();
+                 startTitleBlink("🔔 YOUR TURN!");
             } else if (!visitor.isAlerting && isAlerting) {
                  setIsAlerting(false);
                  stopAlertLoop();
+                 stopTitleBlink();
             }
             
             const peopleAhead = queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < visitor.ticketNumber).length;
@@ -89,27 +94,49 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
             if (peopleAhead === 2 && !alertShown && visitor.status === 'waiting') {
                 setShowNotificationPopup(true);
                 setAlertShown(true);
-                if (Notification.permission === 'granted') {
-                    new Notification(`Get Ready!`, { body: `Only 2 people ahead of you in ${queueInfo?.name || 'the queue'}.` });
+                sendNotification("Get Ready!", `Only 2 people ahead of you in ${queueInfo?.name || 'the queue'}.`);
+            }
+            
+            // 2. Title Updates based on position
+            if (!visitor.isAlerting) {
+                if (visitor.status === 'waiting') {
+                    document.title = `(${peopleAhead + 1}) Position - Qblink`;
+                } else if (visitor.status === 'serving') {
+                    document.title = `🔔 IT'S YOUR TURN!`;
                 }
             }
         } else {
-            // Visitor not found in queueData OR status is not waiting/serving
-            
-            // Only kick out if we were previously joined AND the queue has other people.
-            // If the queue is empty, it might be a fetch lag, but if it has people and I'm not there, I'm gone.
-            if (isJoined && queueData.visitors.length > 0) {
-                 setIsJoined(false);
-                 setMyVisitorId(null);
-                 localStorage.removeItem(`qblink_visit_${queueId}`);
-                 stopAlertLoop();
-            } else if (!isJoined && visitor) {
-                 // Recovery: If we aren't "joined" locally but exist in data, re-join
-                 setIsJoined(true);
-            }
+             // Visitor might have been deleted manually by admin
+             // We don't auto-logout here to prevent UX jarring if it's a temp sync issue,
+             // but if consistent, the UI will just show "Loading..." or we handle it in render.
         }
+    } else {
+        document.title = "Join Queue - Qblink";
     }
   }, [queueData, myVisitorId, alertShown, queueInfo?.name]);
+
+  const sendNotification = (title: string, body: string) => {
+      if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, { body, icon: '/favicon.ico' });
+      }
+  };
+
+  const startTitleBlink = (msg: string) => {
+      if (titleIntervalRef.current) clearInterval(titleIntervalRef.current);
+      let visible = true;
+      titleIntervalRef.current = window.setInterval(() => {
+          document.title = visible ? msg : "🔴 🔔 🔴";
+          visible = !visible;
+      }, 1000);
+  };
+
+  const stopTitleBlink = () => {
+      if (titleIntervalRef.current) {
+          clearInterval(titleIntervalRef.current);
+          titleIntervalRef.current = null;
+          document.title = "Qblink";
+      }
+  };
 
   // Pull to Refresh Handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -131,7 +158,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const handleTouchEnd = async () => {
       if (pullY > 70) {
           setIsRefreshing(true);
-          setPullY(70); // Hold position
+          setPullY(70); 
           await fetchData();
           setTimeout(() => {
               setIsRefreshing(false);
@@ -218,33 +245,28 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   const handleJoin = async (e: React.FormEvent) => {
       e.preventDefault();
+      setJoinError('');
       requestNotificationPermission();
       
-      // Initialize Audio Context safely
       try {
         if (!audioContextRef.current) {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
-      } catch (err) {
-          console.warn("Could not initialize audio context", err);
-      }
+      } catch (err) {}
 
       try {
-        const { visitor, queueData: updatedQueueData } = await queueService.joinQueue(queueId, joinName);
+        const { visitor, queueData: updatedQueueData } = await queueService.joinQueue(queueId, joinName, joinPhone);
         if (!visitor) throw new Error("Server returned no ticket.");
         
-        // Critical: Update Queue Data FIRST to include the new visitor
-        // This prevents the useEffect from seeing a stale state where the user "isn't in the queue"
         if (updatedQueueData) {
             setQueueData(updatedQueueData);
         }
         
         setMyVisitorId(visitor.id);
+        setMyVisitor(visitor);
         localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
-        setIsJoined(true);
       } catch (e: any) {
-        console.error(e);
-        alert(e.message || "Failed to join queue. Please check your connection and try again.");
+        setJoinError(e.message || "Failed to join. Please try again.");
       }
   };
 
@@ -254,12 +276,23 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
               await queueService.leaveQueue(queueId, myVisitorId);
               localStorage.removeItem(`qblink_visit_${queueId}`);
               setMyVisitorId(null);
-              setIsJoined(false);
+              setMyVisitor(null);
               setAlertShown(false);
               stopAlertLoop();
               setIsAlerting(false);
           }
       }
+  };
+  
+  const handleRejoin = () => {
+      localStorage.removeItem(`qblink_visit_${queueId}`);
+      setMyVisitorId(null);
+      setMyVisitor(null);
+      setJoinName('');
+      setJoinPhone('');
+      setAlertShown(false);
+      stopAlertLoop();
+      setIsAlerting(false);
   };
 
   const handleImComing = () => {
@@ -268,22 +301,14 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
           socketService.emit('customer_ack', { queueId, visitorId: myVisitorId });
           setIsAlerting(false);
           stopAlertLoop();
+          stopTitleBlink();
       }
   };
 
-  if (myVisitorId && !queueData) {
-      return (
-          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500 font-sans gap-4">
-              <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="font-medium animate-pulse">Syncing ticket...</p>
-          </div>
-      );
-  }
+  if (!queueData || !queueInfo) return <div className="min-h-screen flex items-center justify-center text-gray-500 font-sans">Loading Queue...</div>;
 
-  if (!queueData) return <div className="min-h-screen flex items-center justify-center text-gray-500 font-sans">Loading Queue...</div>;
-
-  // Not Joined View
-  if (!isJoined) {
+  // 1. Not Joined View
+  if (!myVisitorId || !myVisitor) {
       return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans selection:bg-primary-100">
               <motion.div 
@@ -291,57 +316,109 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white w-full max-w-md rounded-[40px] shadow-xl shadow-blue-900/5 p-8 relative overflow-hidden"
               >
-                  {/* Background decoration */}
                   <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-50 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
                   <div className="text-center mb-8 relative z-10">
                       <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-primary-600 shadow-inner">
-                          <Users size={40} />
+                          {queueInfo.logo ? (
+                              <img src={queueInfo.logo} alt="Logo" className="w-full h-full object-cover rounded-3xl" />
+                          ) : (
+                              <Users size={40} />
+                          )}
                       </div>
-                      <h1 className="text-3xl font-black text-gray-900 tracking-tight">{queueInfo ? queueInfo.name : 'Join Queue'}</h1>
-                      <p className="text-gray-500 mt-2 font-medium">Enter your name to secure a spot.</p>
+                      <h1 className="text-3xl font-black text-gray-900 tracking-tight">{queueInfo.name}</h1>
+                      <p className="text-gray-500 mt-2 font-medium">Join the line effortlessly.</p>
                   </div>
 
-                  {queueInfo?.isPaused ? (
+                  {queueInfo.isPaused ? (
                        <div className="bg-red-50 border border-red-100 rounded-3xl p-8 text-center relative z-10">
                            <PauseCircle size={48} className="text-red-500 mx-auto mb-4" />
                            <h3 className="text-xl font-bold text-red-700 mb-2">Queue Paused</h3>
                            <p className="text-sm text-red-600 leading-relaxed">The queue is currently taking a break. Please check back shortly.</p>
                        </div>
                   ) : (
-                      <form onSubmit={handleJoin} className="relative z-10">
-                          <div className="relative mb-4 group">
+                      <form onSubmit={handleJoin} className="relative z-10 space-y-4">
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Name</label>
                               <input 
                                 required
                                 type="text" 
-                                placeholder="Your Name" 
+                                placeholder="Enter your name" 
                                 value={joinName}
                                 onChange={(e) => setJoinName(e.target.value)}
-                                className="w-full p-5 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-primary-500 transition-all text-xl font-bold text-center placeholder:font-medium placeholder:text-gray-400 group-hover:bg-white group-hover:shadow-sm"
+                                className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-primary-500 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400"
+                                style={{ fontSize: '16px' }} // Prevent iOS zoom
                               />
                           </div>
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Phone Number (Optional)</label>
+                              <div className="relative">
+                                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                  <input 
+                                    type="tel" 
+                                    placeholder="For alerts & no-duplicates" 
+                                    value={joinPhone}
+                                    onChange={(e) => setJoinPhone(e.target.value)}
+                                    className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-primary-500 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400"
+                                    style={{ fontSize: '16px' }}
+                                  />
+                              </div>
+                          </div>
+                          
+                          {joinError && (
+                              <div className="p-3 bg-red-50 text-red-600 text-sm font-bold rounded-xl text-center">
+                                  {joinError}
+                              </div>
+                          )}
+
                           <motion.button 
                             whileTap={{ scale: 0.98 }}
                             type="submit" 
-                            className="w-full py-5 bg-primary-600 text-white rounded-2xl font-bold text-xl shadow-lg shadow-primary-600/30 hover:bg-primary-700 transition-all flex items-center justify-center gap-2"
+                            className="w-full py-5 bg-primary-600 text-white rounded-2xl font-bold text-xl shadow-lg shadow-primary-600/30 hover:bg-primary-700 transition-all flex items-center justify-center gap-2 mt-2"
                           >
                               Get Ticket <Zap size={20} fill="currentColor" />
                           </motion.button>
                       </form>
                   )}
                   <div className="mt-8 flex justify-center items-center gap-2 text-gray-400 opacity-60">
-                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
-                      <p className="text-xs font-bold uppercase tracking-widest">Powered by Qblink</p>
-                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest">Powered by Qblink</p>
                   </div>
               </motion.div>
           </div>
       );
   }
 
-  const myVisitor = queueData.visitors.find(v => v.id === myVisitorId);
-  if (!myVisitor) return null; // Should be handled by loading state
+  // 2. Served / Cancelled View (Rejoin Logic)
+  if (myVisitor.status === 'served' || myVisitor.status === 'cancelled') {
+      return (
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white w-full max-w-md rounded-[40px] shadow-xl p-8 text-center"
+              >
+                  <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 ${myVisitor.status === 'served' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                      {myVisitor.status === 'served' ? <CheckCircle size={48} /> : <LogOut size={48} />}
+                  </div>
+                  <h2 className="text-2xl font-black text-gray-900 mb-2">
+                      {myVisitor.status === 'served' ? 'You have been served!' : 'You left the queue'}
+                  </h2>
+                  <p className="text-gray-500 mb-8 font-medium">
+                      {myVisitor.status === 'served' ? 'Thanks for visiting. Have a great day!' : 'We hope to see you again soon.'}
+                  </p>
+                  
+                  <button 
+                      onClick={handleRejoin}
+                      className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-transform"
+                  >
+                      <RotateCcw size={20} /> Join Again
+                  </button>
+              </motion.div>
+          </div>
+      );
+  }
 
+  // 3. Active Queue View
   const peopleAhead = queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < myVisitor.ticketNumber).length;
   const waitTime = Math.max(1, peopleAhead * queueData.metrics.avgWaitTime);
   const isOnTime = myVisitor.status === 'serving' || (peopleAhead === 0 && myVisitor.status === 'waiting');
@@ -388,9 +465,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                  <div className="flex items-center justify-center gap-1.5 text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
                     <MapPin size={12} /> {queueInfo?.name || 'Queue'}
                  </div>
-                 <div className="flex items-center justify-center gap-2">
-                    <h1 className="text-2xl font-black text-gray-900">{myVisitor.name}</h1>
-                 </div>
+                 <h1 className="text-2xl font-black text-gray-900">{myVisitor.name}</h1>
             </div>
 
             {/* Ticket Card (Hero) */}
@@ -478,7 +553,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                     <motion.button 
                         whileTap={{ scale: 0.9 }}
                         onClick={handleImComing}
-                        className="w-full max-w-xs py-5 bg-white text-primary-600 rounded-3xl font-black text-xl shadow-xl flex items-center justify-center gap-3"
+                        className="w-full max-w-xs py-5 bg-white text-primary-600 rounded-3xl font-black text-xl shadow-xl flex items-center justify-center gap-3 min-h-[64px]"
                     >
                         <CheckCircle size={24} fill="currentColor" className="text-primary-600" /> I'M COMING
                     </motion.button>
@@ -516,7 +591,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
             <motion.button 
                 whileTap={{ scale: 0.98 }}
                 onClick={handleLeave}
-                className="w-full py-4 bg-white text-red-500 border border-red-100 rounded-2xl font-bold text-base flex items-center justify-center gap-2 hover:bg-red-50 transition-all shadow-sm"
+                className="w-full py-4 bg-white text-red-500 border border-red-100 rounded-2xl font-bold text-base flex items-center justify-center gap-2 hover:bg-red-50 transition-all shadow-sm min-h-[56px]"
             >
                 <LogOut size={18} /> Leave Queue
             </motion.button>

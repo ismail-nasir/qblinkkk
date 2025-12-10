@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
@@ -7,6 +7,8 @@ import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Se
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
+// @ts-ignore
+import { AreaChart, Area, ResponsiveContainer, BarChart, Bar, Tooltip } from 'recharts';
 
 interface QueueManagerProps {
   user: User;
@@ -313,11 +315,27 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   };
 
   const handleTogglePriority = async (visitorId: string, isPriority: boolean) => {
-      await queueService.togglePriority(queue.id, visitorId, !isPriority);
-      // Update local selected visitor if open
+      const newPriorityStatus = !isPriority;
+      
+      // 1. Optimistic Update: Selected Visitor Modal
       if (selectedVisitor && selectedVisitor.id === visitorId) {
-          setSelectedVisitor({ ...selectedVisitor, isPriority: !isPriority });
+          setSelectedVisitor({ ...selectedVisitor, isPriority: newPriorityStatus });
       }
+
+      // 2. Optimistic Update: Queue List Background
+      if (queueData) {
+          setQueueData({
+              ...queueData,
+              visitors: queueData.visitors.map(v => 
+                  v.id === visitorId ? { ...v, isPriority: newPriorityStatus } : v
+              )
+          });
+      }
+
+      // 3. API Call
+      await queueService.togglePriority(queue.id, visitorId, newPriorityStatus);
+      
+      // 4. Background Refresh (to ensure consistency)
       fetchData();
   };
 
@@ -358,6 +376,42 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           fetchData();
       }
   };
+  
+  // Chart Data Calculation
+  const chartData = useMemo(() => {
+    if (!queueData) return [];
+    const data = [];
+    const now = new Date();
+    // Generate last 6 hours
+    for (let i = 5; i >= 0; i--) {
+        const t = new Date(now.getTime() - i * 60 * 60 * 1000);
+        const hour = t.getHours();
+        
+        // Filter visitors served in this specific hour/date
+        const servedInHour = queueData.visitors.filter(v => {
+            if (v.status !== 'served' || !v.servedTime) return false;
+            const vt = new Date(v.servedTime);
+            return vt.getHours() === hour && vt.getDate() === t.getDate();
+        });
+
+        const count = servedInHour.length;
+        const totalWait = servedInHour.reduce((sum, v) => {
+             const join = new Date(v.joinTime).getTime();
+             const serve = new Date(v.servedTime!).getTime();
+             return sum + (serve - join);
+        }, 0);
+        
+        // Convert to minutes
+        const avgWait = count > 0 ? Math.round(totalWait / count / 60000) : 0;
+        
+        data.push({
+            time: `${hour}:00`,
+            served: count,
+            wait: avgWait
+        });
+    }
+    return data;
+  }, [queueData]);
 
   if (!queueData) return <div className="p-12 text-center text-gray-500">Loading Queue Data...</div>;
 
@@ -519,32 +573,69 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               </div>
           </div>
 
-          {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-                  <span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
-                      <Users size={12} /> Waiting
-                  </span>
-                  <span className="text-2xl font-black text-gray-900">{queueData.metrics.waiting}</span>
+          {/* Enhanced Detailed Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+              {/* Waiting Now - Simple Big Card */}
+              <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mb-2">
+                      <Users size={24} />
+                  </div>
+                  <span className="text-4xl font-black text-gray-900">{queueData.metrics.waiting}</span>
+                  <span className="text-sm font-bold text-gray-400 uppercase tracking-wide">Waiting Now</span>
               </div>
-              <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-                  <span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
-                      <UserCheck size={12} /> Served (1h)
-                  </span>
-                  <span className="text-2xl font-black text-green-600">{servedLastHour}</span>
+
+              {/* Served Trend - Bar Chart */}
+              <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden group min-h-[160px]">
+                  <div className="flex justify-between items-start mb-4 z-10">
+                      <div>
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Served (1h)</span>
+                          <div className="text-3xl font-black text-gray-900 mt-1">{servedLastHour}</div>
+                      </div>
+                      <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600">
+                          <UserCheck size={20} />
+                      </div>
+                  </div>
+                  {/* Mini Bar Chart */}
+                  <div className="h-16 w-full mt-auto relative z-10">
+                      <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData}>
+                              <Bar dataKey="served" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={20} />
+                              <Tooltip 
+                                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
+                                  cursor={{fill: 'rgba(0,0,0,0.05)'}}
+                              />
+                          </BarChart>
+                      </ResponsiveContainer>
+                  </div>
               </div>
-              <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-                  <span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
-                      <Clock size={12} /> Avg Wait
-                  </span>
-                  <span className="text-2xl font-black text-blue-600">{queueData.metrics.avgWaitTime}<span className="text-sm text-gray-400 font-medium">m</span></span>
-              </div>
-              <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-                  <span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
-                      <TrendingUp size={12} /> Trend
-                  </span>
-                  <div className="flex items-center gap-1">
-                      <span className="text-lg font-bold text-gray-900">Steady</span>
+
+              {/* Wait Time Trend - Area Chart */}
+              <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden min-h-[160px]">
+                  <div className="flex justify-between items-start mb-4 z-10">
+                      <div>
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Avg Wait Time</span>
+                          <div className="text-3xl font-black text-gray-900 mt-1">{queueData.metrics.avgWaitTime}<span className="text-lg text-gray-400 font-medium ml-1">m</span></div>
+                      </div>
+                      <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600">
+                          <Clock size={20} />
+                      </div>
+                  </div>
+                  {/* Mini Area Chart */}
+                  <div className="h-16 w-full mt-auto relative z-10">
+                      <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartData}>
+                              <defs>
+                                  <linearGradient id="colorWait" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                                  </linearGradient>
+                              </defs>
+                              <Tooltip 
+                                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
+                              />
+                              <Area type="monotone" dataKey="wait" stroke="#8b5cf6" strokeWidth={2} fill="url(#colorWait)" />
+                          </AreaChart>
+                      </ResponsiveContainer>
                   </div>
               </div>
           </div>
@@ -705,12 +796,17 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                           </div>
 
                           <div className="grid grid-cols-2 gap-3 w-full mb-6">
+                              {/* VIP Toggle - Enhanced */}
                               <button 
                                 onClick={() => handleTogglePriority(selectedVisitor.id, !!selectedVisitor.isPriority)}
-                                className={`col-span-2 py-3 border rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${selectedVisitor.isPriority ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                                className={`col-span-2 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-sm ${
+                                    selectedVisitor.isPriority 
+                                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-white shadow-amber-500/30 border border-transparent' 
+                                    : 'bg-white border-2 border-dashed border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50'
+                                }`}
                               >
-                                  <Star size={16} fill={selectedVisitor.isPriority ? "currentColor" : "none"} /> 
-                                  {selectedVisitor.isPriority ? 'Remove VIP Status' : 'Mark as VIP'}
+                                  <Star size={20} fill={selectedVisitor.isPriority ? "currentColor" : "none"} className={selectedVisitor.isPriority ? "text-white" : ""} /> 
+                                  {selectedVisitor.isPriority ? 'VIP Status Active' : 'Mark as VIP Visitor'}
                               </button>
                               
                               <button 

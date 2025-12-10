@@ -171,11 +171,21 @@ class MockBackendService {
 
     // --- ACTIONS ---
     if (endpoint === '/queue/join') {
-        const { queueId, name, source } = body;
+        const { queueId, name, phoneNumber, source } = body;
         
         const queue = this.queues.find(q => q.id === queueId);
         if (!queue) throw new Error("Queue not found");
         if (queue.isPaused) throw new Error("Queue is currently paused");
+
+        // Duplicate Check
+        if (phoneNumber) {
+            const existing = this.visitors.find(v => 
+                (v as any).queueId === queueId && 
+                v.phoneNumber === phoneNumber && 
+                (v.status === 'waiting' || v.status === 'serving')
+            );
+            if (existing) throw new Error("You are already in this queue.");
+        }
 
         const qVisitors = this.visitors.filter(v => (v as any).queueId === queueId);
         const maxTicket = qVisitors.reduce((max, v) => Math.max(max, v.ticketNumber), 0);
@@ -184,6 +194,7 @@ class MockBackendService {
             id: Math.random().toString(36).substr(2, 9),
             ticketNumber: maxTicket + 1,
             name: name || `Guest ${maxTicket + 1}`,
+            phoneNumber: phoneNumber || '',
             joinTime: new Date().toISOString(),
             status: 'waiting',
             queueId,
