@@ -168,7 +168,6 @@ class MockBackendService {
     if (endpoint === '/queue/join') {
         const { queueId, name, source } = body;
         
-        // Check if Paused
         const queue = this.queues.find(q => q.id === queueId);
         if (!queue) throw new Error("Queue not found");
         if (queue.isPaused) throw new Error("Queue is currently paused");
@@ -191,6 +190,7 @@ class MockBackendService {
         this.log(queueId, newVisitor.ticketNumber, 'join');
         this.save();
         this.emit('queue:update', queueId);
+        // Include queueData for completeness, though CustomerView mainly needs visitor
         return { visitor: newVisitor };
     }
 
@@ -204,9 +204,6 @@ class MockBackendService {
             serving.isAlerting = false;
         }
 
-        // Prioritize VIPs? No, manual sort control is better for simplicity, 
-        // but default sort can prefer VIPs if ticket number is close, or stick to FIFO.
-        // Stick to FIFO for predictability, VIP is just a visual flag for the host.
         const next = this.visitors
             .filter(v => (v as any).queueId === queueId && v.status === 'waiting')
             .sort((a,b) => a.ticketNumber - b.ticketNumber)[0];
@@ -220,6 +217,38 @@ class MockBackendService {
         this.save();
         this.emit('queue:update', queueId, { type: 'call', visitor: next });
         return next || {};
+    }
+
+    if (endpoint.endsWith('/reorder')) {
+        const queueId = endpoint.split('/')[2];
+        const { visitors: reorderedVisitors } = body;
+        
+        // Remove current waiting visitors for this queue from DB
+        this.visitors = this.visitors.filter(v => !((v as any).queueId === queueId && v.status === 'waiting'));
+        
+        // Add back the reordered list (preserving their properties but ensuring they exist in DB)
+        // In a real DB, we'd update an 'order_index' column. Here, we just replace.
+        // Important: We need to make sure we don't lose non-waiting visitors which are handled above.
+        
+        // But wait, the payload only contains waiting visitors usually? 
+        // Or the frontend sends the whole list? Frontend logic:
+        // const otherVisitors = queueData.visitors.filter(v => v.status !== 'waiting');
+        // const fullNewList = [...otherVisitors, ...newOrder];
+        // So frontend sends EVERYTHING.
+        
+        // So safe to remove all for this queue and re-add.
+        this.visitors = this.visitors.filter(v => (v as any).queueId !== queueId);
+        
+        const newVisitorsWithId = reorderedVisitors.map((v: Visitor) => ({
+            ...v,
+            queueId
+        }));
+        
+        this.visitors.push(...newVisitorsWithId);
+        
+        this.save();
+        this.emit('queue:update', queueId);
+        return { success: true };
     }
 
     if (endpoint.endsWith('/alert')) {
@@ -269,6 +298,66 @@ class MockBackendService {
         this.save();
         this.emit('queue:update', queueId);
         return { success: true };
+    }
+    
+    // Call by number
+    if (endpoint.endsWith('/call-number')) {
+         const queueId = endpoint.split('/')[2];
+         const { ticketNumber } = body;
+         
+         // 1. Mark current serving as served
+         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving');
+         if (serving) {
+             serving.status = 'served';
+             serving.servedTime = new Date().toISOString();
+             serving.isAlerting = false;
+         }
+         
+         // 2. Find target
+         const target = this.visitors.find(v => (v as any).queueId === queueId && v.ticketNumber === ticketNumber);
+         if (target) {
+             target.status = 'serving';
+             target.isAlerting = true;
+             this.log(queueId, target.ticketNumber, 'call');
+         }
+         
+         this.save();
+         this.emit('queue:update', queueId);
+         return { success: true };
+    }
+
+    if (endpoint.endsWith('/recall')) {
+         const queueId = endpoint.split('/')[2];
+         const { visitorId } = body;
+         
+         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving');
+         if (serving) {
+             serving.status = 'served';
+             serving.servedTime = new Date().toISOString();
+             serving.isAlerting = false;
+         }
+         
+         const target = this.visitors.find(v => v.id === visitorId);
+         if (target) {
+             target.status = 'serving';
+             target.isAlerting = true;
+         }
+         
+         this.save();
+         this.emit('queue:update', queueId);
+         return { success: true };
+    }
+    
+    if (endpoint.endsWith('/take-back')) {
+         const queueId = endpoint.split('/')[2];
+         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving');
+         if (serving) {
+             serving.status = 'waiting';
+             serving.isAlerting = false;
+             this.save();
+             this.emit('queue:update', queueId);
+         }
+         return { success: true };
     }
 
     if (method === 'PUT' && endpoint.startsWith('/queue/')) {

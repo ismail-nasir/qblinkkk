@@ -24,7 +24,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [pullY, setPullY] = useState(0);
   const pullStartY = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const controls = useAnimation();
   
   // Sound loop control
   const [isAlerting, setIsAlerting] = useState(false);
@@ -118,7 +117,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
           const y = e.touches[0].clientY;
           const diff = y - pullStartY.current;
           if (diff > 0 && window.scrollY <= 0) {
-              // Apply resistance
               setPullY(Math.min(diff * 0.4, 120)); 
           }
       }
@@ -161,65 +159,80 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const playBeep = () => {
     if (queueInfo?.settings?.soundEnabled === false) return;
 
-    const volume = queueInfo?.settings?.soundVolume || 1.0;
-    const soundType = queueInfo?.settings?.soundType || 'beep';
+    try {
+        const volume = queueInfo?.settings?.soundVolume || 1.0;
+        const soundType = queueInfo?.settings?.soundType || 'beep';
 
-    if (!audioContextRef.current) {
-         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    const ctx = audioContextRef.current;
-    if (ctx.state === 'suspended') ctx.resume();
+        if (!audioContextRef.current) {
+             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        const ctx = audioContextRef.current;
+        if (ctx.state === 'suspended') ctx.resume();
 
-    const osc = ctx.createOscillator();
-    const gainNode = ctx.createGain();
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
 
-    osc.connect(gainNode);
-    gainNode.connect(ctx.destination);
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
 
-    gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+        gainNode.gain.setValueAtTime(volume, ctx.currentTime);
 
-    switch (soundType) {
-        case 'chime':
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 1.5);
-            break;
-        case 'alarm':
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(600, ctx.currentTime);
-            osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
-            gainNode.gain.setValueAtTime(volume, ctx.currentTime);
-            gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.5);
-            break;
-        case 'beep':
-        default:
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.3);
-            break;
+        switch (soundType) {
+            case 'chime':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 1.5);
+                break;
+            case 'alarm':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(600, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.5);
+                break;
+            case 'beep':
+            default:
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
+                break;
+        }
+    } catch (e) {
+        console.warn("Audio playback failed", e);
     }
   };
 
   const handleJoin = async (e: React.FormEvent) => {
       e.preventDefault();
       requestNotificationPermission();
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Initialize Audio Context safely
+      try {
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+      } catch (err) {
+          console.warn("Could not initialize audio context", err);
+      }
 
       try {
         const { visitor } = await queueService.joinQueue(queueId, joinName);
+        if (!visitor) throw new Error("Server returned no ticket.");
+        
         setMyVisitorId(visitor.id);
         localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
         setIsJoined(true);
       } catch (e: any) {
-        alert(e.message || "Failed to join queue. Please try again.");
+        console.error(e);
+        alert(e.message || "Failed to join queue. Please check your connection and try again.");
       }
   };
 

@@ -17,14 +17,18 @@ interface QueueManagerProps {
 const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [queueData, setQueueData] = useState<QueueData | null>(null);
   const [currentQueue, setCurrentQueue] = useState<QueueInfo>(queue);
+  
+  // Modal States
   const [showQrModal, setShowQrModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showCallModal, setShowCallModal] = useState(false);
+  
+  // UI States
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [newVisitorName, setNewVisitorName] = useState('');
   const [callNumberInput, setCallNumberInput] = useState('');
   const [announcementInput, setAnnouncementInput] = useState(queue.announcement || '');
-  const [showCallModal, setShowCallModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Settings State
@@ -36,7 +40,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   // QR Generation State
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(currentQueue.logo || null);
 
   // Audio Context for preview
@@ -62,13 +65,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     socketService.joinQueue(queue.id);
 
     // Listen for events
-    socketService.on('queue:update', (data: any) => {
-        // Optimistic update or refetch
+    socketService.on('queue:update', () => {
         fetchData();
     });
 
-    socketService.on('customer_response', (data: any) => {
-        // Customer acknowledged alert
+    socketService.on('customer_response', () => {
         fetchData();
     });
 
@@ -79,50 +80,54 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   }, [fetchData, queue.id]);
 
   const playPreview = (type: string, vol: number) => {
-    if (!previewAudioContextRef.current) {
-         previewAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    const ctx = previewAudioContextRef.current;
-    if (ctx.state === 'suspended') ctx.resume();
+    try {
+        if (!previewAudioContextRef.current) {
+             previewAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        const ctx = previewAudioContextRef.current;
+        if (ctx.state === 'suspended') ctx.resume();
 
-    const osc = ctx.createOscillator();
-    const gainNode = ctx.createGain();
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
 
-    osc.connect(gainNode);
-    gainNode.connect(ctx.destination);
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
 
-    gainNode.gain.setValueAtTime(vol, ctx.currentTime);
+        gainNode.gain.setValueAtTime(vol, ctx.currentTime);
 
-    switch (type) {
-        case 'chime':
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 1.5);
-            break;
-        case 'alarm':
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(600, ctx.currentTime);
-            osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
-            gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.5);
-            break;
-        case 'beep':
-        default:
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.3);
-            break;
+        switch (type) {
+            case 'chime':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 1.5);
+                break;
+            case 'alarm':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(600, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+                gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.5);
+                break;
+            case 'beep':
+            default:
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
+                break;
+        }
+    } catch (e) {
+        console.error("Audio preview failed", e);
     }
   };
 
-  // QR Code Rendering Logic (Advanced Dot Style with Logo)
+  // QR Code Rendering Logic
   useEffect(() => {
     if (showQrModal && canvasRef.current) {
         generateCustomQRCode();
@@ -137,118 +142,40 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     if (!ctx) return;
 
     const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
-    const qrSize = 1000; // High resolution for download
-    const padding = 60;
-    const dotSizeRatio = 0.85; // Size of dots (0-1)
-    const logoSizeRatio = 0.22; // Size of logo relative to QR
-
-    // 1. Generate Raw QR Data
-    const qrData = QRCode.create(joinUrl, { errorCorrectionLevel: 'H' });
-    const moduleCount = qrData.modules.size;
-    const moduleSize = (qrSize - 2 * padding) / moduleCount;
-
-    // 2. Set Canvas Size
-    canvas.width = qrSize;
-    canvas.height = qrSize;
-
-    // 3. Clear Background
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, qrSize, qrSize);
-
-    // 4. Helper Function for Paths
-    const roundRectPath = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
-        ctx.closePath();
-    };
-
-    // 5. Draw Custom Finder Patterns (The 3 big squares)
-    const drawFinderPattern = (row: number, col: number) => {
-        const x = padding + col * moduleSize;
-        const y = padding + row * moduleSize;
+    const qrSize = 1000;
+    
+    // Clear
+    ctx.clearRect(0, 0, qrSize, qrSize);
+    
+    try {
+        await QRCode.toCanvas(canvas, joinUrl, {
+            width: qrSize,
+            margin: 2,
+            color: {
+                dark: '#111827',
+                light: '#FFFFFF'
+            },
+            errorCorrectionLevel: 'H'
+        });
         
-        ctx.fillStyle = '#111827';
-        
-        // Outer Ring (7x7 modules)
-        ctx.beginPath();
-        roundRectPath(ctx, x, y, moduleSize * 7, moduleSize * 7, moduleSize * 2); 
-        // Inner Ring Hole (5x5 modules) - Cutout
-        roundRectPath(ctx, x + moduleSize, y + moduleSize, moduleSize * 5, moduleSize * 5, moduleSize * 1.5);
-        ctx.fill('evenodd');
-
-        // Inner Solid Square (3x3 modules)
-        ctx.beginPath();
-        roundRectPath(ctx, x + moduleSize * 2, y + moduleSize * 2, moduleSize * 3, moduleSize * 3, moduleSize);
-        ctx.fill();
-    };
-
-    // Calculate Safe Zones
-    const center = moduleCount / 2;
-    const logoModules = Math.ceil(moduleCount * logoSizeRatio);
-    const safeZoneStart = Math.floor(center - logoModules / 2);
-    const safeZoneEnd = Math.ceil(center + logoModules / 2);
-
-    // 6. Draw Data Modules (Dots)
-    ctx.fillStyle = '#111827'; 
-    for (let row = 0; row < moduleCount; row++) {
-        for (let col = 0; col < moduleCount; col++) {
-            // Skip Logo Zone
-            if (row >= safeZoneStart && row < safeZoneEnd && col >= safeZoneStart && col < safeZoneEnd) {
-                continue;
-            }
-
-            // Skip Finder Pattern Zones (Top-Left, Top-Right, Bottom-Left)
-            if ((row < 7 && col < 7) || (row < 7 && col >= moduleCount - 7) || (row >= moduleCount - 7 && col < 7)) {
-                continue;
-            }
-
-            if (qrData.modules.get(row, col)) {
-                const x = padding + col * moduleSize + moduleSize / 2;
-                const y = padding + row * moduleSize + moduleSize / 2;
-                const radius = (moduleSize * dotSizeRatio) / 2;
+        // Overlay Logo if exists
+        if (logoPreview) {
+            const img = new Image();
+            img.src = logoPreview;
+            img.onload = () => {
+                const logoSize = qrSize * 0.2;
+                const x = (qrSize - logoSize) / 2;
+                const y = (qrSize - logoSize) / 2;
                 
-                ctx.beginPath();
-                ctx.arc(x, y, radius, 0, Math.PI * 2);
-                ctx.fill();
-            }
+                // Draw white background for logo
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(x - 10, y - 10, logoSize + 20, logoSize + 20);
+                
+                ctx.drawImage(img, x, y, logoSize, logoSize);
+            };
         }
-    }
-
-    // 7. Draw Finder Patterns manually at corners
-    drawFinderPattern(0, 0); // Top Left
-    drawFinderPattern(0, moduleCount - 7); // Top Right
-    drawFinderPattern(moduleCount - 7, 0); // Bottom Left
-
-    // 8. Draw Logo
-    if (logoPreview) {
-        const img = new Image();
-        img.src = logoPreview;
-        img.onload = () => {
-            const logoPxSize = qrSize * logoSizeRatio;
-            const logoX = (qrSize - logoPxSize) / 2;
-            const logoY = (qrSize - logoPxSize) / 2;
-
-            // Draw white background plate
-            ctx.fillStyle = '#FFFFFF';
-            ctx.beginPath();
-            roundRectPath(ctx, logoX - 15, logoY - 15, logoPxSize + 30, logoPxSize + 30, 30);
-            ctx.fill();
-
-            // Draw Logo
-            ctx.save();
-            ctx.beginPath();
-            roundRectPath(ctx, logoX, logoY, logoPxSize, logoPxSize, 25);
-            ctx.clip();
-            ctx.drawImage(img, logoX, logoY, logoPxSize, logoPxSize);
-            ctx.restore();
-        };
+    } catch (e) {
+        console.error("QR Generation failed", e);
     }
   };
 
@@ -259,7 +186,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           reader.onloadend = async () => {
               const base64 = reader.result as string;
               setLogoPreview(base64);
-              // Update Queue Service
               const updated = await queueService.updateQueue(user.id, queue.id, { logo: base64 });
               if (updated) setCurrentQueue(updated);
           };
@@ -300,7 +226,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   const handleAddVisitor = async (e: React.FormEvent) => {
       e.preventDefault();
-      // Pass 'manual' as the source
       await queueService.joinQueue(queue.id, newVisitorName, 'manual');
       fetchData();
       setNewVisitorName('');
@@ -352,33 +277,44 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       fetchData();
   };
 
-  if (!queueData) return <div>Loading...</div>;
+  const handleReorder = async (newOrder: Visitor[]) => {
+      // Optimistic update
+      if (!queueData) return;
+      
+      const otherVisitors = queueData.visitors.filter(v => v.status !== 'waiting');
+      // Reconstruct the full list with new waiting order
+      const fullNewList = [...otherVisitors, ...newOrder];
+      
+      // Update local state first for smoothness
+      setQueueData({
+          ...queueData,
+          visitors: fullNewList.sort((a,b) => {
+               if(a.status === 'waiting' && b.status === 'waiting') return 0; // maintain drag order
+               return 0; // Logic handled by the Reorder component mostly for display
+          })
+      });
 
-  const waitingVisitors = queueData.visitors.filter(v => 
-      v.status === 'waiting' && 
-      (v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.ticketNumber.toString().includes(searchQuery))
-  );
+      // Send to backend
+      await queueService.reorderQueue(queue.id, fullNewList);
+      fetchData();
+  };
+
+  if (!queueData) return <div className="p-12 text-center text-gray-500">Loading Queue Data...</div>;
+
+  const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting');
+  // Sort logic for waiting visitors is handled by the backend/drag-drop usually, but we filter them here.
+  // If we are searching, we filter further.
+  const displayWaitingVisitors = searchQuery 
+    ? waitingVisitors.filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.ticketNumber.toString().includes(searchQuery))
+    : waitingVisitors;
 
   const servedVisitors = queueData.visitors
     .filter(v => v.status === 'served')
-    .sort((a, b) => {
-        if (a.servedTime && b.servedTime) {
-            return new Date(b.servedTime).getTime() - new Date(a.servedTime).getTime();
-        }
-        return b.ticketNumber - a.ticketNumber;
-    })
+    .sort((a, b) => new Date(b.servedTime || 0).getTime() - new Date(a.servedTime || 0).getTime())
     .slice(0, 10);
 
   const currentVisitor = queueData.visitors.find(v => v.status === 'serving');
 
-  // Handle Drag Reorder
-  const handleReorder = async (newOrder: Visitor[]) => {
-      const otherVisitors = queueData.visitors.filter(v => v.status !== 'waiting');
-      const fullNewList = [...otherVisitors, ...newOrder];
-      await queueService.reorderQueue(queue.id, fullNewList);
-      fetchData();
-  };
-  
   return (
     <div className="container mx-auto px-4 pb-20 max-w-5xl">
       {/* Top Bar */}
@@ -402,8 +338,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                 <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-bold">{currentQueue.code}</span>
                     <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                    
-                    {/* Pause/Resume Toggle */}
                     <button 
                         onClick={handleTogglePause}
                         className={`text-xs font-bold flex items-center gap-1 transition-colors ${currentQueue.isPaused ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}
@@ -486,7 +420,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               {String(queueData.lastCalledNumber).padStart(3, '0')}
           </motion.div>
 
-          {/* Current Visitor Name (if active) */}
           {currentVisitor && (
               <motion.div 
                 initial={{ opacity: 0 }}
@@ -516,7 +449,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                 onClick={handleNotifyCurrent}
                 disabled={!currentVisitor}
                 className={`py-4 rounded-2xl font-bold text-lg shadow-sm border border-gray-200 flex items-center justify-center transition-all ${currentVisitor?.isAlerting ? 'bg-yellow-400 text-white border-yellow-400 animate-pulse' : 'bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
-                title="Notify Current Visitor (Buzz)"
+                title="Notify Current Visitor"
               >
                   <Bell size={24} fill={currentVisitor?.isAlerting ? "currentColor" : "none"} />
               </button>
@@ -556,16 +489,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       </div>
 
       {/* Waiting List - Animated & Reorderable */}
-      <div className="bg-white rounded-[32px] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-[32px] shadow-sm overflow-hidden mb-8">
           <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center gap-3">
                   <h3 className="font-bold text-lg text-gray-900">Waiting List</h3>
                   <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{queueData.metrics.waiting} Total</span>
-                  {!searchQuery && waitingVisitors.length > 1 && (
-                      <span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-lg flex items-center gap-1 font-medium">
-                          <GripVertical size={12} /> Drag to reorder
-                      </span>
-                  )}
               </div>
               
               <div className="relative w-full sm:w-auto">
@@ -581,107 +509,30 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           </div>
           
           <div className="max-h-[500px] overflow-y-auto p-1">
-              {waitingVisitors.length > 0 ? (
+              {displayWaitingVisitors.length > 0 ? (
                   searchQuery ? (
-                    // Standard list when searching (Drag disabled)
+                     // Not reorderable when searching
                      <div>
-                        {waitingVisitors.map((visitor) => (
-                             <div
-                                key={visitor.id}
-                                className={`p-4 flex items-center justify-between rounded-2xl mb-1 border-b border-gray-50 last:border-0 transition-colors ${visitor.isPriority ? 'bg-amber-50 hover:bg-amber-100/50' : 'hover:bg-blue-50/20'}`}
-                             >
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md ${visitor.isPriority ? 'bg-amber-400 text-white shadow-amber-400/30 ring-2 ring-amber-200' : 'bg-blue-600 text-white shadow-blue-600/20'}`}>
-                                        {String(visitor.ticketNumber).padStart(3, '0')}
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className={`font-bold ${visitor.isPriority ? 'text-amber-900' : 'text-gray-900'}`}>{visitor.name}</p>
-                                            {visitor.source === 'manual' && (
-                                                <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200" title="Added manually">
-                                                    <UserPlus size={10} /> Manual
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
-                                            <Users size={12} /> Joined at {new Date(visitor.joinTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-right flex items-center gap-4">
-                                    <div>
-                                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Wait</div>
-                                        <div className="font-mono text-gray-600">
-                                            ~{Math.max(1, (visitor.ticketNumber - queueData.lastCalledNumber) * queueData.metrics.avgWaitTime)} min
-                                        </div>
-                                    </div>
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleTogglePriority(visitor.id, !!visitor.isPriority);
-                                        }}
-                                        className={`p-2 rounded-full transition-colors ${visitor.isPriority ? 'text-amber-400 hover:bg-amber-100' : 'text-gray-300 hover:text-amber-400 hover:bg-gray-100'}`}
-                                        title="Toggle VIP"
-                                    >
-                                        <Star size={20} fill={visitor.isPriority ? "currentColor" : "none"} />
-                                    </button>
-                                </div>
-                             </div>
+                        {displayWaitingVisitors.map((visitor) => (
+                           <VisitorListItem 
+                                key={visitor.id} 
+                                visitor={visitor} 
+                                queueData={queueData} 
+                                onTogglePriority={() => handleTogglePriority(visitor.id, !!visitor.isPriority)} 
+                           />
                         ))}
                      </div>
                   ) : (
-                    // Reorderable list when not searching
-                    <Reorder.Group axis="y" values={waitingVisitors} onReorder={handleReorder}>
-                        {waitingVisitors.map((visitor) => (
-                             <Reorder.Item 
-                                key={visitor.id} 
-                                value={visitor}
-                                className={`p-4 flex items-center justify-between rounded-2xl mb-1 border border-transparent shadow-sm transition-all cursor-grab active:cursor-grabbing ${visitor.isPriority ? 'bg-gradient-to-r from-amber-50 to-white hover:border-amber-200' : 'bg-white hover:bg-blue-50/40 hover:border-blue-100'}`}
-                                whileDrag={{ scale: 1.02, boxShadow: "0 10px 20px rgba(0,0,0,0.1)", zIndex: 50 }}
-                             >
-                                <div className="flex items-center gap-4">
-                                    {/* Drag Handle */}
-                                    <div className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing p-1">
-                                        <GripVertical size={20} />
-                                    </div>
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md pointer-events-none ${visitor.isPriority ? 'bg-amber-400 text-white shadow-amber-400/30 ring-2 ring-amber-200' : 'bg-blue-600 text-white shadow-blue-600/20'}`}>
-                                        {String(visitor.ticketNumber).padStart(3, '0')}
-                                    </div>
-                                    <div className="pointer-events-none">
-                                        <div className="flex items-center gap-2">
-                                            <p className={`font-bold ${visitor.isPriority ? 'text-amber-900' : 'text-gray-900'}`}>{visitor.name}</p>
-                                            {visitor.source === 'manual' && (
-                                                <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
-                                                    <UserPlus size={10} /> Manual
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
-                                            <Users size={12} /> Joined at {new Date(visitor.joinTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-right flex items-center gap-4">
-                                    <div className="pointer-events-none">
-                                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Wait</div>
-                                        <div className="font-mono text-gray-600">
-                                            ~{Math.max(1, (visitor.ticketNumber - queueData.lastCalledNumber) * queueData.metrics.avgWaitTime)} min
-                                        </div>
-                                    </div>
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation(); // Prevent drag start? ReorderItem handles this well usually
-                                        }}
-                                        onMouseDown={(e) => {
-                                             e.stopPropagation(); // Stop drag event propagation
-                                             handleTogglePriority(visitor.id, !!visitor.isPriority);
-                                        }}
-                                        className={`p-2 rounded-full transition-colors cursor-pointer relative z-10 ${visitor.isPriority ? 'text-amber-400 hover:bg-amber-100' : 'text-gray-300 hover:text-amber-400 hover:bg-gray-100'}`}
-                                        title="Toggle VIP"
-                                    >
-                                        <Star size={20} fill={visitor.isPriority ? "currentColor" : "none"} />
-                                    </button>
-                                </div>
+                    // Drag and Drop List
+                    <Reorder.Group axis="y" values={displayWaitingVisitors} onReorder={handleReorder}>
+                        {displayWaitingVisitors.map((visitor) => (
+                             <Reorder.Item key={visitor.id} value={visitor}>
+                                 <VisitorListItem 
+                                    visitor={visitor} 
+                                    queueData={queueData} 
+                                    onTogglePriority={() => handleTogglePriority(visitor.id, !!visitor.isPriority)}
+                                    isDraggable
+                                />
                              </Reorder.Item>
                         ))}
                     </Reorder.Group>
@@ -693,13 +544,305 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               )}
           </div>
       </div>
-      
-      {/* Recently Served List - unchanged... */}
-      {/* ... (Rest of component) ... */}
-      
-      {/* MODALS - unchanged... */}
+
+      {/* Served List */}
+      {servedVisitors.length > 0 && (
+          <div className="bg-white rounded-[32px] shadow-sm overflow-hidden opacity-60 hover:opacity-100 transition-opacity">
+              <div className="p-6 border-b border-gray-50">
+                  <h3 className="font-bold text-lg text-gray-900">Recently Served</h3>
+              </div>
+              <div>
+                  {servedVisitors.map((visitor) => (
+                      <div key={visitor.id} className="p-4 flex items-center justify-between border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+                           <div className="flex items-center gap-4">
+                               <div className="w-10 h-10 bg-green-100 text-green-700 rounded-xl flex items-center justify-center font-bold text-sm">
+                                   {String(visitor.ticketNumber).padStart(3, '0')}
+                               </div>
+                               <div>
+                                   <p className="font-bold text-gray-700 text-sm strike-through">{visitor.name}</p>
+                                   <div className="flex items-center gap-1 text-xs text-gray-400">
+                                       <CheckCircle size={10} /> Served at {visitor.servedTime ? new Date(visitor.servedTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '-'}
+                                   </div>
+                               </div>
+                           </div>
+                           <button 
+                                onClick={() => handleRecall(visitor.id)}
+                                className="text-xs font-bold text-primary-600 hover:underline"
+                           >
+                               Recall
+                           </button>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      )}
+
+      {/* --- MODALS --- */}
+
+      {/* QR Code Modal */}
+      <AnimatePresence>
+          {showQrModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-8 max-w-sm w-full flex flex-col items-center text-center"
+                  >
+                      <h3 className="text-xl font-bold mb-4">Scan to Join</h3>
+                      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6">
+                          <canvas ref={canvasRef} className="w-full h-auto rounded-lg" />
+                      </div>
+                      <div className="flex gap-2 w-full">
+                          <button onClick={handleDownloadQR} className="flex-1 py-3 bg-gray-100 text-gray-900 font-bold rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2">
+                              <Download size={18} /> Save
+                          </button>
+                          <button onClick={() => setShowQrModal(false)} className="py-3 px-6 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800">
+                              Done
+                          </button>
+                      </div>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+      {/* Add Visitor Modal */}
+      <AnimatePresence>
+          {showAddModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-8 max-w-sm w-full"
+                  >
+                      <h3 className="text-xl font-bold mb-4">Add Visitor Manually</h3>
+                      <form onSubmit={handleAddVisitor}>
+                          <input 
+                            autoFocus
+                            type="text" 
+                            placeholder="Visitor Name" 
+                            value={newVisitorName}
+                            onChange={(e) => setNewVisitorName(e.target.value)}
+                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
+                          />
+                          <div className="flex gap-3">
+                              <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl">Cancel</button>
+                              <button type="submit" className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl shadow-lg shadow-primary-600/20">Add</button>
+                          </div>
+                      </form>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+       {/* Call By Number Modal */}
+       <AnimatePresence>
+          {showCallModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-8 max-w-sm w-full"
+                  >
+                      <h3 className="text-xl font-bold mb-4">Call by Ticket Number</h3>
+                      <form onSubmit={handleCallByNumber}>
+                          <input 
+                            autoFocus
+                            type="number" 
+                            placeholder="Enter Ticket #" 
+                            value={callNumberInput}
+                            onChange={(e) => setCallNumberInput(e.target.value)}
+                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
+                          />
+                          <div className="flex gap-3">
+                              <button type="button" onClick={() => setShowCallModal(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl">Cancel</button>
+                              <button type="submit" className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl shadow-lg shadow-primary-600/20">Call</button>
+                          </div>
+                      </form>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+          {showSettingsModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto"
+                  >
+                      <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-xl font-bold">Queue Settings</h3>
+                          <button onClick={() => setShowSettingsModal(false)} className="p-2 bg-gray-50 rounded-full hover:bg-gray-100"><X size={20} /></button>
+                      </div>
+
+                      <div className="space-y-6">
+                          {/* Logo Upload */}
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Queue Logo</label>
+                              <div className="flex items-center gap-4">
+                                  <div className="w-20 h-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden relative group">
+                                      {logoPreview ? (
+                                          <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
+                                      ) : (
+                                          <ImageIcon className="text-gray-300" />
+                                      )}
+                                      <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                        onChange={handleLogoUpload}
+                                      />
+                                  </div>
+                                  <div className="flex-1">
+                                      <p className="text-xs text-gray-500 mb-2">Upload a logo to appear on the customer view and QR code.</p>
+                                      <button className="text-xs font-bold text-primary-600 bg-primary-50 px-3 py-1.5 rounded-lg relative overflow-hidden">
+                                          Upload Image
+                                          <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                            onChange={handleLogoUpload}
+                                          />
+                                      </button>
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div className="h-px bg-gray-100"></div>
+
+                          {/* Sound Settings */}
+                          <div>
+                              <div className="flex items-center justify-between mb-4">
+                                  <label className="block text-sm font-bold text-gray-700">Sound Notifications</label>
+                                  <button 
+                                      onClick={() => setSettings({...settings, soundEnabled: !settings.soundEnabled})}
+                                      className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.soundEnabled ? 'bg-primary-600' : 'bg-gray-200'}`}
+                                  >
+                                      <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${settings.soundEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                  </button>
+                              </div>
+                              
+                              {settings.soundEnabled && (
+                                  <div className="space-y-4 bg-gray-50 p-4 rounded-xl">
+                                      <div>
+                                          <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Sound Type</label>
+                                          <div className="flex gap-2">
+                                              {['beep', 'chime', 'alarm'].map((type) => (
+                                                  <button 
+                                                    key={type}
+                                                    onClick={() => setSettings({...settings, soundType: type as any})}
+                                                    className={`flex-1 py-2 rounded-lg text-xs font-bold capitalize transition-colors ${settings.soundType === type ? 'bg-white text-primary-600 shadow-sm border border-gray-200' : 'text-gray-500 hover:bg-gray-200/50'}`}
+                                                  >
+                                                      {type}
+                                                  </button>
+                                              ))}
+                                          </div>
+                                      </div>
+                                      
+                                      <div>
+                                          <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Volume</label>
+                                          <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="1" 
+                                            step="0.1" 
+                                            value={settings.soundVolume}
+                                            onChange={(e) => setSettings({...settings, soundVolume: parseFloat(e.target.value)})}
+                                            className="w-full accent-primary-600"
+                                          />
+                                      </div>
+                                      
+                                      <button 
+                                        onClick={() => playPreview(settings.soundType, settings.soundVolume)}
+                                        className="w-full py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-gray-100"
+                                      >
+                                          <Play size={14} /> Preview Sound
+                                      </button>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+
+                      <div className="mt-8">
+                          <button 
+                            onClick={handleSaveSettings}
+                            className="w-full py-3 bg-primary-600 text-white font-bold rounded-xl shadow-lg hover:bg-primary-700 flex items-center justify-center gap-2"
+                          >
+                              <Save size={18} /> Save Settings
+                          </button>
+                      </div>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
     </div>
   );
 };
+
+// Sub-component for individual list items to keep main render clean
+interface VisitorListItemProps {
+    visitor: Visitor; 
+    queueData: QueueData; 
+    onTogglePriority: () => void; 
+    isDraggable?: boolean; 
+}
+
+const VisitorListItem: React.FC<VisitorListItemProps> = ({ visitor, queueData, onTogglePriority, isDraggable }) => (
+    <div
+        className={`p-4 flex items-center justify-between rounded-2xl mb-1 border transition-all ${visitor.isPriority ? 'bg-gradient-to-r from-amber-50 to-white border-amber-100' : 'bg-white border-transparent border-b-gray-50 last:border-b-0 hover:bg-blue-50/20'}`}
+    >
+        <div className="flex items-center gap-4">
+             {isDraggable && (
+                <div className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing p-1">
+                    <GripVertical size={20} />
+                </div>
+            )}
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md pointer-events-none ${visitor.isPriority ? 'bg-amber-400 text-white shadow-amber-400/30 ring-2 ring-amber-200' : 'bg-blue-600 text-white shadow-blue-600/20'}`}>
+                {String(visitor.ticketNumber).padStart(3, '0')}
+            </div>
+            <div className="pointer-events-none">
+                <div className="flex items-center gap-2">
+                    <p className={`font-bold ${visitor.isPriority ? 'text-amber-900' : 'text-gray-900'}`}>{visitor.name}</p>
+                    {visitor.source === 'manual' && (
+                        <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            <UserPlus size={10} /> Manual
+                        </div>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                    <Users size={12} /> Joined at {new Date(visitor.joinTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                </div>
+            </div>
+        </div>
+        <div className="text-right flex items-center gap-4">
+            <div className="pointer-events-none">
+                <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Wait</div>
+                <div className="font-mono text-gray-600">
+                    ~{Math.max(1, (visitor.ticketNumber - queueData.lastCalledNumber) * queueData.metrics.avgWaitTime)} min
+                </div>
+            </div>
+            <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    // onMouseDown needed for reorderable items to prevent drag hijacking click
+                }}
+                onMouseDown={(e) => {
+                     e.stopPropagation();
+                     onTogglePriority();
+                }}
+                className={`p-2 rounded-full transition-colors cursor-pointer relative z-10 ${visitor.isPriority ? 'text-amber-400 hover:bg-amber-100' : 'text-gray-300 hover:text-amber-400 hover:bg-gray-100'}`}
+                title="Toggle VIP"
+            >
+                <Star size={20} fill={visitor.isPriority ? "currentColor" : "none"} />
+            </button>
+        </div>
+     </div>
+);
 
 export default QueueManager;
