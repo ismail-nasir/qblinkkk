@@ -60,8 +60,12 @@ export const queueService = {
               lastCalledNumber: lastCalled,
               metrics: { waiting, served, avgWaitTime: queue.estimatedWaitTime || 5 },
               visitors: visitors.sort((a,b) => {
+                  // Primary sort: Priority
                   if (a.isPriority && !b.isPriority) return -1;
                   if (!a.isPriority && b.isPriority) return 1;
+                  // Secondary sort: Custom Order
+                  if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                  // Fallback: Ticket Number
                   return a.ticketNumber - b.ticketNumber;
               }),
               recentActivity
@@ -84,7 +88,7 @@ export const queueService = {
               status: 'active',
               createdAt: new Date().toISOString(),
               estimatedWaitTime: estimatedWaitTime || 5,
-              settings: { soundEnabled: true, soundVolume: 1, soundType: 'beep' },
+              settings: { soundEnabled: true, soundVolume: 1, soundType: 'beep', autoSkipMinutes: 0 },
               isPaused: false,
               announcement: ''
           };
@@ -115,7 +119,6 @@ export const queueService = {
   
   joinQueue: async (queueId: string, name: string, phoneNumber?: string, source: 'manual' | 'qr' = 'qr'): Promise<{ visitor: Visitor, queueData: QueueData }> => {
       if (firebaseService.isAvailable) {
-          // 1. Check for duplicates if phoneNumber is provided
           if (phoneNumber) {
               const vRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
               const vSnap = await firebaseService.get(vRef);
@@ -140,6 +143,7 @@ export const queueService = {
               if (res.committed) ticketNumber = res.snapshot.val();
           });
 
+          // Order defaults to ticket number initially
           const newVisitor: Visitor = {
               id: visitorRef.key!,
               ticketNumber,
@@ -148,7 +152,8 @@ export const queueService = {
               joinTime: new Date().toISOString(),
               status: 'waiting',
               source,
-              isPriority: false
+              isPriority: false,
+              order: ticketNumber
           };
 
           await firebaseService.set(visitorRef, newVisitor);
@@ -177,34 +182,51 @@ export const queueService = {
       return await api.post(`/queue/${queueId}/leave`, { visitorId });
   },
   
-  callNext: async (queueId: string) => {
+  callNext: async (queueId: string, counterName?: string) => {
       if (firebaseService.isAvailable) {
           const vRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
           const vSnap = await firebaseService.get(vRef);
           const visitorsMap = vSnap.val() || {};
           const visitors: Visitor[] = Object.keys(visitorsMap).map(k => ({...visitorsMap[k], id: k}));
 
-          const serving = visitors.find(v => v.status === 'serving');
-          if (serving) {
-              await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${serving.id}`), {
+          // 1. Mark current serving by THIS counter as served
+          // Find if there is a visitor currently being served by this counter
+          const servingByMe = visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
+          
+          if (servingByMe) {
+              await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${servingByMe.id}`), {
                   status: 'served',
                   servedTime: new Date().toISOString(),
                   isAlerting: false
               });
+          } else if (!counterName) {
+              // Fallback for legacy behavior: just mark any first serving as served
+              const anyServing = visitors.find(v => v.status === 'serving');
+              if (anyServing) {
+                  await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${anyServing.id}`), {
+                      status: 'served',
+                      servedTime: new Date().toISOString(),
+                      isAlerting: false
+                  });
+              }
           }
 
+          // 2. Find next
           const next = visitors
               .filter(v => v.status === 'waiting')
               .sort((a,b) => {
                    if (a.isPriority && !b.isPriority) return -1;
                    if (!a.isPriority && b.isPriority) return 1;
+                   if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
                    return a.ticketNumber - b.ticketNumber;
               })[0];
 
           if (next) {
               await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${next.id}`), {
                   status: 'serving',
-                  isAlerting: true
+                  isAlerting: true,
+                  servedBy: counterName || 'Counter 1',
+                  servedTime: new Date().toISOString() // Start tracking serving time
               });
               
               const logRef = firebaseService.push(firebaseService.ref(firebaseService.db, `logs/${queueId}`));
@@ -212,27 +234,28 @@ export const queueService = {
                   queueId,
                   ticket: next.ticketNumber,
                   action: 'call',
+                  details: `Called by ${counterName || 'Staff'}`,
                   time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
                   rawTime: new Date().toISOString(),
-                  user: 'Staff',
+                  user: counterName || 'Staff',
                   email: 'staff@qblink.com'
               });
           }
           return;
       }
-      return await api.post(`/queue/${queueId}/call`, {});
+      return await api.post(`/queue/${queueId}/call`, { counterName });
   },
 
-  callByNumber: async (queueId: string, ticketNumber: number) => {
+  callByNumber: async (queueId: string, ticketNumber: number, counterName?: string) => {
       if (firebaseService.isAvailable) {
           const vRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
           const vSnap = await firebaseService.get(vRef);
           const visitorsMap = vSnap.val() || {};
           const visitors: Visitor[] = Object.keys(visitorsMap).map(k => ({...visitorsMap[k], id: k}));
 
-          const serving = visitors.find(v => v.status === 'serving');
-          if (serving) {
-              await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${serving.id}`), {
+          const servingByMe = visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
+          if (servingByMe) {
+              await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${servingByMe.id}`), {
                   status: 'served',
                   servedTime: new Date().toISOString(),
                   isAlerting: false
@@ -243,7 +266,9 @@ export const queueService = {
           if (target) {
               await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${target.id}`), {
                   status: 'serving',
-                  isAlerting: true
+                  isAlerting: true,
+                  servedBy: counterName || 'Staff',
+                  servedTime: new Date().toISOString()
               });
               
               const logRef = firebaseService.push(firebaseService.ref(firebaseService.db, `logs/${queueId}`));
@@ -251,27 +276,28 @@ export const queueService = {
                   queueId,
                   ticket: target.ticketNumber,
                   action: 'call',
+                  details: `Manually called by ${counterName || 'Staff'}`,
                   time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
                   rawTime: new Date().toISOString(),
-                  user: 'Staff',
+                  user: counterName || 'Staff',
                   email: 'staff@qblink.com'
               });
           }
           return;
       }
-      return await api.post(`/queue/${queueId}/call-number`, { ticketNumber });
+      return await api.post(`/queue/${queueId}/call-number`, { ticketNumber, counterName });
   },
 
-  recallVisitor: async (queueId: string, visitorId: string) => {
+  recallVisitor: async (queueId: string, visitorId: string, counterName?: string) => {
       if (firebaseService.isAvailable) {
           const vRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
           const vSnap = await firebaseService.get(vRef);
           const visitorsMap = vSnap.val() || {};
           const visitors: Visitor[] = Object.keys(visitorsMap).map(k => ({...visitorsMap[k], id: k}));
 
-          const serving = visitors.find(v => v.status === 'serving');
-          if (serving && serving.id !== visitorId) {
-              await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${serving.id}`), {
+          const servingByMe = visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
+          if (servingByMe && servingByMe.id !== visitorId) {
+              await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${servingByMe.id}`), {
                   status: 'served',
                   isAlerting: false
               });
@@ -279,21 +305,24 @@ export const queueService = {
 
           await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${visitorId}`), {
               status: 'serving',
-              isAlerting: true
+              isAlerting: true,
+              servedBy: counterName || 'Staff'
           });
           return;
       }
-      return await api.post(`/queue/${queueId}/recall`, { visitorId });
+      return await api.post(`/queue/${queueId}/recall`, { visitorId, counterName });
   },
 
-  takeBack: async (queueId: string) => {
+  takeBack: async (queueId: string, counterName?: string) => {
       if (firebaseService.isAvailable) {
           const vRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
           const vSnap = await firebaseService.get(vRef);
           const visitorsMap = vSnap.val() || {};
           const visitors: Visitor[] = Object.keys(visitorsMap).map(k => ({...visitorsMap[k], id: k}));
 
-          const serving = visitors.find(v => v.status === 'serving');
+          // Take back specifically the one served by this counter, or just the latest serving
+          const serving = visitors.find(v => v.status === 'serving' && v.servedBy === counterName) || visitors.find(v => v.status === 'serving');
+          
           if (serving) {
               await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${serving.id}`), {
                   status: 'waiting',
@@ -302,7 +331,7 @@ export const queueService = {
           }
           return;
       }
-      return await api.post(`/queue/${queueId}/take-back`, {});
+      return await api.post(`/queue/${queueId}/take-back`, { counterName });
   },
 
   togglePriority: async (queueId: string, visitorId: string, isPriority: boolean) => {
@@ -315,9 +344,56 @@ export const queueService = {
 
   reorderQueue: async (queueId: string, visitors: Visitor[]) => {
       if (firebaseService.isAvailable) {
+          const updates: any = {};
+          visitors.forEach((v, index) => {
+              updates[`${v.id}/order`] = index + 1; // 1-based index
+          });
+          await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}`), updates);
           return; 
       }
       return await api.post(`/queue/${queueId}/reorder`, { visitors });
+  },
+
+  autoSkipInactive: async (queueId: string, limitMinutes: number) => {
+      if (!limitMinutes || limitMinutes <= 0) return;
+      
+      if (firebaseService.isAvailable) {
+          const vRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
+          const vSnap = await firebaseService.get(vRef);
+          const visitorsMap = vSnap.val() || {};
+          const now = Date.now();
+          const updates: any = {};
+          
+          Object.keys(visitorsMap).forEach(key => {
+              const v = visitorsMap[key];
+              if (v.status === 'serving' && v.servedTime) {
+                  const duration = (now - new Date(v.servedTime).getTime()) / 60000;
+                  if (duration > limitMinutes) {
+                      updates[`${key}/status`] = 'skipped';
+                      updates[`${key}/isAlerting`] = false;
+                  }
+              }
+          });
+          
+          if (Object.keys(updates).length > 0) {
+              await firebaseService.update(vRef, updates);
+              
+              // Log skips
+              const logRef = firebaseService.push(firebaseService.ref(firebaseService.db, `logs/${queueId}`));
+              await firebaseService.set(logRef, {
+                  queueId,
+                  ticket: 0,
+                  action: 'auto-skip',
+                  details: `Auto-skipped ${Object.keys(updates).length / 2} inactive visitors`,
+                  time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+                  rawTime: new Date().toISOString(),
+                  user: 'System',
+                  email: 'system@qblink.com'
+              });
+          }
+          return;
+      }
+      return await api.post(`/queue/${queueId}/auto-skip`, { limitMinutes });
   },
 
   dismissAlert: async (queueId: string, visitorId: string) => {

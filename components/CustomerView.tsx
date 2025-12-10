@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw } from 'lucide-react';
+import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, Store } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CustomerViewProps {
@@ -389,7 +389,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   }
 
   // 2. Served / Cancelled View (Rejoin Logic)
-  if (myVisitor.status === 'served' || myVisitor.status === 'cancelled') {
+  if (myVisitor.status === 'served' || myVisitor.status === 'cancelled' || myVisitor.status === 'skipped') {
       return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
               <motion.div 
@@ -401,7 +401,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                       {myVisitor.status === 'served' ? <CheckCircle size={48} /> : <LogOut size={48} />}
                   </div>
                   <h2 className="text-2xl font-black text-gray-900 mb-2">
-                      {myVisitor.status === 'served' ? 'You have been served!' : 'You left the queue'}
+                      {myVisitor.status === 'served' ? 'You have been served!' : myVisitor.status === 'skipped' ? 'Queue timed out' : 'You left the queue'}
                   </h2>
                   <p className="text-gray-500 mb-8 font-medium">
                       {myVisitor.status === 'served' ? 'Thanks for visiting. Have a great day!' : 'We hope to see you again soon.'}
@@ -494,107 +494,49 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                     <motion.div 
                         animate={isOnTime ? { scale: [1, 1.02, 1], boxShadow: ["0 0 0px rgba(34,197,94,0)", "0 0 20px rgba(34,197,94,0.3)", "0 0 0px rgba(34,197,94,0)"] } : {}}
                         transition={{ repeat: Infinity, duration: 2 }}
-                        className={`flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl text-sm font-bold shadow-sm border transition-colors ${
-                            myVisitor.status === 'serving' 
-                            ? 'bg-green-500 text-white border-green-500 shadow-green-500/30' 
-                            : isOnTime 
-                                ? 'bg-green-50 text-green-700 border-green-100' 
-                                : 'bg-blue-50 text-blue-700 border-blue-100'
-                        }`}
+                        className={`flex flex-col items-center justify-center gap-1 w-full py-3.5 rounded-2xl ${isOnTime ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-500'}`}
                     >
-                        {myVisitor.status === 'serving' ? (
-                            <> <CheckCircle size={18} /> IT'S YOUR TURN </>
-                        ) : isOnTime ? (
-                            <> <Zap size={18} fill="currentColor" /> GET READY </>
-                        ) : (
-                            <> <Clock size={18} /> WAITING </>
-                        )}
+                        <span className="text-xs font-bold uppercase tracking-widest">{isOnTime ? 'Proceed to Counter' : 'Estimated Wait'}</span>
+                        <div className="text-xl font-bold flex items-center gap-1">
+                             {isOnTime ? (
+                                 <>GO NOW <Zap size={18} fill="currentColor" /></>
+                             ) : (
+                                 <>{waitTime} min</>
+                             )}
+                        </div>
                     </motion.div>
                 </div>
             </motion.div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4 w-full max-w-xs">
-                <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
-                    <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Est. Wait</span>
-                    <span className="text-2xl font-black text-gray-900 flex items-baseline gap-0.5">
-                        {waitTime}<span className="text-sm font-bold text-gray-400">m</span>
-                    </span>
-                </div>
-                <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
-                    <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Ahead</span>
-                    <span className="text-2xl font-black text-gray-900">{peopleAhead}</span>
-                </div>
+            {/* Quick Actions */}
+            <div className="w-full max-w-xs grid grid-cols-2 gap-3 mt-4">
+                 <button 
+                    onClick={handleImComing}
+                    disabled={!isOnTime}
+                    className={`col-span-2 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 shadow-xl transition-all active:scale-95 ${isOnTime ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-400 opacity-50 cursor-not-allowed'}`}
+                 >
+                     <CheckCircle size={20} /> I'm Coming!
+                 </button>
+
+                 <button 
+                    onClick={() => fetchData()}
+                    className="py-3 bg-white border border-gray-200 text-gray-700 rounded-2xl font-bold text-sm hover:bg-gray-50 flex items-center justify-center gap-2 shadow-sm"
+                 >
+                    <RefreshCw size={16} /> Refresh
+                 </button>
+
+                 <button 
+                    onClick={handleLeave}
+                    className="py-3 bg-white border border-red-100 text-red-500 rounded-2xl font-bold text-sm hover:bg-red-50 flex items-center justify-center gap-2 shadow-sm"
+                 >
+                    <LogOut size={16} /> Leave
+                 </button>
             </div>
-        </div>
+            
+            <div className="mt-auto pt-8 pb-4 text-center opacity-40">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Powered by Qblink</p>
+            </div>
 
-        {/* ALERT OVERLAY (I'm Coming) */}
-        <AnimatePresence>
-            {isAlerting && (
-                <motion.div 
-                    initial={{ opacity: 0, scale: 1.1 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="fixed inset-0 z-[60] bg-primary-600 flex flex-col items-center justify-center p-8 text-center"
-                >
-                    <motion.div 
-                        animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }} 
-                        transition={{ repeat: Infinity, duration: 1 }}
-                        className="w-28 h-28 bg-white rounded-full flex items-center justify-center mb-8 shadow-2xl"
-                    >
-                        <Bell size={56} className="text-primary-600" fill="currentColor" />
-                    </motion.div>
-                    
-                    <h2 className="text-4xl font-black text-white mb-4 leading-tight">It's Your Turn!</h2>
-                    <p className="text-blue-100 text-lg mb-12 max-w-xs font-medium leading-relaxed">
-                        Please proceed to the counter immediately.
-                    </p>
-                    
-                    <motion.button 
-                        whileTap={{ scale: 0.9 }}
-                        onClick={handleImComing}
-                        className="w-full max-w-xs py-5 bg-white text-primary-600 rounded-3xl font-black text-xl shadow-xl flex items-center justify-center gap-3 min-h-[64px]"
-                    >
-                        <CheckCircle size={24} fill="currentColor" className="text-primary-600" /> I'M COMING
-                    </motion.button>
-                </motion.div>
-            )}
-        </AnimatePresence>
-
-        {/* Pop-up Notification for "2 Ahead" */}
-        <AnimatePresence>
-            {showNotificationPopup && !isAlerting && (
-                <motion.div 
-                    initial={{ y: 100, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 100, opacity: 0 }}
-                    className="fixed bottom-28 left-4 right-4 bg-gray-900/90 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between z-40 border border-gray-800"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-yellow-500 rounded-xl text-black">
-                            <Zap size={20} fill="currentColor" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-sm">Almost there!</p>
-                            <p className="text-xs text-gray-400">Only 2 people ahead of you.</p>
-                        </div>
-                    </div>
-                    <button onClick={() => setShowNotificationPopup(false)} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition-colors">
-                        OK
-                    </button>
-                </motion.div>
-            )}
-        </AnimatePresence>
-
-        {/* Footer Actions */}
-        <div className="p-6 pt-2 pb-8 z-10 shrink-0">
-            <motion.button 
-                whileTap={{ scale: 0.98 }}
-                onClick={handleLeave}
-                className="w-full py-4 bg-white text-red-500 border border-red-100 rounded-2xl font-bold text-base flex items-center justify-center gap-2 hover:bg-red-50 transition-all shadow-sm min-h-[56px]"
-            >
-                <LogOut size={18} /> Leave Queue
-            </motion.button>
         </div>
     </div>
   );

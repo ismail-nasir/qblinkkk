@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save, PauseCircle, PlayCircle, Megaphone, Star, Clock, TrendingUp, UserCheck, AlertTriangle, Zap } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save, PauseCircle, PlayCircle, Megaphone, Star, Clock, TrendingUp, UserCheck, AlertTriangle, Zap, Store } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -19,6 +19,9 @@ interface QueueManagerProps {
 const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [queueData, setQueueData] = useState<QueueData | null>(null);
   const [currentQueue, setCurrentQueue] = useState<QueueInfo>(queue);
+  
+  // Local Config
+  const [counterName, setCounterName] = useState(localStorage.getItem('qblink_counter_name') || 'Counter 1');
   
   // Modal States
   const [showQrModal, setShowQrModal] = useState(false);
@@ -40,7 +43,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [settings, setSettings] = useState<QueueSettings>(currentQueue.settings || {
       soundEnabled: true,
       soundVolume: 1.0,
-      soundType: 'beep'
+      soundType: 'beep',
+      autoSkipMinutes: 0
   });
 
   // QR Generation State
@@ -54,9 +58,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       try {
           const data = await queueService.getQueueData(queue.id);
           setQueueData(data);
-          // Also refresh queue info in case of status changes
           const info = await queueService.getQueueInfo(queue.id);
-          if (info) setCurrentQueue(info);
+          if (info) {
+              setCurrentQueue(info);
+              if (info.settings) setSettings(info.settings);
+          }
       } catch (e) {
           console.error("Failed to fetch queue data", e);
       }
@@ -83,6 +89,22 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
         socketService.off('customer_response');
     };
   }, [fetchData, queue.id]);
+
+  // Auto-Skip Check Interval
+  useEffect(() => {
+      if (!settings.autoSkipMinutes || settings.autoSkipMinutes <= 0) return;
+      
+      const interval = setInterval(() => {
+          queueService.autoSkipInactive(queue.id, settings.autoSkipMinutes!);
+      }, 60000); // Check every minute
+
+      return () => clearInterval(interval);
+  }, [settings.autoSkipMinutes, queue.id]);
+
+  const handleCounterNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setCounterName(e.target.value);
+      localStorage.setItem('qblink_counter_name', e.target.value);
+  };
 
   const playPreview = (type: string, vol: number) => {
     try {
@@ -113,6 +135,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(600, ctx.currentTime);
                 osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(vol, ctx.currentTime);
                 gainNode.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
                 osc.start(ctx.currentTime);
                 osc.stop(ctx.currentTime + 0.5);
@@ -251,7 +274,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   };
 
   const handleCallNext = async () => {
-    await queueService.callNext(queue.id);
+    await queueService.callNext(queue.id, counterName);
     fetchData();
   };
 
@@ -259,7 +282,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       e.preventDefault();
       const num = parseInt(callNumberInput);
       if (!isNaN(num)) {
-          await queueService.callByNumber(queue.id, num);
+          await queueService.callByNumber(queue.id, num, counterName);
           fetchData();
           setShowCallModal(false);
           setCallNumberInput('');
@@ -268,7 +291,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   const handleAddVisitor = async (e: React.FormEvent) => {
       e.preventDefault();
-      await queueService.joinQueue(queue.id, newVisitorName, 'manual');
+      await queueService.joinQueue(queue.id, newVisitorName, undefined, 'manual');
       fetchData();
       setNewVisitorName('');
       setShowAddModal(false);
@@ -282,17 +305,17 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   };
 
   const handleTakeBack = async () => {
-      await queueService.takeBack(queue.id);
+      await queueService.takeBack(queue.id, counterName);
       fetchData();
   };
   
   const handleRecall = async (visitorId: string) => {
-      await queueService.recallVisitor(queue.id, visitorId);
+      await queueService.recallVisitor(queue.id, visitorId, counterName);
       fetchData();
   };
 
   const handleNotifyCurrent = async () => {
-      const currentVisitor = queueData?.visitors.find(v => v.status === 'serving');
+      const currentVisitor = queueData?.visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
       if (currentVisitor) {
           await queueService.triggerAlert(queue.id, currentVisitor.id);
           fetchData();
@@ -317,12 +340,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const handleTogglePriority = async (visitorId: string, isPriority: boolean) => {
       const newPriorityStatus = !isPriority;
       
-      // 1. Optimistic Update: Selected Visitor Modal
       if (selectedVisitor && selectedVisitor.id === visitorId) {
           setSelectedVisitor({ ...selectedVisitor, isPriority: newPriorityStatus });
       }
 
-      // 2. Optimistic Update: Queue List Background
       if (queueData) {
           setQueueData({
               ...queueData,
@@ -332,29 +353,22 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           });
       }
 
-      // 3. API Call
       await queueService.togglePriority(queue.id, visitorId, newPriorityStatus);
-      
-      // 4. Background Refresh (to ensure consistency)
       fetchData();
   };
 
   const handleReorder = async (newOrder: Visitor[]) => {
-      // Optimistic update
-      if (!queueData) return;
+      // Re-assign order based on new position in array
+      const fullNewList = newOrder.map((v, idx) => ({ ...v, order: idx + 1 }));
       
-      const otherVisitors = queueData.visitors.filter(v => v.status !== 'waiting');
-      // Reconstruct the full list with new waiting order
-      const fullNewList = [...otherVisitors, ...newOrder];
-      
-      // Update local state first for smoothness
-      setQueueData({
-          ...queueData,
-          visitors: fullNewList.sort((a,b) => {
-               if(a.status === 'waiting' && b.status === 'waiting') return 0; // maintain drag order
-               return 0; // Logic handled by the Reorder component mostly for display
-          })
-      });
+      // Update local state first
+      if (queueData) {
+          const otherVisitors = queueData.visitors.filter(v => v.status !== 'waiting');
+          setQueueData({
+              ...queueData,
+              visitors: [...otherVisitors, ...fullNewList]
+          });
+      }
 
       // Send to backend
       await queueService.reorderQueue(queue.id, fullNewList);
@@ -363,7 +377,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   const handleServeSpecific = async () => {
       if (selectedVisitor) {
-          await queueService.callByNumber(queue.id, selectedVisitor.ticketNumber);
+          await queueService.callByNumber(queue.id, selectedVisitor.ticketNumber, counterName);
           setSelectedVisitor(null);
           fetchData();
       }
@@ -387,7 +401,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
         const t = new Date(now.getTime() - i * 60 * 60 * 1000);
         const hour = t.getHours();
         
-        // Filter visitors served in this specific hour/date
         const servedInHour = queueData.visitors.filter(v => {
             if (v.status !== 'served' || !v.servedTime) return false;
             const vt = new Date(v.servedTime);
@@ -401,7 +414,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
              return sum + (serve - join);
         }, 0);
         
-        // Convert to minutes
         const avgWait = count > 0 ? Math.round(totalWait / count / 60000) : 0;
         
         data.push({
@@ -415,9 +427,15 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   if (!queueData) return <div className="p-12 text-center text-gray-500">Loading Queue Data...</div>;
 
-  const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting');
-  // Sort logic for waiting visitors is handled by the backend/drag-drop usually, but we filter them here.
-  // If we are searching, we filter further.
+  const waitingVisitors = queueData.visitors
+    .filter(v => v.status === 'waiting')
+    // We trust the backend order, which uses 'order' field or ticket number
+    // but here we ensure they are displayed in the correct order for drag/drop
+    .sort((a, b) => {
+        if (a.order && b.order) return a.order - b.order;
+        return a.ticketNumber - b.ticketNumber;
+    });
+
   const displayWaitingVisitors = searchQuery 
     ? waitingVisitors.filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.ticketNumber.toString().includes(searchQuery))
     : waitingVisitors;
@@ -427,9 +445,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     .sort((a, b) => new Date(b.servedTime || 0).getTime() - new Date(a.servedTime || 0).getTime())
     .slice(0, 10);
 
-  const currentVisitor = queueData.visitors.find(v => v.status === 'serving');
+  // Find the visitor specifically served by THIS counter
+  const myCurrentVisitor = queueData.visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
+  // Any visitor being served (for global count)
+  const anyServingCount = queueData.visitors.filter(v => v.status === 'serving').length;
 
-  // Calculations for Advanced Stats
   const servedLastHour = queueData.visitors.filter(v => {
       if (v.status !== 'served' || !v.servedTime) return false;
       const servedTime = new Date(v.servedTime).getTime();
@@ -459,13 +479,18 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                 <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-bold">{currentQueue.code}</span>
                     <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                    <button 
-                        onClick={handleTogglePause}
-                        className={`text-xs font-bold flex items-center gap-1 transition-colors ${currentQueue.isPaused ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}
-                    >
-                        {currentQueue.isPaused ? <PlayCircle size={14} /> : <PauseCircle size={14} />}
-                        {currentQueue.isPaused ? 'Resume Queue' : 'Active'}
-                    </button>
+                    
+                    {/* Counter Name Input */}
+                    <div className="flex items-center gap-1 bg-blue-50/50 px-2 py-0.5 rounded border border-blue-100 focus-within:border-blue-300 transition-colors">
+                        <Store size={12} className="text-blue-500" />
+                        <input 
+                            type="text" 
+                            className="text-xs font-bold text-blue-700 bg-transparent outline-none w-24"
+                            value={counterName}
+                            onChange={handleCounterNameChange}
+                            placeholder="Counter Name"
+                        />
+                    </div>
                 </div>
             </div>
         </div>
@@ -531,25 +556,25 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       <div className="mb-8">
           <div className="bg-gradient-to-br from-gray-50 to-blue-50/50 rounded-[32px] p-6 md:p-8 text-center border border-white shadow-soft relative overflow-hidden mb-4">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
-              <p className="text-gray-500 font-medium mb-4 uppercase tracking-widest text-xs">Last called visitor number</p>
+              <p className="text-gray-500 font-medium mb-4 uppercase tracking-widest text-xs">Serving at {counterName}</p>
               
-              <motion.div 
-                key={queueData.lastCalledNumber}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="text-7xl md:text-9xl lg:text-[120px] leading-none font-black text-gray-900 mb-6 tracking-tighter"
-              >
-                  {String(queueData.lastCalledNumber).padStart(3, '0')}
-              </motion.div>
-
-              {currentVisitor && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-blue-100/50 text-blue-800 rounded-full text-sm font-bold max-w-full truncate"
+              {myCurrentVisitor ? (
+                  <motion.div
+                    key={myCurrentVisitor.ticketNumber}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
                   >
-                      <span className="truncate">Serving: {currentVisitor.name}</span>
+                      <div className="text-7xl md:text-9xl font-black text-gray-900 mb-2 tracking-tighter">
+                          {String(myCurrentVisitor.ticketNumber).padStart(3, '0')}
+                      </div>
+                      <div className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-blue-100/50 text-blue-800 rounded-full text-sm font-bold max-w-full truncate">
+                          <span className="truncate">{myCurrentVisitor.name}</span>
+                      </div>
                   </motion.div>
+              ) : (
+                  <div className="text-5xl md:text-7xl font-bold text-gray-300 mb-6 py-6">
+                      ---
+                  </div>
               )}
 
               <div className="max-w-lg mx-auto grid grid-cols-4 gap-3">
@@ -557,25 +582,25 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                     onClick={handleCallNext}
                     className="col-span-3 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary-600/30 active:scale-95 transition-all flex items-center justify-center gap-3"
                   >
-                      <span className="hidden sm:inline">Call next visitor</span>
-                      <span className="sm:hidden">Call Next</span>
+                      <span className="hidden sm:inline">Call Next</span>
+                      <span className="sm:hidden">Next</span>
                       <Phone size={20} />
                   </button>
 
                   <button 
                     onClick={handleNotifyCurrent}
-                    disabled={!currentVisitor}
-                    className={`py-4 rounded-2xl font-bold text-lg shadow-sm border border-gray-200 flex items-center justify-center transition-all ${currentVisitor?.isAlerting ? 'bg-yellow-400 text-white border-yellow-400 animate-pulse' : 'bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+                    disabled={!myCurrentVisitor}
+                    className={`py-4 rounded-2xl font-bold text-lg shadow-sm border border-gray-200 flex items-center justify-center transition-all ${myCurrentVisitor?.isAlerting ? 'bg-yellow-400 text-white border-yellow-400 animate-pulse' : 'bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
                     title="Notify Current Visitor"
                   >
-                      <Bell size={24} fill={currentVisitor?.isAlerting ? "currentColor" : "none"} />
+                      <Bell size={24} fill={myCurrentVisitor?.isAlerting ? "currentColor" : "none"} />
                   </button>
               </div>
           </div>
 
           {/* Enhanced Detailed Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-              {/* Waiting Now - Simple Big Card */}
+              {/* Waiting Now */}
               <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col items-center justify-center">
                   <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mb-2">
                       <Users size={24} />
@@ -584,59 +609,22 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                   <span className="text-sm font-bold text-gray-400 uppercase tracking-wide">Waiting Now</span>
               </div>
 
-              {/* Served Trend - Bar Chart */}
-              <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden group min-h-[160px]">
-                  <div className="flex justify-between items-start mb-4 z-10">
-                      <div>
-                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Served (1h)</span>
-                          <div className="text-3xl font-black text-gray-900 mt-1">{servedLastHour}</div>
-                      </div>
-                      <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600">
-                          <UserCheck size={20} />
-                      </div>
+              {/* Active Serving Globally */}
+              <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 mb-2">
+                      <Store size={24} />
                   </div>
-                  {/* Mini Bar Chart */}
-                  <div className="h-16 w-full mt-auto relative z-10">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={chartData}>
-                              <Bar dataKey="served" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={20} />
-                              <Tooltip 
-                                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
-                                  cursor={{fill: 'rgba(0,0,0,0.05)'}}
-                              />
-                          </BarChart>
-                      </ResponsiveContainer>
-                  </div>
+                  <span className="text-4xl font-black text-gray-900">{anyServingCount}</span>
+                  <span className="text-sm font-bold text-gray-400 uppercase tracking-wide">Active Serving</span>
               </div>
 
-              {/* Wait Time Trend - Area Chart */}
-              <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden min-h-[160px]">
-                  <div className="flex justify-between items-start mb-4 z-10">
-                      <div>
-                          <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Avg Wait Time</span>
-                          <div className="text-3xl font-black text-gray-900 mt-1">{queueData.metrics.avgWaitTime}<span className="text-lg text-gray-400 font-medium ml-1">m</span></div>
-                      </div>
-                      <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600">
-                          <Clock size={20} />
-                      </div>
+              {/* Wait Time */}
+              <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 mb-2">
+                      <Clock size={24} />
                   </div>
-                  {/* Mini Area Chart */}
-                  <div className="h-16 w-full mt-auto relative z-10">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartData}>
-                              <defs>
-                                  <linearGradient id="colorWait" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                                  </linearGradient>
-                              </defs>
-                              <Tooltip 
-                                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
-                              />
-                              <Area type="monotone" dataKey="wait" stroke="#8b5cf6" strokeWidth={2} fill="url(#colorWait)" />
-                          </AreaChart>
-                      </ResponsiveContainer>
-                  </div>
+                  <span className="text-4xl font-black text-gray-900">{queueData.metrics.avgWaitTime}<span className="text-lg text-gray-400 font-medium ml-1">m</span></span>
+                  <span className="text-sm font-bold text-gray-400 uppercase tracking-wide">Avg Wait</span>
               </div>
           </div>
       </div>
@@ -748,7 +736,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                <div>
                                    <p className="font-bold text-gray-700 text-sm strike-through">{visitor.name}</p>
                                    <div className="flex items-center gap-1 text-xs text-gray-400">
-                                       <CheckCircle size={10} /> Served at {visitor.servedTime ? new Date(visitor.servedTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '-'}
+                                       <CheckCircle size={10} /> Served by {visitor.servedBy || 'Staff'} at {visitor.servedTime ? new Date(visitor.servedTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '-'}
                                    </div>
                                </div>
                            </div>
@@ -1024,6 +1012,25 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                       </button>
                                   </div>
                               )}
+                          </div>
+
+                          <div className="h-px bg-gray-100"></div>
+
+                          {/* Auto-Skip Settings */}
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Auto-Skip Inactive</label>
+                              <p className="text-xs text-gray-500 mb-2">Automatically skip serving customers if they don't arrive within:</p>
+                              <select 
+                                value={settings.autoSkipMinutes || 0}
+                                onChange={(e) => setSettings({...settings, autoSkipMinutes: parseInt(e.target.value)})}
+                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                              >
+                                  <option value={0}>Disabled</option>
+                                  <option value={2}>2 minutes</option>
+                                  <option value={5}>5 minutes</option>
+                                  <option value={10}>10 minutes</option>
+                                  <option value={15}>15 minutes</option>
+                              </select>
                           </div>
                       </div>
 

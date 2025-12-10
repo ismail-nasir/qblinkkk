@@ -85,7 +85,12 @@ class MockBackendService {
           currentTicket: lastCalled,
           lastCalledNumber: lastCalled,
           metrics: { waiting, served, avgWaitTime: avgWait },
-          visitors: relevantVisitors.sort((a,b) => a.ticketNumber - b.ticketNumber),
+          visitors: relevantVisitors.sort((a,b) => {
+              if (a.isPriority && !b.isPriority) return -1;
+              if (!a.isPriority && b.isPriority) return 1;
+              if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+              return a.ticketNumber - b.ticketNumber;
+          }),
           recentActivity: qLogs
       };
   }
@@ -148,7 +153,7 @@ class MockBackendService {
         status: 'active',
         createdAt: new Date().toISOString(),
         estimatedWaitTime: estimatedWaitTime || 5,
-        settings: { soundEnabled: true, soundVolume: 1, soundType: 'beep' },
+        settings: { soundEnabled: true, soundVolume: 1, soundType: 'beep', autoSkipMinutes: 0 },
         isPaused: false,
         announcement: ''
       };
@@ -199,7 +204,8 @@ class MockBackendService {
             status: 'waiting',
             queueId,
             source: source || 'qr',
-            isPriority: false
+            isPriority: false,
+            order: maxTicket + 1
         };
         
         this.visitors.push(newVisitor);
@@ -213,8 +219,9 @@ class MockBackendService {
 
     if (endpoint.endsWith('/call')) {
         const queueId = endpoint.split('/')[2];
+        const { counterName } = body;
         
-        const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving');
+        const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving' && (!counterName || v.servedBy === counterName));
         if (serving) {
             serving.status = 'served';
             serving.servedTime = new Date().toISOString();
@@ -223,11 +230,18 @@ class MockBackendService {
 
         const next = this.visitors
             .filter(v => (v as any).queueId === queueId && v.status === 'waiting')
-            .sort((a,b) => a.ticketNumber - b.ticketNumber)[0];
+            .sort((a,b) => {
+                if (a.isPriority && !b.isPriority) return -1;
+                if (!a.isPriority && b.isPriority) return 1;
+                if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                return a.ticketNumber - b.ticketNumber;
+            })[0];
 
         if (next) {
             next.status = 'serving';
             next.isAlerting = true;
+            next.servedBy = counterName || 'Staff';
+            next.servedTime = new Date().toISOString();
             this.log(queueId, next.ticketNumber, 'call');
         }
 
@@ -240,20 +254,42 @@ class MockBackendService {
         const queueId = endpoint.split('/')[2];
         const { visitors: reorderedVisitors } = body;
         
+        // Remove existing visitors for this queue that are waiting
         this.visitors = this.visitors.filter(v => !((v as any).queueId === queueId && v.status === 'waiting'));
         
-        // Ensure queueId is preserved
-        this.visitors = this.visitors.filter(v => (v as any).queueId !== queueId);
-        
-        const newVisitorsWithId = reorderedVisitors.map((v: Visitor) => ({
+        // Add them back with updated order fields
+        const newVisitorsWithId = reorderedVisitors.map((v: Visitor, index: number) => ({
             ...v,
-            queueId
+            queueId,
+            order: index + 1
         }));
         
         this.visitors.push(...newVisitorsWithId);
         
         this.save();
         this.emit('queue:update', queueId);
+        return { success: true };
+    }
+    
+    if (endpoint.endsWith('/auto-skip')) {
+        const queueId = endpoint.split('/')[2];
+        const { limitMinutes } = body;
+        const now = Date.now();
+        let skipped = 0;
+        this.visitors.forEach(v => {
+            if ((v as any).queueId === queueId && v.status === 'serving' && v.servedTime) {
+                const elapsed = (now - new Date(v.servedTime).getTime()) / 60000;
+                if (elapsed > limitMinutes) {
+                    v.status = 'skipped';
+                    v.isAlerting = false;
+                    skipped++;
+                }
+            }
+        });
+        if (skipped > 0) {
+            this.save();
+            this.emit('queue:update', queueId);
+        }
         return { success: true };
     }
 
@@ -309,10 +345,10 @@ class MockBackendService {
     // Call by number
     if (endpoint.endsWith('/call-number')) {
          const queueId = endpoint.split('/')[2];
-         const { ticketNumber } = body;
+         const { ticketNumber, counterName } = body;
          
          // 1. Mark current serving as served
-         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving');
+         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving' && (!counterName || v.servedBy === counterName));
          if (serving) {
              serving.status = 'served';
              serving.servedTime = new Date().toISOString();
@@ -324,6 +360,8 @@ class MockBackendService {
          if (target) {
              target.status = 'serving';
              target.isAlerting = true;
+             target.servedBy = counterName || 'Staff';
+             target.servedTime = new Date().toISOString();
              this.log(queueId, target.ticketNumber, 'call');
          }
          
@@ -334,10 +372,10 @@ class MockBackendService {
 
     if (endpoint.endsWith('/recall')) {
          const queueId = endpoint.split('/')[2];
-         const { visitorId } = body;
+         const { visitorId, counterName } = body;
          
-         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving');
-         if (serving) {
+         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving' && (!counterName || v.servedBy === counterName));
+         if (serving && serving.id !== visitorId) {
              serving.status = 'served';
              serving.servedTime = new Date().toISOString();
              serving.isAlerting = false;
@@ -347,6 +385,7 @@ class MockBackendService {
          if (target) {
              target.status = 'serving';
              target.isAlerting = true;
+             target.servedBy = counterName || 'Staff';
          }
          
          this.save();
@@ -356,7 +395,8 @@ class MockBackendService {
     
     if (endpoint.endsWith('/take-back')) {
          const queueId = endpoint.split('/')[2];
-         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving');
+         const { counterName } = body;
+         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving' && (!counterName || v.servedBy === counterName));
          if (serving) {
              serving.status = 'waiting';
              serving.isAlerting = false;

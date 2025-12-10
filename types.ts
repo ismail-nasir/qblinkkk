@@ -8,7 +8,7 @@ export interface QueueMetric {
 export interface ActivityLog {
   ticket: number;
   time: string;
-  action: 'call' | 'skip' | 'complete' | 'join' | 'leave';
+  action: 'call' | 'skip' | 'complete' | 'join' | 'leave' | 'auto-skip';
   details?: string;
 }
 
@@ -28,17 +28,20 @@ export interface Visitor {
   name: string;
   phoneNumber?: string; // Added for duplicate check
   joinTime: string; // ISO string
-  status: 'waiting' | 'serving' | 'served' | 'cancelled';
+  status: 'waiting' | 'serving' | 'served' | 'cancelled' | 'skipped';
   isAlerting?: boolean; // New flag for sound control
   servedTime?: string; // Time when status changed to served
   source?: UserSource; // Track how visitor was added
   isPriority?: boolean; // New: VIP Status
+  servedBy?: string; // Multi-counter support
+  order?: number; // Drag and drop ordering
 }
 
 export interface QueueSettings {
   soundEnabled: boolean;
   soundVolume: number; // 0.1 to 1.0
   soundType: 'beep' | 'chime' | 'alarm';
+  autoSkipMinutes?: number; // Auto-skip if serving > X mins
 }
 
 export interface QueueInfo {
