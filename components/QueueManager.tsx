@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save, PauseCircle, PlayCircle, Megaphone, Star } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save, PauseCircle, PlayCircle, Megaphone, Star, Clock, TrendingUp, UserCheck, AlertTriangle, Zap } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -23,6 +23,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
+  
+  // New: Visitor Detail Modal
+  const [selectedVisitor, setSelectedVisitor] = useState<Visitor | null>(null);
   
   // UI States
   const [showBroadcast, setShowBroadcast] = useState(false);
@@ -275,6 +278,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   const handleTogglePriority = async (visitorId: string, isPriority: boolean) => {
       await queueService.togglePriority(queue.id, visitorId, !isPriority);
+      // Update local selected visitor if open
+      if (selectedVisitor && selectedVisitor.id === visitorId) {
+          setSelectedVisitor({ ...selectedVisitor, isPriority: !isPriority });
+      }
       fetchData();
   };
 
@@ -300,6 +307,22 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       fetchData();
   };
 
+  const handleServeSpecific = async () => {
+      if (selectedVisitor) {
+          await queueService.callByNumber(queue.id, selectedVisitor.ticketNumber);
+          setSelectedVisitor(null);
+          fetchData();
+      }
+  };
+
+  const handleRemoveSpecific = async () => {
+      if (selectedVisitor && confirm(`Remove ${selectedVisitor.name} from the queue?`)) {
+          await queueService.leaveQueue(queue.id, selectedVisitor.id);
+          setSelectedVisitor(null);
+          fetchData();
+      }
+  };
+
   if (!queueData) return <div className="p-12 text-center text-gray-500">Loading Queue Data...</div>;
 
   const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting');
@@ -315,6 +338,13 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     .slice(0, 10);
 
   const currentVisitor = queueData.visitors.find(v => v.status === 'serving');
+
+  // Calculations for Advanced Stats
+  const servedLastHour = queueData.visitors.filter(v => {
+      if (v.status !== 'served' || !v.servedTime) return false;
+      const servedTime = new Date(v.servedTime).getTime();
+      return servedTime > Date.now() - 3600000;
+  }).length;
 
   return (
     <div className="container mx-auto px-4 pb-20 max-w-5xl">
@@ -407,53 +437,80 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           )}
       </AnimatePresence>
 
-      {/* Main Status Card */}
-      <div className="bg-gradient-to-br from-gray-50 to-blue-50/50 rounded-[32px] p-6 md:p-8 text-center border border-white shadow-soft mb-8 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
-          <p className="text-gray-500 font-medium mb-4 uppercase tracking-widest text-xs">Last called visitor number</p>
-          
-          <motion.div 
-            key={queueData.lastCalledNumber}
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="text-7xl md:text-9xl lg:text-[120px] leading-none font-black text-gray-900 mb-6 tracking-tighter"
-          >
-              {String(queueData.lastCalledNumber).padStart(3, '0')}
-          </motion.div>
-
-          {currentVisitor && (
+      {/* Main Status Card + Stats Grid */}
+      <div className="mb-8">
+          <div className="bg-gradient-to-br from-gray-50 to-blue-50/50 rounded-[32px] p-6 md:p-8 text-center border border-white shadow-soft relative overflow-hidden mb-4">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+              <p className="text-gray-500 font-medium mb-4 uppercase tracking-widest text-xs">Last called visitor number</p>
+              
               <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-blue-100/50 text-blue-800 rounded-full text-sm font-bold max-w-full truncate"
+                key={queueData.lastCalledNumber}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="text-7xl md:text-9xl lg:text-[120px] leading-none font-black text-gray-900 mb-6 tracking-tighter"
               >
-                  <span className="truncate">Serving: {currentVisitor.name}</span>
+                  {String(queueData.lastCalledNumber).padStart(3, '0')}
               </motion.div>
-          )}
 
-          <div className="flex items-center justify-center gap-2 text-gray-600 font-medium mb-8">
-              <span className="flex h-2 w-2 rounded-full bg-blue-500"></span>
-              There are <span className="text-blue-600 font-bold">{queueData.metrics.waiting}</span> visitors waiting
+              {currentVisitor && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-blue-100/50 text-blue-800 rounded-full text-sm font-bold max-w-full truncate"
+                  >
+                      <span className="truncate">Serving: {currentVisitor.name}</span>
+                  </motion.div>
+              )}
+
+              <div className="max-w-lg mx-auto grid grid-cols-4 gap-3">
+                  <button 
+                    onClick={handleCallNext}
+                    className="col-span-3 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary-600/30 active:scale-95 transition-all flex items-center justify-center gap-3"
+                  >
+                      <span className="hidden sm:inline">Call next visitor</span>
+                      <span className="sm:hidden">Call Next</span>
+                      <Phone size={20} />
+                  </button>
+
+                  <button 
+                    onClick={handleNotifyCurrent}
+                    disabled={!currentVisitor}
+                    className={`py-4 rounded-2xl font-bold text-lg shadow-sm border border-gray-200 flex items-center justify-center transition-all ${currentVisitor?.isAlerting ? 'bg-yellow-400 text-white border-yellow-400 animate-pulse' : 'bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+                    title="Notify Current Visitor"
+                  >
+                      <Bell size={24} fill={currentVisitor?.isAlerting ? "currentColor" : "none"} />
+                  </button>
+              </div>
           </div>
 
-          <div className="max-w-lg mx-auto grid grid-cols-4 gap-3">
-              <button 
-                onClick={handleCallNext}
-                className="col-span-3 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary-600/30 active:scale-95 transition-all flex items-center justify-center gap-3"
-              >
-                  <span className="hidden sm:inline">Call next visitor</span>
-                  <span className="sm:hidden">Call Next</span>
-                  <Phone size={20} />
-              </button>
-
-              <button 
-                onClick={handleNotifyCurrent}
-                disabled={!currentVisitor}
-                className={`py-4 rounded-2xl font-bold text-lg shadow-sm border border-gray-200 flex items-center justify-center transition-all ${currentVisitor?.isAlerting ? 'bg-yellow-400 text-white border-yellow-400 animate-pulse' : 'bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
-                title="Notify Current Visitor"
-              >
-                  <Bell size={24} fill={currentVisitor?.isAlerting ? "currentColor" : "none"} />
-              </button>
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                  <span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
+                      <Users size={12} /> Waiting
+                  </span>
+                  <span className="text-2xl font-black text-gray-900">{queueData.metrics.waiting}</span>
+              </div>
+              <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                  <span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
+                      <UserCheck size={12} /> Served (1h)
+                  </span>
+                  <span className="text-2xl font-black text-green-600">{servedLastHour}</span>
+              </div>
+              <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                  <span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
+                      <Clock size={12} /> Avg Wait
+                  </span>
+                  <span className="text-2xl font-black text-blue-600">{queueData.metrics.avgWaitTime}<span className="text-sm text-gray-400 font-medium">m</span></span>
+              </div>
+              <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                  <span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
+                      <TrendingUp size={12} /> Trend
+                  </span>
+                  <div className="flex items-center gap-1">
+                      <span className="text-lg font-bold text-gray-900">Steady</span>
+                  </div>
+              </div>
           </div>
       </div>
 
@@ -519,7 +576,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                 key={visitor.id} 
                                 visitor={visitor} 
                                 queueData={queueData} 
-                                onTogglePriority={() => handleTogglePriority(visitor.id, !!visitor.isPriority)} 
+                                onTogglePriority={() => handleTogglePriority(visitor.id, !!visitor.isPriority)}
+                                onClick={() => setSelectedVisitor(visitor)}
                            />
                         ))}
                      </div>
@@ -532,6 +590,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                     visitor={visitor} 
                                     queueData={queueData} 
                                     onTogglePriority={() => handleTogglePriority(visitor.id, !!visitor.isPriority)}
+                                    onClick={() => setSelectedVisitor(visitor)}
                                     isDraggable
                                 />
                              </Reorder.Item>
@@ -579,6 +638,71 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       )}
 
       {/* --- MODALS --- */}
+
+      {/* Visitor Detail Modal */}
+      <AnimatePresence>
+          {selectedVisitor && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full relative overflow-hidden"
+                  >
+                      {/* Decorative Background */}
+                      <div className={`absolute top-0 left-0 right-0 h-24 ${selectedVisitor.isPriority ? 'bg-gradient-to-br from-amber-300 to-yellow-500' : 'bg-gradient-to-br from-blue-500 to-indigo-600'}`}></div>
+                      <button onClick={() => setSelectedVisitor(null)} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-colors z-10"><X size={20} /></button>
+
+                      <div className="relative pt-8 flex flex-col items-center text-center">
+                          <div className={`w-24 h-24 rounded-2xl flex items-center justify-center text-4xl font-black shadow-xl mb-4 border-4 border-white ${selectedVisitor.isPriority ? 'bg-amber-100 text-amber-600' : 'bg-white text-gray-900'}`}>
+                              {String(selectedVisitor.ticketNumber).padStart(3, '0')}
+                          </div>
+                          
+                          <h2 className="text-2xl font-bold text-gray-900 mb-1">{selectedVisitor.name}</h2>
+                          <div className="flex items-center gap-2 mb-6">
+                              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                  Wait: ~{Math.max(1, (selectedVisitor.ticketNumber - queueData.lastCalledNumber) * queueData.metrics.avgWaitTime)} min
+                              </span>
+                              {selectedVisitor.isPriority && (
+                                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full border border-amber-200 uppercase">VIP</span>
+                              )}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 w-full mb-6">
+                              <button 
+                                onClick={() => handleTogglePriority(selectedVisitor.id, !!selectedVisitor.isPriority)}
+                                className={`col-span-2 py-3 border rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${selectedVisitor.isPriority ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                              >
+                                  <Star size={16} fill={selectedVisitor.isPriority ? "currentColor" : "none"} /> 
+                                  {selectedVisitor.isPriority ? 'Remove VIP Status' : 'Mark as VIP'}
+                              </button>
+                              
+                              <button 
+                                onClick={handleServeSpecific}
+                                className="py-3 bg-primary-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-primary-600/20 hover:bg-primary-700 flex items-center justify-center gap-2"
+                              >
+                                  <Zap size={16} fill="currentColor" /> Serve Now
+                              </button>
+                              
+                              <button 
+                                onClick={() => handleRecall(selectedVisitor.id)}
+                                className="py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50 flex items-center justify-center gap-2"
+                              >
+                                  <Bell size={16} /> Alert
+                              </button>
+                          </div>
+
+                          <button 
+                            onClick={handleRemoveSpecific}
+                            className="w-full py-3 text-red-500 font-bold text-sm hover:bg-red-50 rounded-xl transition-colors flex items-center justify-center gap-2"
+                          >
+                              <Trash2 size={16} /> Remove from Queue
+                          </button>
+                      </div>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
 
       {/* QR Code Modal */}
       <AnimatePresence>
@@ -790,21 +914,23 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 interface VisitorListItemProps {
     visitor: Visitor; 
     queueData: QueueData; 
-    onTogglePriority: () => void; 
+    onTogglePriority: () => void;
+    onClick: () => void; 
     isDraggable?: boolean; 
 }
 
-const VisitorListItem: React.FC<VisitorListItemProps> = ({ visitor, queueData, onTogglePriority, isDraggable }) => (
+const VisitorListItem: React.FC<VisitorListItemProps> = ({ visitor, queueData, onTogglePriority, onClick, isDraggable }) => (
     <div
-        className={`p-4 flex items-center justify-between rounded-2xl mb-1 border transition-all ${visitor.isPriority ? 'bg-gradient-to-r from-amber-50 to-white border-amber-100' : 'bg-white border-transparent border-b-gray-50 last:border-b-0 hover:bg-blue-50/20'}`}
+        onClick={onClick}
+        className={`p-4 flex items-center justify-between rounded-2xl mb-1 border transition-all cursor-pointer ${visitor.isPriority ? 'bg-gradient-to-r from-amber-50 via-white to-white border-amber-200 shadow-sm' : 'bg-white border-transparent border-b-gray-50 last:border-b-0 hover:bg-blue-50/20'}`}
     >
         <div className="flex items-center gap-4">
              {isDraggable && (
-                <div className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing p-1">
+                <div className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing p-1" onClick={(e) => e.stopPropagation()}>
                     <GripVertical size={20} />
                 </div>
             )}
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md pointer-events-none ${visitor.isPriority ? 'bg-amber-400 text-white shadow-amber-400/30 ring-2 ring-amber-200' : 'bg-blue-600 text-white shadow-blue-600/20'}`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md pointer-events-none transition-all ${visitor.isPriority ? 'bg-amber-400 text-white shadow-amber-400/30 ring-2 ring-amber-200' : 'bg-blue-600 text-white shadow-blue-600/20'}`}>
                 {String(visitor.ticketNumber).padStart(3, '0')}
             </div>
             <div className="pointer-events-none">
@@ -813,6 +939,11 @@ const VisitorListItem: React.FC<VisitorListItemProps> = ({ visitor, queueData, o
                     {visitor.source === 'manual' && (
                         <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 border border-gray-200">
                             <UserPlus size={10} /> Manual
+                        </div>
+                    )}
+                    {visitor.isPriority && (
+                        <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 uppercase tracking-wide">
+                            VIP
                         </div>
                     )}
                 </div>
@@ -831,14 +962,10 @@ const VisitorListItem: React.FC<VisitorListItemProps> = ({ visitor, queueData, o
             <button 
                 onClick={(e) => {
                     e.stopPropagation();
-                    // onMouseDown needed for reorderable items to prevent drag hijacking click
+                    onTogglePriority();
                 }}
-                onMouseDown={(e) => {
-                     e.stopPropagation();
-                     onTogglePriority();
-                }}
-                className={`p-2 rounded-full transition-colors cursor-pointer relative z-10 ${visitor.isPriority ? 'text-amber-400 hover:bg-amber-100' : 'text-gray-300 hover:text-amber-400 hover:bg-gray-100'}`}
-                title="Toggle VIP"
+                className={`p-2 rounded-full transition-colors cursor-pointer relative z-10 ${visitor.isPriority ? 'text-amber-400 bg-amber-50 hover:bg-amber-100' : 'text-gray-300 hover:text-amber-400 hover:bg-gray-100'}`}
+                title={visitor.isPriority ? "Remove VIP" : "Make VIP"}
             >
                 <Star size={20} fill={visitor.isPriority ? "currentColor" : "none"} />
             </button>
