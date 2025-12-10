@@ -56,6 +56,40 @@ class MockBackendService {
     window.dispatchEvent(new CustomEvent('qblink_socket_event', { detail: { event, queueId, payload } }));
   }
 
+  // Helper to generate queue data object
+  private _getQueueData(queueId: string): QueueData {
+      const qVisitors = this.visitors.filter(v => v.id.startsWith(queueId + '_') || (v as any).queueId === queueId).map(v => ({
+          ...v,
+          queueId: queueId 
+      }));
+      
+      const relevantVisitors = this.visitors.filter(v => (v as any).queueId === queueId);
+      
+      const waiting = relevantVisitors.filter(v => v.status === 'waiting').length;
+      const served = relevantVisitors.filter(v => v.status === 'served').length;
+      
+      const lastCalled = relevantVisitors
+          .filter(v => v.status === 'serving' || v.status === 'served')
+          .sort((a,b) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
+          
+      const queueInfo = this.queues.find(q => q.id === queueId);
+      const avgWait = queueInfo?.estimatedWaitTime || 5;
+
+      const qLogs = this.logs
+          .filter(l => l.queueId === queueId)
+          .sort((a,b) => new Date(b.rawTime).getTime() - new Date(a.rawTime).getTime())
+          .slice(0, 50);
+
+      return {
+          queueId,
+          currentTicket: lastCalled,
+          lastCalledNumber: lastCalled,
+          metrics: { waiting, served, avgWaitTime: avgWait },
+          visitors: relevantVisitors.sort((a,b) => a.ticketNumber - b.ticketNumber),
+          recentActivity: qLogs
+      };
+  }
+
   // --- HANDLERS ---
 
   async handleRequest(method: string, endpoint: string, body?: any, user?: User): Promise<any> {
@@ -132,36 +166,7 @@ class MockBackendService {
 
     if (endpoint.match(/\/queue\/.*\/data/)) {
         const queueId = endpoint.split('/')[2];
-        const qVisitors = this.visitors.filter(v => v.id.startsWith(queueId + '_') || (v as any).queueId === queueId).map(v => ({
-            ...v,
-            queueId: queueId 
-        }));
-        
-        const relevantVisitors = this.visitors.filter(v => (v as any).queueId === queueId);
-        
-        const waiting = relevantVisitors.filter(v => v.status === 'waiting').length;
-        const served = relevantVisitors.filter(v => v.status === 'served').length;
-        
-        const lastCalled = relevantVisitors
-            .filter(v => v.status === 'serving' || v.status === 'served')
-            .sort((a,b) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
-            
-        const queueInfo = this.queues.find(q => q.id === queueId);
-        const avgWait = queueInfo?.estimatedWaitTime || 5;
-
-        const qLogs = this.logs
-            .filter(l => l.queueId === queueId)
-            .sort((a,b) => new Date(b.rawTime).getTime() - new Date(a.rawTime).getTime())
-            .slice(0, 50);
-
-        return {
-            queueId,
-            currentTicket: lastCalled,
-            lastCalledNumber: lastCalled,
-            metrics: { waiting, served, avgWaitTime: avgWait },
-            visitors: relevantVisitors.sort((a,b) => a.ticketNumber - b.ticketNumber),
-            recentActivity: qLogs
-        };
+        return this._getQueueData(queueId);
     }
 
     // --- ACTIONS ---
@@ -190,8 +195,9 @@ class MockBackendService {
         this.log(queueId, newVisitor.ticketNumber, 'join');
         this.save();
         this.emit('queue:update', queueId);
-        // Include queueData for completeness, though CustomerView mainly needs visitor
-        return { visitor: newVisitor };
+        
+        // Return Updated Queue Data immediately
+        return { visitor: newVisitor, queueData: this._getQueueData(queueId) };
     }
 
     if (endpoint.endsWith('/call')) {
@@ -223,20 +229,9 @@ class MockBackendService {
         const queueId = endpoint.split('/')[2];
         const { visitors: reorderedVisitors } = body;
         
-        // Remove current waiting visitors for this queue from DB
         this.visitors = this.visitors.filter(v => !((v as any).queueId === queueId && v.status === 'waiting'));
         
-        // Add back the reordered list (preserving their properties but ensuring they exist in DB)
-        // In a real DB, we'd update an 'order_index' column. Here, we just replace.
-        // Important: We need to make sure we don't lose non-waiting visitors which are handled above.
-        
-        // But wait, the payload only contains waiting visitors usually? 
-        // Or the frontend sends the whole list? Frontend logic:
-        // const otherVisitors = queueData.visitors.filter(v => v.status !== 'waiting');
-        // const fullNewList = [...otherVisitors, ...newOrder];
-        // So frontend sends EVERYTHING.
-        
-        // So safe to remove all for this queue and re-add.
+        // Ensure queueId is preserved
         this.visitors = this.visitors.filter(v => (v as any).queueId !== queueId);
         
         const newVisitorsWithId = reorderedVisitors.map((v: Visitor) => ({

@@ -69,8 +69,10 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   useEffect(() => {
     if (myVisitorId && queueData) {
         const visitor = queueData.visitors.find(v => v.id === myVisitorId);
+        
         if (visitor && (visitor.status === 'waiting' || visitor.status === 'serving')) {
-            setIsJoined(true);
+            // Confirm joined if we found the visitor in valid state
+            if (!isJoined) setIsJoined(true);
             
             // Check for Alert Trigger
             if (visitor.isAlerting && !isAlerting) {
@@ -92,13 +94,17 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 }
             }
         } else {
-            // Expired or Removed
+            // Visitor not found in queueData OR status is not waiting/serving
+            
+            // Only kick out if we were previously joined AND the queue has other people.
+            // If the queue is empty, it might be a fetch lag, but if it has people and I'm not there, I'm gone.
             if (isJoined && queueData.visitors.length > 0) {
                  setIsJoined(false);
                  setMyVisitorId(null);
                  localStorage.removeItem(`qblink_visit_${queueId}`);
                  stopAlertLoop();
             } else if (!isJoined && visitor) {
+                 // Recovery: If we aren't "joined" locally but exist in data, re-join
                  setIsJoined(true);
             }
         }
@@ -224,8 +230,14 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       }
 
       try {
-        const { visitor } = await queueService.joinQueue(queueId, joinName);
+        const { visitor, queueData: updatedQueueData } = await queueService.joinQueue(queueId, joinName);
         if (!visitor) throw new Error("Server returned no ticket.");
+        
+        // Critical: Update Queue Data FIRST to include the new visitor
+        // This prevents the useEffect from seeing a stale state where the user "isn't in the queue"
+        if (updatedQueueData) {
+            setQueueData(updatedQueueData);
+        }
         
         setMyVisitorId(visitor.id);
         localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
