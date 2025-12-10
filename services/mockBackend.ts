@@ -12,7 +12,7 @@ const KEYS = {
 // Broadcast Channel for Real-time events
 const channel = new BroadcastChannel('qblink_realtime');
 
-// Helper to simulate network delay
+// Helper to simulate network delay (Reduced for speed)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 class MockBackendService {
@@ -47,7 +47,6 @@ class MockBackendService {
     localStorage.setItem(KEYS.QUEUES, JSON.stringify(this.queues));
     localStorage.setItem(KEYS.VISITORS, JSON.stringify(this.visitors));
     localStorage.setItem(KEYS.LOGS, JSON.stringify(this.logs));
-    // Notify other tabs that DB changed (optional, mostly for socket events)
   }
 
   private emit(event: string, queueId?: string, payload?: any) {
@@ -60,7 +59,7 @@ class MockBackendService {
   // --- HANDLERS ---
 
   async handleRequest(method: string, endpoint: string, body?: any, user?: User): Promise<any> {
-    await delay(300); // Simulate network latency
+    await delay(50); // Minimal latency for "feeling" of async but fast
 
     this.load(); // Refresh state from storage
 
@@ -85,12 +84,11 @@ class MockBackendService {
     if (endpoint === '/auth/login') {
       const { email } = body;
       const user = this.users.find(u => u.email === email);
-      if (!user) throw new Error("Invalid credentials"); // In a real mock we'd check password
+      if (!user) throw new Error("Invalid credentials");
       return { user, token: 'mock_token_' + user.id };
     }
 
     if (endpoint === '/auth/verify') {
-        // Just return the user logic
         const { email } = body;
         const user = this.users.find(u => u.email === email);
         if (user) {
@@ -134,16 +132,14 @@ class MockBackendService {
         const queueId = endpoint.split('/')[2];
         const qVisitors = this.visitors.filter(v => v.id.startsWith(queueId + '_') || (v as any).queueId === queueId).map(v => ({
             ...v,
-            queueId: queueId // Ensure queueId is present
+            queueId: queueId 
         }));
         
-        // Ensure visitors have the queueId property for filtering
         const relevantVisitors = this.visitors.filter(v => (v as any).queueId === queueId);
         
         const waiting = relevantVisitors.filter(v => v.status === 'waiting').length;
         const served = relevantVisitors.filter(v => v.status === 'served').length;
         
-        // Calculate last called
         const lastCalled = relevantVisitors
             .filter(v => v.status === 'serving' || v.status === 'served')
             .sort((a,b) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
@@ -151,7 +147,6 @@ class MockBackendService {
         const queueInfo = this.queues.find(q => q.id === queueId);
         const avgWait = queueInfo?.estimatedWaitTime || 5;
 
-        // Logs
         const qLogs = this.logs
             .filter(l => l.queueId === queueId)
             .sort((a,b) => new Date(b.rawTime).getTime() - new Date(a.rawTime).getTime())
@@ -171,7 +166,6 @@ class MockBackendService {
     if (endpoint === '/queue/join') {
         const { queueId, name } = body;
         
-        // Find max ticket
         const qVisitors = this.visitors.filter(v => (v as any).queueId === queueId);
         const maxTicket = qVisitors.reduce((max, v) => Math.max(max, v.ticketNumber), 0);
         
@@ -191,11 +185,9 @@ class MockBackendService {
         return { visitor: newVisitor };
     }
 
-    // Call Next
     if (endpoint.endsWith('/call')) {
         const queueId = endpoint.split('/')[2];
         
-        // Mark current serving as served
         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving');
         if (serving) {
             serving.status = 'served';
@@ -203,7 +195,6 @@ class MockBackendService {
             serving.isAlerting = false;
         }
 
-        // Find next
         const next = this.visitors
             .filter(v => (v as any).queueId === queueId && v.status === 'waiting')
             .sort((a,b) => a.ticketNumber - b.ticketNumber)[0];
@@ -256,7 +247,6 @@ class MockBackendService {
         return { success: true };
     }
 
-    // Update Queue
     if (method === 'PUT' && endpoint.startsWith('/queue/')) {
         const queueId = endpoint.split('/')[2];
         const queue = this.queues.find(q => q.id === queueId);
@@ -268,7 +258,6 @@ class MockBackendService {
         }
     }
 
-    // Delete Queue
     if (method === 'DELETE' && endpoint.startsWith('/queue/')) {
          const queueId = endpoint.split('/')[2];
          this.queues = this.queues.filter(q => q.id !== queueId);
@@ -276,12 +265,10 @@ class MockBackendService {
          return { success: true };
     }
 
-    // Admin Logs (Mock)
     if (endpoint === '/admin/system-logs') {
         return this.logs.slice(0, 50);
     }
     
-    // Fallback
     console.warn("Mock endpoint not found:", method, endpoint);
     return {};
   }
@@ -293,10 +280,11 @@ class MockBackendService {
           action,
           time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
           rawTime: new Date().toISOString(),
-          user: 'System', // Mock
-          email: 'system@qblink.com' // Mock
+          user: 'System', 
+          email: 'system@qblink.com' 
       });
   }
 }
 
 export const mockBackend = new MockBackendService();
+    
