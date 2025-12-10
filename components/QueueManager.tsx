@@ -142,7 +142,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     if (!ctx) return;
 
     const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
-    const qrSize = 1000;
+    // Reduced resolution for better performance, still high enough for printing
+    const qrSize = 600; 
     
     // Clear
     ctx.clearRect(0, 0, qrSize, qrSize);
@@ -590,12 +591,12 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                     className="bg-white rounded-3xl p-8 max-w-sm w-full flex flex-col items-center text-center"
                   >
                       <h3 className="text-xl font-bold mb-4">Scan to Join</h3>
-                      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6">
-                          <canvas ref={canvasRef} className="w-full h-auto rounded-lg" />
+                      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6 w-64 h-64 flex items-center justify-center mx-auto">
+                          <canvas ref={canvasRef} className="w-full h-full object-contain rounded-lg" />
                       </div>
                       <div className="flex gap-2 w-full">
                           <button onClick={handleDownloadQR} className="flex-1 py-3 bg-gray-100 text-gray-900 font-bold rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2">
-                              <Download size={18} /> Save
+                              <Download size={18} /> Download
                           </button>
                           <button onClick={() => setShowQrModal(false)} className="py-3 px-6 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800">
                               Done
