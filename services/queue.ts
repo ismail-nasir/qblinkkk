@@ -1,5 +1,4 @@
 
-
 import { QueueData, QueueInfo, Visitor, ActivityLog } from '../types';
 import { api } from './api';
 import { firebaseService } from './firebase';
@@ -61,8 +60,12 @@ export const queueService = {
               lastCalledNumber: lastCalled,
               metrics: { waiting, served, avgWaitTime: queue.estimatedWaitTime || 5 },
               visitors: visitors.sort((a,b) => {
+                  // Primary sort: Priority
                   if (a.isPriority && !b.isPriority) return -1;
                   if (!a.isPriority && b.isPriority) return 1;
+                  // Secondary sort: Custom Order
+                  if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                  // Fallback: Ticket Number
                   return a.ticketNumber - b.ticketNumber;
               }),
               recentActivity
@@ -116,7 +119,6 @@ export const queueService = {
   
   joinQueue: async (queueId: string, name: string, phoneNumber?: string, source: 'manual' | 'qr' = 'qr'): Promise<{ visitor: Visitor, queueData: QueueData }> => {
       if (firebaseService.isAvailable) {
-          // 1. Check for duplicates if phoneNumber is provided
           if (phoneNumber) {
               const vRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
               const vSnap = await firebaseService.get(vRef);
@@ -141,6 +143,7 @@ export const queueService = {
               if (res.committed) ticketNumber = res.snapshot.val();
           });
 
+          // Order defaults to ticket number initially
           const newVisitor: Visitor = {
               id: visitorRef.key!,
               ticketNumber,
@@ -149,7 +152,8 @@ export const queueService = {
               joinTime: new Date().toISOString(),
               status: 'waiting',
               source,
-              isPriority: false
+              isPriority: false,
+              order: ticketNumber
           };
 
           await firebaseService.set(visitorRef, newVisitor);
@@ -185,8 +189,6 @@ export const queueService = {
           const visitorsMap = vSnap.val() || {};
           const visitors: Visitor[] = Object.keys(visitorsMap).map(k => ({...visitorsMap[k], id: k}));
 
-          // Finish currently serving by this person or any if not specified (simplistic)
-          // Ideally, we only finish the one servedBy THIS counter
           const serving = visitors.find(v => v.status === 'serving' && (!servedBy || v.servedBy === servedBy || !v.servedBy));
           
           if (serving) {
@@ -202,6 +204,7 @@ export const queueService = {
               .sort((a,b) => {
                    if (a.isPriority && !b.isPriority) return -1;
                    if (!a.isPriority && b.isPriority) return 1;
+                   if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
                    return a.ticketNumber - b.ticketNumber;
               })[0];
 
@@ -326,6 +329,11 @@ export const queueService = {
 
   reorderQueue: async (queueId: string, visitors: Visitor[]) => {
       if (firebaseService.isAvailable) {
+          const updates: any = {};
+          visitors.forEach((v, index) => {
+              updates[`${v.id}/order`] = index + 1; // 1-based index
+          });
+          await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}`), updates);
           return; 
       }
       return await api.post(`/queue/${queueId}/reorder`, { visitors });
@@ -369,8 +377,6 @@ export const queueService = {
   },
 
   autoSkipInactive: async (queueId: string, minutes: number) => {
-      // Logic for auto-skipping inactive served visitors
-      // This is a client-side cleanup if backend isn't handling cron jobs
       const data = await queueService.getQueueData(queueId);
       const now = new Date().getTime();
 
@@ -391,7 +397,6 @@ export const queueService = {
                   isAlerting: false
                });
           } else {
-               // Use API to update status, defaulting to leaveQueue which cancels them
                await queueService.leaveQueue(queueId, v.id);
           }
       }

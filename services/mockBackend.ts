@@ -1,5 +1,4 @@
 
-
 import { User, QueueInfo, QueueData, Visitor, ActivityLog } from '../types';
 
 // Storage Keys
@@ -86,7 +85,12 @@ class MockBackendService {
           currentTicket: lastCalled,
           lastCalledNumber: lastCalled,
           metrics: { waiting, served, avgWaitTime: avgWait },
-          visitors: relevantVisitors.sort((a,b) => a.ticketNumber - b.ticketNumber),
+          visitors: relevantVisitors.sort((a,b) => {
+              if (a.isPriority && !b.isPriority) return -1;
+              if (!a.isPriority && b.isPriority) return 1;
+              if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+              return a.ticketNumber - b.ticketNumber;
+          }),
           recentActivity: qLogs
       };
   }
@@ -200,7 +204,8 @@ class MockBackendService {
             status: 'waiting',
             queueId,
             source: source || 'qr',
-            isPriority: false
+            isPriority: false,
+            order: maxTicket + 1
         };
         
         this.visitors.push(newVisitor);
@@ -227,7 +232,12 @@ class MockBackendService {
         // Find next waiting
         const next = this.visitors
             .filter(v => (v as any).queueId === queueId && v.status === 'waiting')
-            .sort((a,b) => a.ticketNumber - b.ticketNumber)[0];
+            .sort((a,b) => {
+                if (a.isPriority && !b.isPriority) return -1;
+                if (!a.isPriority && b.isPriority) return 1;
+                if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                return a.ticketNumber - b.ticketNumber;
+            })[0];
 
         if (next) {
             next.status = 'serving';
@@ -246,14 +256,14 @@ class MockBackendService {
         const queueId = endpoint.split('/')[2];
         const { visitors: reorderedVisitors } = body;
         
+        // Remove existing visitors for this queue that are waiting
         this.visitors = this.visitors.filter(v => !((v as any).queueId === queueId && v.status === 'waiting'));
         
-        // Ensure queueId is preserved
-        this.visitors = this.visitors.filter(v => (v as any).queueId !== queueId);
-        
-        const newVisitorsWithId = reorderedVisitors.map((v: Visitor) => ({
+        // Add them back with updated order fields
+        const newVisitorsWithId = reorderedVisitors.map((v: Visitor, index: number) => ({
             ...v,
-            queueId
+            queueId,
+            order: index + 1
         }));
         
         this.visitors.push(...newVisitorsWithId);

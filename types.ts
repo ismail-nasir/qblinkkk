@@ -35,6 +35,7 @@ export interface Visitor {
   source?: UserSource; // Track how visitor was added
   isPriority?: boolean; // New: VIP Status
   servedBy?: string; // Staff member/Counter name
+  order?: number; // Added: Order for drag and drop
 }
 
 export interface QueueSettings {

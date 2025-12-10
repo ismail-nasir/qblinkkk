@@ -4,7 +4,7 @@ import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
 import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save, PauseCircle, PlayCircle, Megaphone, Star, Clock, TrendingUp, UserCheck, AlertTriangle, Zap, Store } from 'lucide-react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
 // @ts-ignore
@@ -694,15 +694,13 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                     // Drag and Drop List
                     <Reorder.Group axis="y" values={displayWaitingVisitors} onReorder={handleReorder}>
                         {displayWaitingVisitors.map((visitor) => (
-                             <Reorder.Item key={visitor.id} value={visitor}>
-                                 <VisitorListItem 
-                                    visitor={visitor} 
-                                    queueData={queueData} 
-                                    onTogglePriority={() => handleTogglePriority(visitor.id, !!visitor.isPriority)}
-                                    onClick={() => setSelectedVisitor(visitor)}
-                                    isDraggable
-                                />
-                             </Reorder.Item>
+                             <DraggableVisitorListItem 
+                                key={visitor.id}
+                                visitor={visitor}
+                                queueData={queueData}
+                                handleTogglePriority={handleTogglePriority}
+                                setSelectedVisitor={setSelectedVisitor}
+                             />
                         ))}
                     </Reorder.Group>
                   )
@@ -746,166 +744,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           </div>
       )}
 
-      {/* --- MODALS --- */}
-
-      {/* Visitor Detail Modal */}
-      <AnimatePresence>
-          {selectedVisitor && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-                  <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full relative overflow-hidden"
-                  >
-                      {/* Decorative Background */}
-                      <div className={`absolute top-0 left-0 right-0 h-24 ${selectedVisitor.isPriority ? 'bg-gradient-to-br from-amber-300 to-yellow-500' : 'bg-gradient-to-br from-blue-500 to-indigo-600'}`}></div>
-                      <button onClick={() => setSelectedVisitor(null)} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-colors z-10"><X size={20} /></button>
-
-                      <div className="relative pt-8 flex flex-col items-center text-center">
-                          <div className={`w-24 h-24 rounded-2xl flex items-center justify-center text-4xl font-black shadow-xl mb-4 border-4 border-white ${selectedVisitor.isPriority ? 'bg-amber-100 text-amber-600' : 'bg-white text-gray-900'}`}>
-                              {String(selectedVisitor.ticketNumber).padStart(3, '0')}
-                          </div>
-                          
-                          <h2 className="text-2xl font-bold text-gray-900 mb-1">{selectedVisitor.name}</h2>
-                          <div className="flex items-center gap-2 mb-6">
-                              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                  Wait: ~{Math.max(1, (selectedVisitor.ticketNumber - queueData.lastCalledNumber) * queueData.metrics.avgWaitTime)} min
-                              </span>
-                              {selectedVisitor.isPriority && (
-                                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full border border-amber-200 uppercase">VIP</span>
-                              )}
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 w-full mb-6">
-                              {/* VIP Toggle - Enhanced */}
-                              <button 
-                                onClick={() => handleTogglePriority(selectedVisitor.id, !!selectedVisitor.isPriority)}
-                                className={`col-span-2 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-sm ${
-                                    selectedVisitor.isPriority 
-                                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-white shadow-amber-500/30 border border-transparent' 
-                                    : 'bg-white border-2 border-dashed border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50'
-                                }`}
-                              >
-                                  <Star size={20} fill={selectedVisitor.isPriority ? "currentColor" : "none"} className={selectedVisitor.isPriority ? "text-white" : ""} /> 
-                                  {selectedVisitor.isPriority ? 'VIP Status Active' : 'Mark as VIP Visitor'}
-                              </button>
-                              
-                              <button 
-                                onClick={handleServeSpecific}
-                                className="py-3 bg-primary-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-primary-600/20 hover:bg-primary-700 flex items-center justify-center gap-2"
-                              >
-                                  <Zap size={16} fill="currentColor" /> Serve Now
-                              </button>
-                              
-                              <button 
-                                onClick={() => handleRecall(selectedVisitor.id)}
-                                className="py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50 flex items-center justify-center gap-2"
-                              >
-                                  <Bell size={16} /> Alert
-                              </button>
-                          </div>
-
-                          <button 
-                            onClick={handleRemoveSpecific}
-                            className="w-full py-3 text-red-500 font-bold text-sm hover:bg-red-50 rounded-xl transition-colors flex items-center justify-center gap-2"
-                          >
-                              <Trash2 size={16} /> Remove from Queue
-                          </button>
-                      </div>
-                  </motion.div>
-              </div>
-          )}
-      </AnimatePresence>
-
-      {/* QR Code Modal */}
-      <AnimatePresence>
-          {showQrModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-                  <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-white rounded-3xl p-8 max-w-sm w-full flex flex-col items-center text-center"
-                  >
-                      <h3 className="text-xl font-bold mb-4">Scan to Join</h3>
-                      {/* Reduced Visual Size Container */}
-                      <div className="bg-white p-2 rounded-xl border border-gray-100 shadow-sm mb-6 w-52 flex items-center justify-center mx-auto overflow-hidden">
-                          <canvas ref={canvasRef} className="w-full h-auto object-contain rounded-lg" />
-                      </div>
-                      <div className="flex gap-2 w-full">
-                          <button onClick={handleDownloadQR} className="flex-1 py-3 bg-gray-100 text-gray-900 font-bold rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2">
-                              <Download size={18} /> Download
-                          </button>
-                          <button onClick={() => setShowQrModal(false)} className="py-3 px-6 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800">
-                              Done
-                          </button>
-                      </div>
-                  </motion.div>
-              </div>
-          )}
-      </AnimatePresence>
-
-      {/* Add Visitor Modal */}
-      <AnimatePresence>
-          {showAddModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-                  <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-white rounded-3xl p-8 max-w-sm w-full"
-                  >
-                      <h3 className="text-xl font-bold mb-4">Add Visitor Manually</h3>
-                      <form onSubmit={handleAddVisitor}>
-                          <input 
-                            autoFocus
-                            type="text" 
-                            placeholder="Visitor Name" 
-                            value={newVisitorName}
-                            onChange={(e) => setNewVisitorName(e.target.value)}
-                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
-                          />
-                          <div className="flex gap-3">
-                              <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl">Cancel</button>
-                              <button type="submit" className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl shadow-lg shadow-primary-600/20">Add</button>
-                          </div>
-                      </form>
-                  </motion.div>
-              </div>
-          )}
-      </AnimatePresence>
-
-       {/* Call By Number Modal */}
-       <AnimatePresence>
-          {showCallModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-                  <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-white rounded-3xl p-8 max-w-sm w-full"
-                  >
-                      <h3 className="text-xl font-bold mb-4">Call by Ticket Number</h3>
-                      <form onSubmit={handleCallByNumber}>
-                          <input 
-                            autoFocus
-                            type="number" 
-                            placeholder="Enter Ticket #" 
-                            value={callNumberInput}
-                            onChange={(e) => setCallNumberInput(e.target.value)}
-                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
-                          />
-                          <div className="flex gap-3">
-                              <button type="button" onClick={() => setShowCallModal(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl">Cancel</button>
-                              <button type="submit" className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl shadow-lg shadow-primary-600/20">Call</button>
-                          </div>
-                      </form>
-                  </motion.div>
-              </div>
-          )}
-      </AnimatePresence>
-
+      {/* ... (Existing Modals remain unchanged) ... */}
+      {/* ... Modals code ... */}
+      
       {/* Settings Modal */}
       <AnimatePresence>
           {showSettingsModal && (
@@ -1043,27 +884,219 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               </div>
           )}
       </AnimatePresence>
+
+      {/* Visitor Detail Modal */}
+      <AnimatePresence>
+          {selectedVisitor && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full relative overflow-hidden"
+                  >
+                      {/* Decorative Background */}
+                      <div className={`absolute top-0 left-0 right-0 h-24 ${selectedVisitor.isPriority ? 'bg-gradient-to-br from-amber-300 to-yellow-500' : 'bg-gradient-to-br from-blue-500 to-indigo-600'}`}></div>
+                      <button onClick={() => setSelectedVisitor(null)} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-colors z-10"><X size={20} /></button>
+
+                      <div className="relative pt-8 flex flex-col items-center text-center">
+                          <div className={`w-24 h-24 rounded-2xl flex items-center justify-center text-4xl font-black shadow-xl mb-4 border-4 border-white ${selectedVisitor.isPriority ? 'bg-amber-100 text-amber-600' : 'bg-white text-gray-900'}`}>
+                              {String(selectedVisitor.ticketNumber).padStart(3, '0')}
+                          </div>
+                          
+                          <h2 className="text-2xl font-bold text-gray-900 mb-1">{selectedVisitor.name}</h2>
+                          <div className="flex items-center gap-2 mb-6">
+                              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                  Wait: ~{Math.max(1, (selectedVisitor.ticketNumber - queueData.lastCalledNumber) * queueData.metrics.avgWaitTime)} min
+                              </span>
+                              {selectedVisitor.isPriority && (
+                                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full border border-amber-200 uppercase">VIP</span>
+                              )}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 w-full mb-6">
+                              {/* VIP Toggle - Enhanced */}
+                              <button 
+                                onClick={() => handleTogglePriority(selectedVisitor.id, !!selectedVisitor.isPriority)}
+                                className={`col-span-2 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-sm ${
+                                    selectedVisitor.isPriority 
+                                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-white shadow-amber-500/30 border border-transparent' 
+                                    : 'bg-white border-2 border-dashed border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50'
+                                }`}
+                              >
+                                  <Star size={20} fill={selectedVisitor.isPriority ? "currentColor" : "none"} className={selectedVisitor.isPriority ? "text-white" : ""} /> 
+                                  {selectedVisitor.isPriority ? 'VIP Status Active' : 'Mark as VIP Visitor'}
+                              </button>
+                              
+                              <button 
+                                onClick={handleServeSpecific}
+                                className="py-3 bg-primary-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-primary-600/20 hover:bg-primary-700 flex items-center justify-center gap-2"
+                              >
+                                  <Zap size={16} fill="currentColor" /> Serve Now
+                              </button>
+                              
+                              <button 
+                                onClick={() => handleRecall(selectedVisitor.id)}
+                                className="py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50 flex items-center justify-center gap-2"
+                              >
+                                  <Bell size={16} /> Alert
+                              </button>
+                          </div>
+
+                          <button 
+                            onClick={handleRemoveSpecific}
+                            className="w-full py-3 text-red-500 font-bold text-sm hover:bg-red-50 rounded-xl transition-colors flex items-center justify-center gap-2"
+                          >
+                              <Trash2 size={16} /> Remove from Queue
+                          </button>
+                      </div>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+      {/* ... Add Visitor Modal, Call By Number Modal, QR Modal (unchanged logic, only render inside component if needed) ... */}
+      <AnimatePresence>{/* ... other modals ... */}</AnimatePresence>
+      <AnimatePresence>
+          {showQrModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-8 max-w-sm w-full flex flex-col items-center text-center"
+                  >
+                      <h3 className="text-xl font-bold mb-4">Scan to Join</h3>
+                      <div className="bg-white p-2 rounded-xl border border-gray-100 shadow-sm mb-6 w-52 flex items-center justify-center mx-auto overflow-hidden">
+                          <canvas ref={canvasRef} className="w-full h-auto object-contain rounded-lg" />
+                      </div>
+                      <div className="flex gap-2 w-full">
+                          <button onClick={handleDownloadQR} className="flex-1 py-3 bg-gray-100 text-gray-900 font-bold rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2">
+                              <Download size={18} /> Download
+                          </button>
+                          <button onClick={() => setShowQrModal(false)} className="py-3 px-6 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800">
+                              Done
+                          </button>
+                      </div>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+      {/* Add Visitor Modal */}
+      <AnimatePresence>
+          {showAddModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-8 max-w-sm w-full"
+                  >
+                      <h3 className="text-xl font-bold mb-4">Add Visitor Manually</h3>
+                      <form onSubmit={handleAddVisitor}>
+                          <input 
+                            autoFocus
+                            type="text" 
+                            placeholder="Visitor Name" 
+                            value={newVisitorName}
+                            onChange={(e) => setNewVisitorName(e.target.value)}
+                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
+                          />
+                          <div className="flex gap-3">
+                              <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl">Cancel</button>
+                              <button type="submit" className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl shadow-lg shadow-primary-600/20">Add</button>
+                          </div>
+                      </form>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+       {/* Call By Number Modal */}
+       <AnimatePresence>
+          {showCallModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white rounded-3xl p-8 max-w-sm w-full"
+                  >
+                      <h3 className="text-xl font-bold mb-4">Call by Ticket Number</h3>
+                      <form onSubmit={handleCallByNumber}>
+                          <input 
+                            autoFocus
+                            type="number" 
+                            placeholder="Enter Ticket #" 
+                            value={callNumberInput}
+                            onChange={(e) => setCallNumberInput(e.target.value)}
+                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
+                          />
+                          <div className="flex gap-3">
+                              <button type="button" onClick={() => setShowCallModal(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl">Cancel</button>
+                              <button type="submit" className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl shadow-lg shadow-primary-600/20">Call</button>
+                          </div>
+                      </form>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
     </div>
   );
 };
 
-// Sub-component for individual list items to keep main render clean
+// Wrapper for draggable items to isolate hooks
+interface DraggableVisitorListItemProps {
+    visitor: Visitor; 
+    queueData: QueueData; 
+    handleTogglePriority: (id: string, current: boolean) => void; 
+    setSelectedVisitor: (v: Visitor) => void;
+}
+
+const DraggableVisitorListItem: React.FC<DraggableVisitorListItemProps> = ({ visitor, queueData, handleTogglePriority, setSelectedVisitor }) => {
+    const dragControls = useDragControls();
+    
+    return (
+        <Reorder.Item 
+            value={visitor} 
+            id={visitor.id}
+            dragListener={false}
+            dragControls={dragControls}
+        >
+            <VisitorListItem 
+                visitor={visitor} 
+                queueData={queueData} 
+                onTogglePriority={() => handleTogglePriority(visitor.id, !!visitor.isPriority)}
+                onClick={() => setSelectedVisitor(visitor)}
+                isDraggable={true}
+                onDragStart={(e) => dragControls.start(e)}
+            />
+        </Reorder.Item>
+    );
+};
+
 interface VisitorListItemProps {
     visitor: Visitor; 
     queueData: QueueData; 
     onTogglePriority: () => void;
     onClick: () => void; 
-    isDraggable?: boolean; 
+    isDraggable?: boolean;
+    onDragStart?: (e: React.PointerEvent) => void;
 }
 
-const VisitorListItem: React.FC<VisitorListItemProps> = ({ visitor, queueData, onTogglePriority, onClick, isDraggable }) => (
+const VisitorListItem: React.FC<VisitorListItemProps> = ({ visitor, queueData, onTogglePriority, onClick, isDraggable, onDragStart }) => (
     <div
         onClick={onClick}
         className={`p-4 flex items-center justify-between rounded-2xl mb-1 border transition-all cursor-pointer ${visitor.isPriority ? 'bg-gradient-to-r from-amber-50 via-white to-white border-amber-200 shadow-sm' : 'bg-white border-transparent border-b-gray-50 last:border-b-0 hover:bg-blue-50/20'}`}
     >
         <div className="flex items-center gap-4">
              {isDraggable && (
-                <div className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing p-1" onClick={(e) => e.stopPropagation()}>
+                <div 
+                    className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing p-1" 
+                    onPointerDown={onDragStart}
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <GripVertical size={20} />
                 </div>
             )}
