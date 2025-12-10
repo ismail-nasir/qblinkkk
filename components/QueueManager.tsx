@@ -144,40 +144,76 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Optimized High-Res Canvas Layout for Printing
+    const width = 600;
+    const height = 800;
+    const qrSize = 480;
+    const padding = 60;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    // Background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+
     const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
-    // Reduced resolution for better performance, still high enough for printing
-    const qrSize = 600; 
-    
-    // Clear
-    ctx.clearRect(0, 0, qrSize, qrSize);
     
     try {
-        await QRCode.toCanvas(canvas, joinUrl, {
+        const tempCanvas = document.createElement('canvas');
+        await QRCode.toCanvas(tempCanvas, joinUrl, {
             width: qrSize,
-            margin: 2,
+            margin: 1,
             color: {
-                dark: '#111827',
+                dark: '#000000', // Pure black for max contrast
                 light: '#FFFFFF'
             },
             errorCorrectionLevel: 'H'
         });
         
+        // Draw QR
+        const qrX = (width - qrSize) / 2;
+        const qrY = padding;
+        ctx.drawImage(tempCanvas, qrX, qrY);
+        
         // Overlay Logo if exists
         if (logoPreview) {
             const img = new Image();
             img.src = logoPreview;
-            img.onload = () => {
-                const logoSize = qrSize * 0.2;
-                const x = (qrSize - logoSize) / 2;
-                const y = (qrSize - logoSize) / 2;
-                
-                // Draw white background for logo
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(x - 10, y - 10, logoSize + 20, logoSize + 20);
-                
-                ctx.drawImage(img, x, y, logoSize, logoSize);
-            };
+            await new Promise((resolve) => {
+                img.onload = resolve;
+                img.onerror = resolve; 
+            });
+            
+            const logoSize = qrSize * 0.2;
+            const lx = qrX + (qrSize - logoSize) / 2;
+            const ly = qrY + (qrSize - logoSize) / 2;
+            
+            // Logo background
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(lx - 8, ly - 8, logoSize + 16, logoSize + 16);
+            
+            ctx.drawImage(img, lx, ly, logoSize, logoSize);
         }
+
+        // Add Text Details for better usability
+        ctx.textAlign = 'center';
+        
+        // Queue Name
+        ctx.fillStyle = '#111827';
+        ctx.font = 'bold 42px sans-serif';
+        ctx.fillText(currentQueue.name, width / 2, qrY + qrSize + 70);
+
+        // Helper Text
+        ctx.fillStyle = '#6B7280';
+        ctx.font = '500 24px sans-serif';
+        ctx.fillText('Scan to join the queue', width / 2, qrY + qrSize + 110);
+        
+        // Brand
+        ctx.fillStyle = '#E5E7EB';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('Powered by Qblink', width / 2, height - 20);
+
     } catch (e) {
         console.error("QR Generation failed", e);
     }
@@ -715,8 +751,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                     className="bg-white rounded-3xl p-8 max-w-sm w-full flex flex-col items-center text-center"
                   >
                       <h3 className="text-xl font-bold mb-4">Scan to Join</h3>
-                      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6 w-64 h-64 flex items-center justify-center mx-auto">
-                          <canvas ref={canvasRef} className="w-full h-full object-contain rounded-lg" />
+                      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6 w-64 h-auto flex items-center justify-center mx-auto overflow-hidden">
+                          <canvas ref={canvasRef} className="w-full h-auto object-contain rounded-lg" />
                       </div>
                       <div className="flex gap-2 w-full">
                           <button onClick={handleDownloadQR} className="flex-1 py-3 bg-gray-100 text-gray-900 font-bold rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2">
