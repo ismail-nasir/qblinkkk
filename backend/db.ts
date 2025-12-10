@@ -1,4 +1,3 @@
-
 import { Pool, QueryResult } from 'pg';
 import dotenv from 'dotenv';
 
@@ -17,7 +16,7 @@ const pool = new Pool({
 
 pool.on('error', (err) => {
     console.error('Unexpected error on idle client', err);
-    process.exit(-1);
+    (process as any).exit(-1);
 });
 
 export const db = {

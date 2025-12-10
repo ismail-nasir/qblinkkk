@@ -1,10 +1,29 @@
 
 import { API_BASE_URL } from './config';
+import { mockBackend } from './mockBackend';
+
+const USE_MOCK_BACKEND = true; // Forced true for browser-only demo
 
 class ApiClient {
   private baseUrl: string = API_BASE_URL;
 
   private async request(endpoint: string, method: string, body?: any) {
+    // --- MOCK INTERCEPTION ---
+    if (USE_MOCK_BACKEND) {
+        // Retrieve current user from local storage token simulation for context
+        const userStr = localStorage.getItem('qblink_user');
+        const user = userStr ? JSON.parse(userStr) : undefined;
+        
+        try {
+            const response = await mockBackend.handleRequest(method, endpoint, body, user);
+            return response;
+        } catch (error: any) {
+            console.error("Mock API Error:", error);
+            throw error; // Re-throw to be caught by UI
+        }
+    }
+    // -------------------------
+
     const token = localStorage.getItem('qblink_token');
     
     const headers: HeadersInit = {
@@ -26,10 +45,8 @@ class ApiClient {
         });
 
         if (response.status === 401) {
-            // Token expired or invalid
             localStorage.removeItem('qblink_token');
             localStorage.removeItem('qblink_user');
-            // Only redirect if not already on auth page
             if (!window.location.pathname.includes('/auth') && window.location.pathname !== '/') {
                 window.location.href = '/'; 
             }
