@@ -391,46 +391,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       }
   };
   
-  // Chart Data Calculation
-  const chartData = useMemo(() => {
-    if (!queueData) return [];
-    const data = [];
-    const now = new Date();
-    // Generate last 6 hours
-    for (let i = 5; i >= 0; i--) {
-        const t = new Date(now.getTime() - i * 60 * 60 * 1000);
-        const hour = t.getHours();
-        
-        const servedInHour = queueData.visitors.filter(v => {
-            if (v.status !== 'served' || !v.servedTime) return false;
-            const vt = new Date(v.servedTime);
-            return vt.getHours() === hour && vt.getDate() === t.getDate();
-        });
-
-        const count = servedInHour.length;
-        const totalWait = servedInHour.reduce((sum, v) => {
-             const join = new Date(v.joinTime).getTime();
-             const serve = new Date(v.servedTime!).getTime();
-             return sum + (serve - join);
-        }, 0);
-        
-        const avgWait = count > 0 ? Math.round(totalWait / count / 60000) : 0;
-        
-        data.push({
-            time: `${hour}:00`,
-            served: count,
-            wait: avgWait
-        });
-    }
-    return data;
-  }, [queueData]);
-
   if (!queueData) return <div className="p-12 text-center text-gray-500">Loading Queue Data...</div>;
 
   const waitingVisitors = queueData.visitors
     .filter(v => v.status === 'waiting')
-    // We trust the backend order, which uses 'order' field or ticket number
-    // but here we ensure they are displayed in the correct order for drag/drop
     .sort((a, b) => {
         if (a.order && b.order) return a.order - b.order;
         return a.ticketNumber - b.ticketNumber;
@@ -449,12 +413,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const myCurrentVisitor = queueData.visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
   // Any visitor being served (for global count)
   const anyServingCount = queueData.visitors.filter(v => v.status === 'serving').length;
-
-  const servedLastHour = queueData.visitors.filter(v => {
-      if (v.status !== 'served' || !v.servedTime) return false;
-      const servedTime = new Date(v.servedTime).getTime();
-      return servedTime > Date.now() - 3600000;
-  }).length;
 
   return (
     <div className="container mx-auto px-4 pb-20 max-w-5xl">
@@ -599,7 +557,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           </div>
 
           {/* Enhanced Detailed Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
               {/* Waiting Now */}
               <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col items-center justify-center">
                   <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mb-2">
@@ -626,8 +584,33 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                   <span className="text-4xl font-black text-gray-900">{queueData.metrics.avgWaitTime}<span className="text-lg text-gray-400 font-medium ml-1">m</span></span>
                   <span className="text-sm font-bold text-gray-400 uppercase tracking-wide">Avg Wait</span>
               </div>
+
+              {/* Served Today */}
+              <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600 mb-2">
+                      <UserCheck size={24} />
+                  </div>
+                  <span className="text-4xl font-black text-gray-900">{queueData.metrics.served}</span>
+                  <span className="text-sm font-bold text-gray-400 uppercase tracking-wide">Served Today</span>
+              </div>
           </div>
       </div>
+
+      {/* Analytics: Last 7 Days History */}
+      {queueData.history && queueData.history.length > 0 && (
+          <div className="mb-8">
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2">Performance (Last 7 Days)</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                  {queueData.history.map((day, i) => (
+                      <div key={i} className={`p-3 rounded-2xl border text-center ${i === 0 ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
+                          <div className="text-xs font-bold text-gray-400 uppercase mb-1">{day.date}</div>
+                          <div className="text-xl font-black text-gray-900">{day.served}</div>
+                          <div className="text-[10px] font-medium text-gray-500">{day.avgWait}m avg wait</div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      )}
 
       {/* Actions Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
