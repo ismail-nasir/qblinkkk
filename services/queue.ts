@@ -81,7 +81,7 @@ export const queueService = {
       switch(type) {
           case 'restaurant': return { vip: true, multiCounter: true, anonymousMode: false, sms: true };
           case 'clinic': return { vip: true, multiCounter: true, anonymousMode: true, sms: true };
-          case 'bank': return { vip: true, multiCounter: true, anonymousMode: true, sms: false };
+          case 'bank': return { vip: true, multiCounter: true, anonymousMode: true, sms: true };
           case 'salon': return { vip: false, multiCounter: true, anonymousMode: false, sms: true };
           case 'retail': return { vip: false, multiCounter: true, anonymousMode: false, sms: false };
           case 'general': 
@@ -92,7 +92,7 @@ export const queueService = {
   createQueue: async (userId: string, name: string, estimatedWaitTime?: number, type: BusinessType = 'general', features?: Partial<QueueFeatures>): Promise<QueueInfo> => {
       // Merge default features for type with any custom overrides
       const defaultFeatures = queueService.getDefaultFeatures(type);
-      const finalFeatures = { ...defaultFeatures, ...features };
+      const featuresToUse = { ...defaultFeatures, ...features };
 
       if (firebaseService.isAvailable) {
           const queuesRef = firebaseService.ref(firebaseService.db, 'queues');
@@ -106,7 +106,7 @@ export const queueService = {
               createdAt: new Date().toISOString(),
               estimatedWaitTime: estimatedWaitTime || 5,
               businessType: type,
-              features: finalFeatures,
+              features: featuresToUse,
               settings: { 
                   soundEnabled: true, 
                   soundVolume: 1, 
@@ -120,7 +120,7 @@ export const queueService = {
           await firebaseService.set(newQueueRef, newQueue);
           return newQueue;
       }
-      return await api.post('/queue', { name, estimatedWaitTime, businessType: type, features: finalFeatures });
+      return await api.post('/queue', { name, estimatedWaitTime, businessType: type, features: featuresToUse });
   },
 
   updateQueue: async (userId: string, queueId: string, updates: Partial<QueueInfo>): Promise<QueueInfo | null> => {
@@ -163,14 +163,15 @@ export const queueService = {
           let ticketNumber = 1;
 
           await firebaseService.runTransaction(firebaseService.ref(firebaseService.db, `queues/${queueId}/counter`), (currentCounter: any) => {
-              return ((currentCounter as number) || 0) + 1;
+              // Ensure we treat currentCounter as a number even if unknown/any
+              return (Number(currentCounter) || 0) + 1;
           }).then(res => {
-              if (res.committed) ticketNumber = res.snapshot.val();
+              if (res.committed) ticketNumber = res.snapshot.val() as number;
           });
 
           // Determine Order: Get max order from existing
           const vSnap = await firebaseService.get(firebaseService.ref(firebaseService.db, `visitors/${queueId}`));
-          const vMap = vSnap.val() || {};
+          const vMap = (vSnap.val() as Record<string, any>) || {};
           const currentMaxOrder = Object.values(vMap).reduce((max: number, v: any) => Math.max(max, v.order || 0), 0);
 
           const newVisitor: Visitor = {

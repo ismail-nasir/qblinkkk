@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save, PauseCircle, PlayCircle, Megaphone, Star, Clock, TrendingUp, UserCheck, AlertTriangle, Zap, Store, Palette, Sliders, BarChart2, AlarmClock, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save, PauseCircle, PlayCircle, Megaphone, Star, Clock, TrendingUp, UserCheck, AlertTriangle, Zap, Store, Palette, Sliders, BarChart2, AlarmClock, ToggleLeft, ToggleRight, MessageSquare, Pipette } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -49,7 +49,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       soundType: 'beep',
       autoSkipMinutes: 0,
       gracePeriodMinutes: 2,
-      themeColor: '#3b82f6'
+      themeColor: '#3b82f6',
+      enableSMS: false
   });
 
   // QR Generation State
@@ -453,51 +454,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           </motion.div>
       )}
 
-      {/* ANALYTICS & SETTINGS TABS (Unchanged layout) */}
-      {activeTab === 'analytics' && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-              <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
-                  <div className="flex justify-between items-center mb-8">
-                      <div>
-                          <h3 className="text-xl font-bold text-gray-900">Performance Metrics</h3>
-                          <p className="text-gray-500">Real-time statistics for this queue.</p>
-                      </div>
-                      <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors">
-                          <Download size={16} /> Export CSV
-                      </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                      <div className="p-6 bg-blue-50 rounded-2xl">
-                          <p className="text-sm font-bold text-blue-600 uppercase tracking-wider mb-2">Total Served</p>
-                          <p className="text-4xl font-black text-gray-900">{queueData.metrics.served}</p>
-                      </div>
-                      <div className="p-6 bg-purple-50 rounded-2xl">
-                          <p className="text-sm font-bold text-purple-600 uppercase tracking-wider mb-2">Avg Wait Time</p>
-                          <p className="text-4xl font-black text-gray-900">{queueData.metrics.avgWaitTime}m</p>
-                      </div>
-                      <div className="p-6 bg-orange-50 rounded-2xl">
-                          <p className="text-sm font-bold text-orange-600 uppercase tracking-wider mb-2">Waiting Now</p>
-                          <p className="text-4xl font-black text-gray-900">{queueData.metrics.waiting}</p>
-                      </div>
-                  </div>
-
-                  <div className="h-[300px] w-full">
-                      <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Traffic Overview (Simulated)</h4>
-                      <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                              <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                              <YAxis axisLine={false} tickLine={false} />
-                              <Tooltip />
-                              <Area type="monotone" dataKey="visitors" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} />
-                          </AreaChart>
-                      </ResponsiveContainer>
-                  </div>
-              </div>
-          </motion.div>
-      )}
-
       {activeTab === 'settings' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Queue Configuration</h3>
@@ -507,7 +463,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                       <h4 className="font-bold text-gray-700 flex items-center gap-2"><Palette size={18} /> Branding</h4>
                       <div className="bg-gray-50 p-4 rounded-2xl">
                           <label className="block text-sm font-bold text-gray-700 mb-2">Theme Color</label>
-                          <div className="flex gap-2 flex-wrap">
+                          <div className="flex gap-2 flex-wrap items-center">
                               {['#3b82f6', '#ec4899', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#000000'].map(color => (
                                   <button 
                                     key={color} 
@@ -516,6 +472,16 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                     style={{backgroundColor: color}}
                                   />
                               ))}
+                              {/* Custom Color Input */}
+                              <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-gray-200 flex items-center justify-center">
+                                  <input 
+                                    type="color" 
+                                    value={settings.themeColor} 
+                                    onChange={(e) => setSettings({...settings, themeColor: e.target.value})}
+                                    className="absolute inset-0 w-[150%] h-[150%] -top-[25%] -left-[25%] p-0 border-0 cursor-pointer"
+                                  />
+                                  <Pipette size={14} className="pointer-events-none text-gray-500 relative z-10" />
+                              </div>
                           </div>
                       </div>
                       <div className="bg-gray-50 p-4 rounded-2xl">
@@ -538,6 +504,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                   {/* Automation & Sound */}
                   <div className="space-y-4">
                       <h4 className="font-bold text-gray-700 flex items-center gap-2"><Sliders size={18} /> Automation & Features</h4>
+                      
+                      {/* Grace Period */}
                       <div className="bg-gray-50 p-4 rounded-2xl">
                           <label className="block text-sm font-bold text-gray-700 mb-2">Grace Period (Call to Presence)</label>
                           <select 
@@ -552,6 +520,24 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                           </select>
                           <p className="text-xs text-gray-500 mt-2">Time for customer to confirm they are here before moving to back of queue.</p>
                       </div>
+
+                      {/* Auto Skip */}
+                      <div className="bg-gray-50 p-4 rounded-2xl">
+                          <label className="block text-sm font-bold text-gray-700 mb-2">Auto-Complete/Skip (Service Timeout)</label>
+                          <select 
+                            value={settings.autoSkipMinutes || 0}
+                            onChange={(e) => setSettings({...settings, autoSkipMinutes: parseInt(e.target.value)})}
+                            className="w-full p-2 rounded-lg border border-gray-200 text-sm"
+                          >
+                              <option value={0}>Disabled</option>
+                              <option value={10}>10 Minutes</option>
+                              <option value={20}>20 Minutes</option>
+                              <option value={30}>30 Minutes</option>
+                              <option value={60}>60 Minutes</option>
+                          </select>
+                          <p className="text-xs text-gray-500 mt-2">Automatically mark as skipped if 'serving' takes too long (e.g. no-shows).</p>
+                      </div>
+
                       {/* Feature Toggles */}
                       <div className="bg-gray-50 p-4 rounded-2xl space-y-3">
                           <div className="flex justify-between items-center">
@@ -572,7 +558,15 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                   {currentQueue.features.anonymousMode ? <ToggleRight size={24} className="text-primary-600" /> : <ToggleLeft size={24} className="text-gray-400" />}
                               </button>
                           </div>
+                          <div className="flex justify-between items-center">
+                              <label className="text-sm font-bold text-gray-700 flex items-center gap-1"><MessageSquare size={14} /> SMS Notifications</label>
+                              <button onClick={() => setSettings({...settings, enableSMS: !settings.enableSMS})}>
+                                  {settings.enableSMS ? <ToggleRight size={24} className="text-primary-600" /> : <ToggleLeft size={24} className="text-gray-400" />}
+                              </button>
+                          </div>
                       </div>
+
+                      {/* Sound Settings */}
                       <div className="bg-gray-50 p-4 rounded-2xl">
                           <div className="flex justify-between mb-2">
                               <label className="text-sm font-bold text-gray-700">Sound Alert</label>
