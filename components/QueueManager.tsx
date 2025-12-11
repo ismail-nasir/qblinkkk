@@ -3,8 +3,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings, BusinessType } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { getQueueInsights } from '../services/geminiService';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles } from 'lucide-react';
+import { getQueueInsights, optimizeQueueOrder, analyzeCustomerFeedback } from '../services/geminiService';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -41,6 +41,12 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [callNumberInput, setCallNumberInput] = useState('');
   const [announcementInput, setAnnouncementInput] = useState(queue.announcement || '');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // AI States
+  const [isSmartSorting, setIsSmartSorting] = useState(false);
+  const [smartSortReasoning, setSmartSortReasoning] = useState<string | null>(null);
+  const [feedbackAnalysis, setFeedbackAnalysis] = useState<{ summary: string, sentiment: string, keywords: string[] } | null>(null);
+  const [isAnalyzingFeedback, setIsAnalyzingFeedback] = useState(false);
 
   // Settings State
   const [settings, setSettings] = useState<QueueSettings>(currentQueue.settings || {
@@ -245,6 +251,45 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       const insight = await getQueueInsights(queueData.metrics);
       setAiInsight(insight);
       setIsLoadingInsight(false);
+  };
+
+  const handleSmartSort = async () => {
+      if (!queueData) return;
+      const waiting = queueData.visitors.filter(v => v.status === 'waiting');
+      if (waiting.length < 2) return; // No need to sort
+
+      setIsSmartSorting(true);
+      setSmartSortReasoning(null);
+      
+      const result = await optimizeQueueOrder(waiting);
+      
+      if (result && result.orderedIds) {
+          // Reorder locally first to visualize
+          const idMap = new Map(waiting.map(v => [v.id, v]));
+          const newOrder = result.orderedIds.map(id => idMap.get(id)).filter(Boolean) as Visitor[];
+          
+          // Append any missing (fallback)
+          const missing = waiting.filter(v => !result.orderedIds.includes(v.id));
+          const finalOrder = [...newOrder, ...missing];
+
+          await queueService.reorderQueue(queue.id, finalOrder);
+          setSmartSortReasoning(result.reasoning);
+          fetchData();
+      }
+      setIsSmartSorting(false);
+  };
+
+  const handleAnalyzeFeedback = async () => {
+      if (!queueData) return;
+      setIsAnalyzingFeedback(true);
+      
+      const feedbackItems = queueData.visitors
+          .filter(v => v.feedback || (v.rating && v.rating > 0))
+          .map(v => ({ rating: v.rating || 0, text: v.feedback }));
+          
+      const result = await analyzeCustomerFeedback(feedbackItems);
+      setFeedbackAnalysis(result);
+      setIsAnalyzingFeedback(false);
   };
 
   // --- ACTIONS ---
@@ -453,6 +498,25 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                   </button>
               </div>
 
+              {/* Smart Sort Suggestion Banner */}
+              <AnimatePresence>
+                  {smartSortReasoning && (
+                      <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="bg-purple-50 border border-purple-100 rounded-2xl p-4 mb-6 flex items-start gap-3"
+                      >
+                          <BrainCircuit size={20} className="text-purple-600 mt-0.5 shrink-0" />
+                          <div>
+                              <h4 className="text-sm font-bold text-purple-900">AI Reorder Applied</h4>
+                              <p className="text-xs text-purple-700 mt-1 leading-relaxed">{smartSortReasoning}</p>
+                              <button onClick={() => setSmartSortReasoning(null)} className="text-xs font-bold text-purple-600 hover:underline mt-2">Dismiss</button>
+                          </div>
+                      </motion.div>
+                  )}
+              </AnimatePresence>
+
               {/* Waiting List */}
               <div className="bg-white rounded-[32px] shadow-sm overflow-hidden mb-8">
                   <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -460,9 +524,23 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                           <h3 className="font-bold text-lg text-gray-900">Waiting List</h3>
                           <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{queueData.metrics.waiting} Total</span>
                       </div>
-                      <div className="relative w-full sm:w-auto">
-                          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                          <input type="text" placeholder="Search name or ticket..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full sm:w-64 pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-primary-500/20 transition-all" />
+                      
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                          {/* Search */}
+                          <div className="relative flex-1 sm:w-64">
+                              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                              <input type="text" placeholder="Search name or ticket..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-primary-500/20 transition-all" />
+                          </div>
+                          
+                          {/* Smart Sort Button */}
+                          <button 
+                              onClick={handleSmartSort}
+                              disabled={isSmartSorting || queueData.metrics.waiting < 2}
+                              className="p-2 bg-purple-50 text-purple-600 rounded-xl border border-purple-100 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                              title="Smart Sort with AI"
+                          >
+                              {isSmartSorting ? <Sparkles size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                          </button>
                       </div>
                   </div>
                   <div className="max-h-[500px] overflow-y-auto p-1">
@@ -552,6 +630,54 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                               {queueData.metrics.averageRating > 0 && <Star className="text-yellow-500 fill-yellow-500" size={24} />}
                           </div>
                       </div>
+                  </div>
+
+                  {/* Feedback Analysis Card */}
+                  <div className="mb-12 border border-gray-100 rounded-3xl p-6 bg-gray-50/50">
+                      <div className="flex justify-between items-center mb-4">
+                          <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <MessageSquare size={18} className="text-gray-500" /> AI Feedback Analysis
+                          </h4>
+                          <button 
+                              onClick={handleAnalyzeFeedback}
+                              disabled={isAnalyzingFeedback}
+                              className="text-xs font-bold text-primary-600 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                              {isAnalyzingFeedback ? 'Analyzing...' : 'Analyze Feedback'}
+                          </button>
+                      </div>
+                      
+                      {feedbackAnalysis ? (
+                          <div className="space-y-4 animate-fade-in">
+                              <div className="flex items-center gap-3">
+                                  <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                                      feedbackAnalysis.sentiment === 'positive' ? 'bg-green-100 text-green-700 border-green-200' :
+                                      feedbackAnalysis.sentiment === 'negative' ? 'bg-red-100 text-red-700 border-red-200' :
+                                      'bg-gray-100 text-gray-700 border-gray-200'
+                                  }`}>
+                                      {feedbackAnalysis.sentiment} Sentiment
+                                  </div>
+                              </div>
+                              <p className="text-gray-700 text-sm leading-relaxed font-medium">
+                                  "{feedbackAnalysis.summary}"
+                              </p>
+                              <div>
+                                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Key Topics</span>
+                                  <div className="flex flex-wrap gap-2">
+                                      {feedbackAnalysis.keywords.map((k, i) => (
+                                          <span key={i} className="px-2 py-1 bg-white border border-gray-200 rounded-md text-xs text-gray-600">
+                                              #{k}
+                                          </span>
+                                      ))}
+                                  </div>
+                              </div>
+                          </div>
+                      ) : (
+                          <div className="text-center py-8 text-gray-400 text-sm">
+                              <Sparkles size={24} className="mx-auto mb-2 opacity-30" />
+                              <p>Run analysis to get AI-powered insights from customer feedback.</p>
+                          </div>
+                      )}
                   </div>
 
                   <div className="h-[300px] w-full">
