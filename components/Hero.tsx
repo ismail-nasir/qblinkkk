@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, Zap, LogOut } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
-import HeroScene from './HeroScene';
+
+const HeroScene = lazy(() => import('./HeroScene'));
 
 interface HeroProps {
   onGetStarted?: () => void;
@@ -18,7 +19,9 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
 
       {/* 2. 3D Animation Layer */}
       <div className="absolute inset-0 z-0 opacity-60 pointer-events-none">
-        <HeroScene />
+        <Suspense fallback={null}>
+            <HeroScene />
+        </Suspense>
       </div>
 
       {/* 3. Gradient Overlay */}

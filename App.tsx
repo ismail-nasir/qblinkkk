@@ -1,19 +1,19 @@
 
 import React, { useState, useEffect, Suspense, lazy } from 'react';
+import Navbar from './components/Navbar';
+import Hero from './components/Hero';
+import TrustedBy from './components/TrustedBy';
+import HowItWorks from './components/HowItWorks';
+import Features from './components/Features';
+import UseCases from './components/UseCases';
+import Pricing from './components/Pricing';
+import FAQ from './components/FAQ';
+import Footer from './components/Footer';
+import PainPoints from './components/PainPoints';
 import { AppView, User } from './types';
 import { authService } from './services/auth';
 
-// Lazy load ALL components to prevent module evaluation errors from blocking the app mount
-const Navbar = lazy(() => import('./components/Navbar'));
-const Hero = lazy(() => import('./components/Hero'));
-const TrustedBy = lazy(() => import('./components/TrustedBy'));
-const HowItWorks = lazy(() => import('./components/HowItWorks'));
-const Features = lazy(() => import('./components/Features'));
-const UseCases = lazy(() => import('./components/UseCases'));
-const Pricing = lazy(() => import('./components/Pricing'));
-const FAQ = lazy(() => import('./components/FAQ'));
-const Footer = lazy(() => import('./components/Footer'));
-const PainPoints = lazy(() => import('./components/PainPoints'));
+// Lazy load pages to split code
 const About = lazy(() => import('./components/About'));
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
 const Terms = lazy(() => import('./components/Terms'));
@@ -100,7 +100,7 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  // Native SVG Loader to avoid dependencies in the critical path
+  // Native SVG Loader
   const LoadingScreen = () => (
     <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
       <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -164,13 +164,13 @@ const App: React.FC = () => {
         <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-blue-200/30 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[-10%] left-[20%] w-[60%] h-[50%] bg-cyan-200/30 rounded-full blur-[120px] animate-blob animation-delay-4000"></div>
       </div>
-      <Suspense fallback={<LoadingScreen />}>
-        <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
-        <main className="relative z-10 min-h-screen">
+      <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
+      <main className="relative z-10 min-h-screen">
+        <Suspense fallback={<LoadingScreen />}>
           {content}
-        </main>
-        <Footer onNavigate={handleNavigate} />
-      </Suspense>
+        </Suspense>
+      </main>
+      <Footer onNavigate={handleNavigate} />
     </div>
   );
   
@@ -195,22 +195,20 @@ const App: React.FC = () => {
         <div className="absolute bottom-[-10%] left-[20%] w-[60%] h-[50%] bg-cyan-200/30 rounded-full blur-[120px] animate-blob animation-delay-4000"></div>
       </div>
 
-      <Suspense fallback={<LoadingScreen />}>
-        <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
-        
-        <main className="relative z-10">
-          <Hero onGetStarted={handleGetStarted} />
-          <div id="trusted-by"><TrustedBy /></div>
-          <PainPoints />
-          <div id="how-it-works"><HowItWorks /></div>
-          <div id="features"><Features /></div>
-          <div id="use-cases"><UseCases /></div>
-          <div id="pricing"><Pricing onGetStarted={handleGetStarted} /></div>
-          <div id="faq"><FAQ /></div>
-        </main>
+      <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
+      
+      <main className="relative z-10">
+        <Hero onGetStarted={handleGetStarted} />
+        <div id="trusted-by"><TrustedBy /></div>
+        <PainPoints />
+        <div id="how-it-works"><HowItWorks /></div>
+        <div id="features"><Features /></div>
+        <div id="use-cases"><UseCases /></div>
+        <div id="pricing"><Pricing onGetStarted={handleGetStarted} /></div>
+        <div id="faq"><FAQ /></div>
+      </main>
 
-        <Footer onNavigate={handleNavigate} />
-      </Suspense>
+      <Footer onNavigate={handleNavigate} />
     </div>
   );
 };
