@@ -1,3 +1,4 @@
+
 import { QueueData, QueueInfo, Visitor, ActivityLog, BusinessType, QueueFeatures } from '../types';
 import { api } from './api';
 import { firebaseService } from './firebase';
@@ -49,6 +50,12 @@ export const queueService = {
           const waiting = visitors.filter(v => v.status === 'waiting').length;
           const served = visitors.filter(v => v.status === 'served').length;
           
+          // Calculate Rating
+          const ratedVisitors = visitors.filter(v => v.rating && v.rating > 0);
+          const averageRating = ratedVisitors.length > 0 
+            ? (ratedVisitors.reduce((acc, v) => acc + (v.rating || 0), 0) / ratedVisitors.length).toFixed(1)
+            : 0;
+
           const lastCalled = visitors
             .filter(v => v.status === 'serving' || v.status === 'served')
             .sort((a,b) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
@@ -57,7 +64,7 @@ export const queueService = {
               queueId,
               currentTicket: lastCalled,
               lastCalledNumber: lastCalled,
-              metrics: { waiting, served, avgWaitTime: queue.estimatedWaitTime || 5 },
+              metrics: { waiting, served, avgWaitTime: queue.estimatedWaitTime || 5, averageRating: Number(averageRating) },
               visitors: visitors.sort((a,b) => {
                   // 1. VIPs always on top (unless late logic applies, handled by order logic below)
                   if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
@@ -518,6 +525,17 @@ export const queueService = {
       }
   },
 
+  submitFeedback: async (queueId: string, visitorId: string, rating: number, feedback?: string) => {
+      if (firebaseService.isAvailable) {
+          await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${visitorId}`), { 
+              rating, 
+              feedback 
+          });
+          return;
+      }
+      return await api.post(`/queue/${queueId}/feedback`, { visitorId, rating, feedback });
+  },
+
   getSystemLogs: async () => {
       return await api.get('/admin/system-logs');
   },
@@ -525,7 +543,7 @@ export const queueService = {
   exportStatsCSV: async (queueId: string, name: string) => {
       // ... existing code ...
       const data = await queueService.getQueueData(queueId);
-      const headers = ['Ticket Number', 'Name', 'Phone', 'Status', 'Join Time', 'Served Time', 'Served By', 'Priority', 'Late'];
+      const headers = ['Ticket Number', 'Name', 'Phone', 'Status', 'Join Time', 'Served Time', 'Served By', 'Priority', 'Late', 'Rating', 'Feedback'];
       const rows = data.visitors.map(v => [
           v.ticketNumber,
           v.name,
@@ -535,7 +553,9 @@ export const queueService = {
           v.servedTime ? new Date(v.servedTime).toLocaleString() : '',
           v.servedBy || '',
           v.isPriority ? 'Yes' : 'No',
-          v.isLate ? 'Yes' : 'No'
+          v.isLate ? 'Yes' : 'No',
+          v.rating || '',
+          v.feedback || ''
       ]);
       // ... (rest of export logic remains same)
       const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');

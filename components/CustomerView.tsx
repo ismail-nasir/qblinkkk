@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle, AlertCircle } from 'lucide-react';
+import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle, AlertCircle, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CustomerViewProps {
@@ -44,6 +44,10 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   // Countdown State
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
+  // Feedback State
+  const [rating, setRating] = useState(0);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const fetchData = useCallback(async () => {
         try {
@@ -91,6 +95,12 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
     if (myVisitorId && queueData) {
         const visitor = queueData.visitors.find(v => v.id === myVisitorId);
         setMyVisitor(visitor || null);
+        
+        // Restore feedback state if already rated
+        if (visitor && visitor.rating && visitor.rating > 0) {
+            setFeedbackSubmitted(true);
+            setRating(visitor.rating);
+        }
         
         if (visitor) {
             // Check for Alert Trigger
@@ -342,6 +352,8 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
               setAlertShown(false);
               stopAlertLoop();
               setIsAlerting(false);
+              setFeedbackSubmitted(false);
+              setRating(0);
           }
       }
   };
@@ -355,6 +367,8 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       setAlertShown(false);
       stopAlertLoop();
       setIsAlerting(false);
+      setFeedbackSubmitted(false);
+      setRating(0);
   };
 
   const handleImComing = () => {
@@ -364,6 +378,14 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
           setIsAlerting(false);
           stopAlertLoop();
           stopTitleBlink();
+      }
+  };
+
+  const submitFeedback = async (score: number) => {
+      setRating(score);
+      setFeedbackSubmitted(true);
+      if (myVisitorId) {
+          await queueService.submitFeedback(queueId, myVisitorId, score);
       }
   };
 
@@ -499,8 +521,32 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                       {myVisitor.status === 'served' ? 'You have been served!' : 'You left the queue'}
                   </h2>
                   <p className="text-gray-500 mb-8 font-medium">
-                      {myVisitor.status === 'served' ? 'Thanks for visiting. Have a great day!' : 'We hope to see you again soon.'}
+                      {myVisitor.status === 'served' ? 'Thanks for visiting. How was your experience?' : 'We hope to see you again soon.'}
                   </p>
+                  
+                  {myVisitor.status === 'served' && (
+                      <div className="mb-8">
+                          <div className="flex justify-center gap-2 mb-4">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                  <motion.button
+                                    key={star}
+                                    whileHover={{ scale: 1.2 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => !feedbackSubmitted && submitFeedback(star)}
+                                    className={`p-2 transition-colors ${star <= rating ? 'text-yellow-400' : 'text-gray-200'}`}
+                                    disabled={feedbackSubmitted}
+                                  >
+                                      <Star size={32} fill="currentColor" />
+                                  </motion.button>
+                              ))}
+                          </div>
+                          {feedbackSubmitted && (
+                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-600 font-bold text-sm">
+                                  Thank you for your feedback!
+                              </motion.div>
+                          )}
+                      </div>
+                  )}
                   
                   <button 
                       onClick={handleRejoin}

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { QueueMetric } from '../types';
 
@@ -27,14 +28,17 @@ export const getQueueInsights = async (metrics: QueueMetric): Promise<string> =>
 
   try {
     const prompt = `
-      You are an operations manager for a busy retail store.
-      Current Queue Stats:
+      You are an operations manager for a busy business using a digital queue system.
+      Current Stats:
       - People Waiting: ${metrics.waiting}
       - People Served Today: ${metrics.served}
-      - Average Wait Time: ${metrics.avgWaitTime} minutes.
+      - Avg Wait Time: ${metrics.avgWaitTime} min
+      - Customer Satisfaction Rating: ${metrics.averageRating || 'N/A'}/5.0
 
-      Provide one single, punchy, motivating sentence of advice or observation for the staff managing this queue.
-      Keep it under 20 words.
+      Provide one single, punchy, actionable sentence of advice.
+      If the rating is low (< 3.5), suggest an improvement.
+      If the rating is high (> 4.5), congratulate the team.
+      Keep it under 25 words.
     `;
 
     const response = await ai.models.generateContent({

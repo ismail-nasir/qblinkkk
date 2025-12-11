@@ -68,6 +68,10 @@ class MockBackendService {
       const waiting = relevantVisitors.filter(v => v.status === 'waiting').length;
       const served = relevantVisitors.filter(v => v.status === 'served').length;
       
+      // Rating Calc
+      const rated = relevantVisitors.filter(v => v.rating && v.rating > 0);
+      const avgRating = rated.length > 0 ? rated.reduce((a,b) => a + (b.rating||0), 0) / rated.length : 0;
+
       const lastCalled = relevantVisitors
           .filter(v => v.status === 'serving' || v.status === 'served')
           .sort((a,b) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
@@ -84,7 +88,7 @@ class MockBackendService {
           queueId,
           currentTicket: lastCalled,
           lastCalledNumber: lastCalled,
-          metrics: { waiting, served, avgWaitTime: avgWait },
+          metrics: { waiting, served, avgWaitTime: avgWait, averageRating: Number(avgRating.toFixed(1)) },
           visitors: relevantVisitors.sort((a,b) => {
               if (a.isPriority && !b.isPriority) return -1;
               if (!a.isPriority && b.isPriority) return 1;
@@ -312,6 +316,19 @@ class MockBackendService {
         if (visitor) {
             visitor.status = 'cancelled';
             this.log(queueId, visitor.ticketNumber, 'leave');
+            this.save();
+            this.emit('queue:update', queueId);
+        }
+        return { success: true };
+    }
+    
+    if (endpoint.endsWith('/feedback')) {
+        const queueId = endpoint.split('/')[2];
+        const { visitorId, rating, feedback } = body;
+        const visitor = this.visitors.find(v => v.id === visitorId);
+        if (visitor) {
+            visitor.rating = rating;
+            visitor.feedback = feedback;
             this.save();
             this.emit('queue:update', queueId);
         }

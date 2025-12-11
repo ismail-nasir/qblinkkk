@@ -3,6 +3,7 @@ export interface QueueMetric {
   waiting: number;
   served: number;
   avgWaitTime: number; // in minutes
+  averageRating: number; // 0 to 5
 }
 
 export interface ActivityLog {
@@ -38,6 +39,8 @@ export interface Visitor {
   isPriority?: boolean; // New: VIP Status
   servedBy?: string; // Staff member/Counter name
   order?: number; // Added: Order for drag and drop
+  rating?: number; // 1-5
+  feedback?: string; // Optional text
 }
 
 export interface QueueSettings {

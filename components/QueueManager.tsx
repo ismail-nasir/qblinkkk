@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings, BusinessType } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag } from 'lucide-react';
+import { getQueueInsights } from '../services/geminiService';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -61,6 +62,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   // Analytics Data
   const [chartData, setChartData] = useState<any[]>([]);
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [isLoadingInsight, setIsLoadingInsight] = useState(false);
 
   const businessTypes: { type: BusinessType; icon: any; label: string }[] = [
       { type: 'general', icon: LayoutGrid, label: 'General' },
@@ -234,6 +237,14 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               setCurrentQueue(updated);
           }
       }
+  };
+
+  const handleGetInsight = async () => {
+      if (!queueData) return;
+      setIsLoadingInsight(true);
+      const insight = await getQueueInsights(queueData.metrics);
+      setAiInsight(insight);
+      setIsLoadingInsight(false);
   };
 
   // --- ACTIONS ---
@@ -494,7 +505,34 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                       </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                  {/* AI Insight Box */}
+                  <div className="mb-8 p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl border border-purple-100 relative overflow-hidden">
+                      <div className="relative z-10">
+                          <div className="flex items-center gap-2 mb-2">
+                              <Sparkles size={18} className="text-purple-600" />
+                              <h4 className="text-sm font-bold text-purple-800 uppercase tracking-widest">AI Insights</h4>
+                          </div>
+                          {aiInsight ? (
+                              <p className="text-lg font-medium text-gray-800 leading-relaxed">
+                                  "{aiInsight}"
+                              </p>
+                          ) : (
+                              <p className="text-gray-500 text-sm">
+                                  Click below to analyze current queue performance and get actionable advice.
+                              </p>
+                          )}
+                          <button 
+                              onClick={handleGetInsight} 
+                              disabled={isLoadingInsight}
+                              className="mt-4 px-4 py-2 bg-white text-purple-700 font-bold text-sm rounded-lg shadow-sm hover:bg-purple-50 transition-colors flex items-center gap-2"
+                          >
+                              {isLoadingInsight ? 'Analyzing...' : 'Ask AI Assistant'}
+                          </button>
+                      </div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
                       <div className="p-6 bg-blue-50 rounded-2xl">
                           <p className="text-sm font-bold text-blue-600 uppercase tracking-wider mb-2">Total Served</p>
                           <p className="text-4xl font-black text-gray-900">{queueData.metrics.served}</p>
@@ -506,6 +544,13 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                       <div className="p-6 bg-orange-50 rounded-2xl">
                           <p className="text-sm font-bold text-orange-600 uppercase tracking-wider mb-2">Waiting Now</p>
                           <p className="text-4xl font-black text-gray-900">{queueData.metrics.waiting}</p>
+                      </div>
+                      <div className="p-6 bg-yellow-50 rounded-2xl">
+                          <p className="text-sm font-bold text-yellow-600 uppercase tracking-wider mb-2">Satisfaction</p>
+                          <div className="flex items-center gap-2">
+                              <p className="text-4xl font-black text-gray-900">{queueData.metrics.averageRating > 0 ? queueData.metrics.averageRating : '-'}</p>
+                              {queueData.metrics.averageRating > 0 && <Star className="text-yellow-500 fill-yellow-500" size={24} />}
+                          </div>
                       </div>
                   </div>
 
