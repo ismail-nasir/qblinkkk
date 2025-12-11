@@ -176,6 +176,15 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     } catch(e) {}
   };
 
+  const downloadQRCode = () => {
+    if (!canvasRef.current) return;
+    const url = canvasRef.current.toDataURL("image/png");
+    const link = document.createElement('a');
+    link.download = `${currentQueue.name.replace(/\s+/g, '_')}_QR.png`;
+    link.href = url;
+    link.click();
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
@@ -313,6 +322,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
         </div>
         
         <div className="flex gap-2">
+             <button onClick={() => setShowQrModal(true)} className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm" title="Show QR Code">
+                <QrCode size={20} />
+            </button>
              <button onClick={() => window.open(`${window.location.origin}?view=display&queueId=${queue.id}`, '_blank')} className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm" title="Open Display">
                 <Share2 size={20} />
             </button>
@@ -525,9 +537,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                               </label>
                           </div>
                       </div>
-                      <button onClick={() => setShowQrModal(true)} className="w-full py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50">
-                          <QrCode size={18} /> View QR Code
-                      </button>
                   </div>
 
                   {/* Automation & Sound */}
@@ -682,8 +691,17 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
                   <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-3xl p-8 max-w-sm w-full text-center">
                       <h3 className="text-xl font-bold mb-4">Scan to Join</h3>
-                      <canvas ref={canvasRef} className="w-full h-auto rounded-lg mb-4 shadow-sm" />
-                      <button onClick={() => setShowQrModal(false)} className="py-3 px-8 bg-gray-900 text-white font-bold rounded-xl">Close</button>
+                      <div className="flex justify-center mb-6">
+                        <canvas ref={canvasRef} className="w-full h-auto rounded-lg shadow-sm border border-gray-100" />
+                      </div>
+                      <div className="flex gap-3">
+                          <button onClick={downloadQRCode} className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-700 shadow-lg shadow-primary-600/20">
+                              <Download size={18} /> Download
+                          </button>
+                          <button onClick={() => setShowQrModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200">
+                              Close
+                          </button>
+                      </div>
                   </motion.div>
               </div>
           )}
