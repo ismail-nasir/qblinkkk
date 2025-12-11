@@ -163,7 +163,7 @@ export const queueService = {
           let ticketNumber = 1;
 
           await firebaseService.runTransaction(firebaseService.ref(firebaseService.db, `queues/${queueId}/counter`), (currentCounter: any) => {
-              return (currentCounter || 0) + 1;
+              return ((currentCounter as number) || 0) + 1;
           }).then(res => {
               if (res.committed) ticketNumber = res.snapshot.val();
           });

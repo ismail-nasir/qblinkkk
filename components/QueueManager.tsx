@@ -21,6 +21,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [queueData, setQueueData] = useState<QueueData | null>(null);
   const [currentQueue, setCurrentQueue] = useState<QueueInfo>(queue);
   
+  // Ref for accessing latest state in event handlers
+  const queueDataRef = useRef<QueueData | null>(null);
+  
   // Local Config
   const [counterName, setCounterName] = useState(localStorage.getItem('qblink_counter_name') || 'Counter 1');
   
@@ -96,6 +99,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     };
   }, [fetchData, queue.id]);
 
+  // Keep Ref in sync
+  useEffect(() => {
+      queueDataRef.current = queueData;
+  }, [queueData]);
+
   // Dynamic Queue Logic: Grace Period & Auto-Skip Monitor
   useEffect(() => {
       const gracePeriod = settings.gracePeriodMinutes || 2;
@@ -120,7 +128,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   };
 
   const playPreview = (type: string, vol: number) => {
-    // ... (Existing audio logic)
     try {
         if (!previewAudioContextRef.current) {
              previewAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -147,7 +154,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   }, [showQrModal, logoPreview]);
 
   const generateCustomQRCode = async () => {
-    // ... (Existing QR Logic)
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
@@ -201,15 +207,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       if (updated) setCurrentQueue(updated);
   };
 
-  const handleDownloadQR = () => {
-      if (canvasRef.current) {
-          const link = document.createElement('a');
-          link.download = `qblink-qr-${queue.code}.png`;
-          link.href = canvasRef.current.toDataURL('image/png');
-          link.click();
-      }
-  };
-
   // --- ACTIONS ---
   const handleCallNext = async () => { await queueService.callNext(queue.id, counterName); fetchData(); };
   const handleCallByNumber = async (e: React.FormEvent) => { e.preventDefault(); const num = parseInt(callNumberInput); if (!isNaN(num)) { await queueService.callByNumber(queue.id, num, counterName); fetchData(); setShowCallModal(false); setCallNumberInput(''); } };
@@ -231,14 +228,27 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       fetchData();
   };
 
-  const handleReorder = async (newOrder: Visitor[]) => {
+  // Local Reorder (optimistic update)
+  const handleReorder = (newOrder: Visitor[]) => {
+      // Create new list with updated order property
       const fullNewList = newOrder.map((v, idx) => ({ ...v, order: idx + 1 }));
       if (queueData) {
           const other = queueData.visitors.filter(v => v.status !== 'waiting');
           setQueueData({ ...queueData, visitors: [...other, ...fullNewList] });
       }
-      await queueService.reorderQueue(queue.id, fullNewList);
-      fetchData();
+  };
+
+  // Persist Order to Backend (onDragEnd)
+  const handleDragEnd = async () => {
+      const currentData = queueDataRef.current;
+      if (currentData) {
+          // Extract just the waiting visitors from current state, ensuring we send the latest order
+          const waiting = currentData.visitors
+              .filter(v => v.status === 'waiting')
+              .sort((a, b) => (a.order || 999999) - (b.order || 999999));
+          
+          await queueService.reorderQueue(queue.id, waiting);
+      }
   };
 
   const handleServeSpecific = async () => { if (selectedVisitor) { await queueService.callByNumber(queue.id, selectedVisitor.ticketNumber, counterName); setSelectedVisitor(null); fetchData(); } };
@@ -251,16 +261,22 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   if (!queueData) return <div className="p-12 text-center text-gray-500">Loading Queue Data...</div>;
 
   const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting').sort((a, b) => { 
-      // Ensure order is respected for late comers
-      if (a.order && b.order) return a.order - b.order;
+      // 1. Manual Order (Primary)
+      const orderA = a.order ?? 999999;
+      const orderB = b.order ?? 999999;
+      if (orderA !== orderB) return orderA - orderB;
+
+      // 2. VIP (Secondary - only if orders missing)
       if (a.isPriority && !b.isPriority) return -1;
       if (!a.isPriority && b.isPriority) return 1;
+      
+      // 3. Ticket Number (Tertiary)
       return a.ticketNumber - b.ticketNumber; 
   });
+
   const displayWaitingVisitors = searchQuery ? waitingVisitors.filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.ticketNumber.toString().includes(searchQuery)) : waitingVisitors;
   const servedVisitors = queueData.visitors.filter(v => v.status === 'served').sort((a, b) => new Date(b.servedTime || 0).getTime() - new Date(a.servedTime || 0).getTime()).slice(0, 10);
   const myCurrentVisitor = queueData.visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
-  const anyServingCount = queueData.visitors.filter(v => v.status === 'serving').length;
 
   // Terminology helper
   const getCounterLabel = () => {
@@ -416,7 +432,17 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                              <div>{displayWaitingVisitors.map((visitor) => <VisitorListItem key={visitor.id} visitor={visitor} queueData={queueData!} onTogglePriority={() => handleTogglePriority(visitor.id, !!visitor.isPriority)} onClick={() => setSelectedVisitor(visitor)} features={currentQueue.features} />)}</div>
                           ) : (
                             <Reorder.Group axis="y" values={displayWaitingVisitors} onReorder={handleReorder}>
-                                {displayWaitingVisitors.map((visitor) => <DraggableVisitorListItem key={visitor.id} visitor={visitor} queueData={queueData!} handleTogglePriority={handleTogglePriority} setSelectedVisitor={setSelectedVisitor} features={currentQueue.features} />)}
+                                {displayWaitingVisitors.map((visitor) => (
+                                    <DraggableVisitorListItem 
+                                        key={visitor.id} 
+                                        visitor={visitor} 
+                                        queueData={queueData!} 
+                                        handleTogglePriority={handleTogglePriority} 
+                                        setSelectedVisitor={setSelectedVisitor} 
+                                        features={currentQueue.features} 
+                                        onDragEnd={handleDragEnd}
+                                    />
+                                ))}
                             </Reorder.Group>
                           )
                       ) : (
@@ -427,7 +453,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           </motion.div>
       )}
 
-      {/* ANALYTICS TAB */}
+      {/* ANALYTICS & SETTINGS TABS (Unchanged layout) */}
       {activeTab === 'analytics' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
               <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
@@ -472,11 +498,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           </motion.div>
       )}
 
-      {/* SETTINGS TAB */}
       {activeTab === 'settings' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Queue Configuration</h3>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {/* Branding */}
                   <div className="space-y-4">
@@ -494,7 +518,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                               ))}
                           </div>
                       </div>
-                      
                       <div className="bg-gray-50 p-4 rounded-2xl">
                           <label className="block text-sm font-bold text-gray-700 mb-2">Logo</label>
                           <div className="flex items-center gap-4">
@@ -507,7 +530,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                               </label>
                           </div>
                       </div>
-                      
                       <button onClick={() => setShowQrModal(true)} className="w-full py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50">
                           <QrCode size={18} /> View QR Code
                       </button>
@@ -516,7 +538,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                   {/* Automation & Sound */}
                   <div className="space-y-4">
                       <h4 className="font-bold text-gray-700 flex items-center gap-2"><Sliders size={18} /> Automation & Features</h4>
-                      
                       <div className="bg-gray-50 p-4 rounded-2xl">
                           <label className="block text-sm font-bold text-gray-700 mb-2">Grace Period (Call to Presence)</label>
                           <select 
@@ -531,7 +552,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                           </select>
                           <p className="text-xs text-gray-500 mt-2">Time for customer to confirm they are here before moving to back of queue.</p>
                       </div>
-
                       {/* Feature Toggles */}
                       <div className="bg-gray-50 p-4 rounded-2xl space-y-3">
                           <div className="flex justify-between items-center">
@@ -553,7 +573,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                               </button>
                           </div>
                       </div>
-
                       <div className="bg-gray-50 p-4 rounded-2xl">
                           <div className="flex justify-between mb-2">
                               <label className="text-sm font-bold text-gray-700">Sound Alert</label>
@@ -579,7 +598,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                       </div>
                   </div>
               </div>
-
               <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end">
                   <button onClick={handleSaveSettings} className="px-8 py-3 bg-primary-600 text-white font-bold rounded-xl shadow-lg hover:bg-primary-700 flex items-center gap-2">
                       <Save size={18} /> Save Changes
@@ -588,8 +606,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           </motion.div>
       )}
 
-      {/* --- MODALS (Visitor Detail, Add, Call) --- */}
-      {/* Kept existing modals, just hidden for brevity in this snippet as they were not requested to change functionality, just location */}
+      {/* --- MODALS --- */}
       <AnimatePresence>
           {selectedVisitor && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
@@ -652,20 +669,26 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   );
 };
 
-// ... (Draggable components kept same as previous step, ensuring imports match)
-const DraggableVisitorListItem: React.FC<{ visitor: Visitor, queueData: QueueData, handleTogglePriority: (id: string, current: boolean) => void, setSelectedVisitor: (v: Visitor) => void, features: any }> = ({ visitor, queueData, handleTogglePriority, setSelectedVisitor, features }) => {
+const DraggableVisitorListItem: React.FC<{ 
+    visitor: Visitor, 
+    queueData: QueueData, 
+    handleTogglePriority: (id: string, current: boolean) => void, 
+    setSelectedVisitor: (v: Visitor) => void, 
+    features: any,
+    onDragEnd: () => void 
+}> = ({ visitor, queueData, handleTogglePriority, setSelectedVisitor, features, onDragEnd }) => {
     const dragControls = useDragControls();
     return (
-        <Reorder.Item value={visitor} id={visitor.id} dragListener={false} dragControls={dragControls}>
+        <Reorder.Item value={visitor} id={visitor.id} dragListener={false} dragControls={dragControls} onDragEnd={onDragEnd}>
             <VisitorListItem visitor={visitor} queueData={queueData} onTogglePriority={() => handleTogglePriority(visitor.id, !!visitor.isPriority)} onClick={() => setSelectedVisitor(visitor)} isDraggable={true} onDragStart={(e) => dragControls.start(e)} features={features} />
         </Reorder.Item>
     );
 };
 
 const VisitorListItem: React.FC<{ visitor: Visitor; queueData: QueueData; onTogglePriority: () => void; onClick: () => void; isDraggable?: boolean; onDragStart?: (e: React.PointerEvent) => void; features: any }> = ({ visitor, queueData, onTogglePriority, onClick, isDraggable, onDragStart, features }) => (
-    <div onClick={onClick} className={`p-4 flex items-center justify-between rounded-2xl mb-1 border transition-all cursor-pointer ${visitor.isPriority ? 'bg-gradient-to-r from-amber-50 to-white border-amber-200' : 'bg-white border-transparent border-b-gray-50'}`}>
+    <div onClick={onClick} className={`p-4 flex items-center justify-between rounded-2xl mb-1 border transition-all cursor-pointer select-none ${visitor.isPriority ? 'bg-gradient-to-r from-amber-50 to-white border-amber-200' : 'bg-white border-transparent border-b-gray-50'}`}>
         <div className="flex items-center gap-4">
-             {isDraggable && <div className="text-gray-300 hover:text-gray-500 cursor-grab p-1" onPointerDown={onDragStart} onClick={(e) => e.stopPropagation()}><GripVertical size={20} /></div>}
+             {isDraggable && <div className="text-gray-300 hover:text-gray-500 cursor-grab p-1 active:cursor-grabbing" onPointerDown={onDragStart} onClick={(e) => e.stopPropagation()}><GripVertical size={20} /></div>}
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-sm ${visitor.isPriority ? 'bg-amber-400 text-white' : 'bg-blue-600 text-white'}`}>
                 {String(visitor.ticketNumber).padStart(3, '0')}
             </div>
