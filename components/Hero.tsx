@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Zap, LogOut, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
+import { Zap, LogOut } from 'lucide-react';
 
 interface HeroProps {
   onGetStarted?: () => void;
@@ -12,7 +13,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
   return (
     <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden selection:bg-primary-100 selection:text-primary-700">
       
-      {/* Background Gradients (Replaced 3D Scene with static gradients for performance) */}
+      {/* Background Gradients */}
       <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/30"></div>
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-blue-100/40 to-indigo-100/40 rounded-full blur-[100px] -z-10 translate-x-1/3 -translate-y-1/4 animate-pulse pointer-events-none"></div>
       
