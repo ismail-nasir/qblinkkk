@@ -1,4 +1,3 @@
-
 import { QueueData, QueueInfo, Visitor, ActivityLog, BusinessType, QueueFeatures } from '../types';
 import { api } from './api';
 import { firebaseService } from './firebase';
@@ -163,15 +162,14 @@ export const queueService = {
           let ticketNumber = 1;
 
           await firebaseService.runTransaction(firebaseService.ref(firebaseService.db, `queues/${queueId}/counter`), (currentCounter: any) => {
-              // Ensure we treat currentCounter as a number even if unknown/any
               return (Number(currentCounter) || 0) + 1;
           }).then(res => {
-              if (res.committed) ticketNumber = res.snapshot.val() as number;
+              if (res.committed) ticketNumber = res.snapshot.val();
           });
 
           // Determine Order: Get max order from existing
           const vSnap = await firebaseService.get(firebaseService.ref(firebaseService.db, `visitors/${queueId}`));
-          const vMap = (vSnap.val() as Record<string, any>) || {};
+          const vMap = vSnap.val() || {};
           const currentMaxOrder = Object.values(vMap).reduce((max: number, v: any) => Math.max(max, v.order || 0), 0);
 
           const newVisitor: Visitor = {
