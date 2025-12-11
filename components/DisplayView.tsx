@@ -34,11 +34,13 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
     return () => { socketService.off('queue:update'); };
   }, [fetchData, queueId]);
 
+  const themeColor = queueInfo?.settings?.themeColor || '#3b82f6';
+
   if (loading || !queueData) {
       return (
           <div className="h-screen w-screen bg-gray-950 text-white flex items-center justify-center overflow-hidden">
               <div className="flex flex-col items-center gap-4">
-                  <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: themeColor, borderTopColor: 'transparent' }}></div>
                   <div className="text-xl font-mono text-gray-400">Connecting...</div>
               </div>
           </div>
@@ -49,9 +51,6 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
     .filter(v => v.status === 'waiting')
     .sort((a,b) => (a.isPriority === b.isPriority ? 0 : a.isPriority ? -1 : 1) || a.ticketNumber - b.ticketNumber)
     .slice(0, 5);
-
-  // Dynamic Theme Color
-  const themeColor = queueInfo?.settings?.themeColor || '#3b82f6';
   
   // Format Name for Display
   const getDisplayName = (name: string, ticket: number) => {
@@ -73,7 +72,7 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
                 initial={{ y: -100 }}
                 animate={{ y: 0 }}
                 exit={{ y: -100 }}
-                className="absolute top-0 left-0 right-0 z-50 py-3 px-6 text-center font-bold text-xl md:text-2xl shadow-xl flex items-center justify-center gap-3"
+                className="absolute top-0 left-0 right-0 z-50 py-3 px-6 text-center font-bold text-xl md:text-2xl shadow-xl flex items-center justify-center gap-3 text-white"
                 style={{ backgroundColor: themeColor }}
               >
                   <Megaphone size={28} />
@@ -85,9 +84,13 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
       {/* Header */}
       <div className={`flex justify-between items-center mb-4 md:mb-6 border-b border-gray-800 pb-4 shrink-0 transition-all ${queueInfo?.announcement ? 'mt-14' : ''}`}>
           <div className="flex items-center gap-4 md:gap-6">
-              <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center font-bold text-2xl md:text-4xl shadow-lg text-white" style={{backgroundColor: themeColor}}>
-                Q
-              </div>
+              {queueInfo?.logo ? (
+                  <img src={queueInfo.logo} alt="Logo" className="w-12 h-12 md:w-16 md:h-16 rounded-2xl object-cover shadow-lg bg-white" />
+              ) : (
+                  <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center font-bold text-2xl md:text-4xl shadow-lg text-white" style={{backgroundColor: themeColor}}>
+                    Q
+                  </div>
+              )}
               <div>
                   {queueInfo && <h1 className="text-2xl md:text-4xl font-bold tracking-tight text-white mb-1 truncate max-w-[50vw]">{queueInfo.name}</h1>}
                   <p className="text-gray-400 text-sm md:text-base">Real-time Status</p>

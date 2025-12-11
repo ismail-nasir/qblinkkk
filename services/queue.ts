@@ -71,7 +71,13 @@ export const queueService = {
               recentActivity
           };
       }
-      return await api.get(`/queue/${queueId}/data`);
+      
+      try {
+          return await api.get(`/queue/${queueId}/data`);
+      } catch (e: any) {
+          console.warn("Queue data fetch failed:", e.message);
+          throw new Error("Queue not found or data unavailable.");
+      }
   },
 
   // --- WRITES (Actions) ---
@@ -164,13 +170,13 @@ export const queueService = {
           await firebaseService.runTransaction(firebaseService.ref(firebaseService.db, `queues/${queueId}/counter`), (currentCounter: any) => {
               return (Number(currentCounter) || 0) + 1;
           }).then(res => {
-              if (res.committed) ticketNumber = res.snapshot.val();
+              if (res.committed) ticketNumber = Number(res.snapshot.val());
           });
 
           // Determine Order: Get max order from existing
           const vSnap = await firebaseService.get(firebaseService.ref(firebaseService.db, `visitors/${queueId}`));
           const vMap = vSnap.val() || {};
-          const currentMaxOrder = Object.values(vMap).reduce((max: number, v: any) => Math.max(max, v.order || 0), 0);
+          const currentMaxOrder = Object.values(vMap).reduce((max: number, v: any) => Math.max(max, v.order || 0), 0) as number;
 
           const newVisitor: Visitor = {
               id: visitorRef.key!,

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle } from 'lucide-react';
+import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CustomerViewProps {
@@ -15,6 +15,10 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [myVisitorId, setMyVisitorId] = useState<string | null>(localStorage.getItem(`qblink_visit_${queueId}`));
   const [myVisitor, setMyVisitor] = useState<Visitor | null>(null);
   
+  // Loading & Error States
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   // Join Form State
   const [joinName, setJoinName] = useState('');
   const [joinPhone, setJoinPhone] = useState('');
@@ -43,12 +47,21 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   const fetchData = useCallback(async () => {
         try {
+            setError(null);
             const data = await queueService.getQueueData(queueId);
             const info = await queueService.getQueueInfo(queueId);
+            
+            if (!info) {
+                throw new Error("Queue not found");
+            }
+
             setQueueInfo(info);
             setQueueData(data);
-        } catch (e) {
-            console.error(e);
+        } catch (e: any) {
+            console.error("Fetch Error:", e);
+            setError(e.message || "Unable to load queue");
+        } finally {
+            setLoading(false);
         }
   }, [queueId]);
 
@@ -109,14 +122,18 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 }
             }
         } else {
-             // Visitor might have been deleted manually by admin
-             // We don't auto-logout here to prevent UX jarring if it's a temp sync issue,
-             // but if consistent, the UI will just show "Loading..." or we handle it in render.
+             // Visitor ID exists in local storage but not in Queue Data (Removed by Admin)
+             // Automatically log them out to prevent stuck state
+             if (loading === false) {
+                 setMyVisitorId(null);
+                 setMyVisitor(null);
+                 localStorage.removeItem(`qblink_visit_${queueId}`);
+             }
         }
     } else {
         document.title = "Join Queue - Qblink";
     }
-  }, [queueData, myVisitorId, alertShown, queueInfo?.name]);
+  }, [queueData, myVisitorId, alertShown, queueInfo?.name, loading]);
 
   // Countdown Timer Logic
   useEffect(() => {
@@ -350,9 +367,41 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       }
   };
 
-  if (!queueData || !queueInfo) return <div className="min-h-screen flex items-center justify-center text-gray-500 font-sans">Loading Queue...</div>;
+  const themeColor = queueInfo?.settings?.themeColor || '#0066FF';
 
-  // 1. Not Joined View
+  // --- RENDER STATES ---
+
+  // 1. Error State
+  if (error) {
+      return (
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+              <div className="bg-white p-8 rounded-3xl shadow-xl text-center max-w-sm w-full border border-red-100">
+                  <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                      <AlertCircle size={32} />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Queue Not Found</h2>
+                  <p className="text-gray-500 text-sm mb-6">
+                      We couldn't find this queue. It may have been deleted or the link is invalid.
+                  </p>
+                  <a href="/" className="block w-full py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors">
+                      Go Home
+                  </a>
+              </div>
+          </div>
+      );
+  }
+
+  // 2. Loading State
+  if (loading || !queueData || !queueInfo) {
+      return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+              <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mb-4" style={{borderTopColor: themeColor}}></div>
+              <p className="text-gray-500 font-medium animate-pulse">Loading Queue...</p>
+          </div>
+      );
+  }
+
+  // 3. Join Form (Not Joined)
   if (!myVisitorId || !myVisitor) {
       return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans selection:bg-primary-100">
@@ -364,11 +413,11 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                   <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-50 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
                   <div className="text-center mb-8 relative z-10">
-                      <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-primary-600 shadow-inner">
+                      <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-primary-600 shadow-inner overflow-hidden">
                           {queueInfo.logo ? (
                               <img src={queueInfo.logo} alt="Logo" className="w-full h-full object-cover rounded-3xl" />
                           ) : (
-                              <Users size={40} />
+                              <Users size={40} style={{color: themeColor}} />
                           )}
                       </div>
                       <h1 className="text-3xl font-black text-gray-900 tracking-tight">{queueInfo.name}</h1>
@@ -391,7 +440,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                                 placeholder="Enter your name" 
                                 value={joinName}
                                 onChange={(e) => setJoinName(e.target.value)}
-                                className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-primary-500 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400"
+                                className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400"
                                 style={{ fontSize: '16px' }} // Prevent iOS zoom
                               />
                           </div>
@@ -404,7 +453,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                                     placeholder="For alerts & no-duplicates" 
                                     value={joinPhone}
                                     onChange={(e) => setJoinPhone(e.target.value)}
-                                    className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-primary-500 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400"
+                                    className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400"
                                     style={{ fontSize: '16px' }}
                                   />
                               </div>
@@ -418,8 +467,9 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
                           <motion.button 
                             whileTap={{ scale: 0.98 }}
-                            type="submit" 
-                            className="w-full py-5 bg-primary-600 text-white rounded-2xl font-bold text-xl shadow-lg shadow-primary-600/30 hover:bg-primary-700 transition-all flex items-center justify-center gap-2 mt-2"
+                            type="submit"
+                            style={{ backgroundColor: themeColor }}
+                            className="w-full py-5 text-white rounded-2xl font-bold text-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-2 hover:opacity-90"
                           >
                               Get Ticket <Zap size={20} fill="currentColor" />
                           </motion.button>
@@ -433,7 +483,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       );
   }
 
-  // 2. Served / Cancelled View (Rejoin Logic)
+  // 4. Served / Cancelled View (Rejoin Logic)
   if (myVisitor.status === 'served' || myVisitor.status === 'cancelled') {
       return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
@@ -463,7 +513,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       );
   }
 
-  // 3. Active Queue View
+  // 5. Active Queue View
   const peopleAhead = queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < myVisitor.ticketNumber).length;
   const waitTime = Math.max(1, peopleAhead * queueData.metrics.avgWaitTime);
   const isOnTime = myVisitor.status === 'serving' || (peopleAhead === 0 && myVisitor.status === 'waiting');
@@ -494,7 +544,8 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                     initial={{ y: -50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: -50, opacity: 0 }}
-                    className="bg-orange-500 text-white px-4 py-3 text-center text-sm font-bold flex items-center justify-center gap-2 shadow-sm relative z-50 shrink-0"
+                    className="text-white px-4 py-3 text-center text-sm font-bold flex items-center justify-center gap-2 shadow-sm relative z-50 shrink-0"
+                    style={{ backgroundColor: themeColor }}
                 >
                     <Megaphone size={16} className="fill-white/20" />
                     {queueInfo.announcement}
@@ -520,7 +571,10 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 className="w-full max-w-xs bg-white rounded-[40px] p-8 pb-10 flex flex-col items-center relative overflow-hidden shadow-2xl shadow-blue-900/10 border border-white"
             >
                 {/* Decorative Elements */}
-                <div className={`absolute top-0 left-0 right-0 h-3 ${isOnTime ? 'bg-green-500' : 'bg-primary-500'}`}></div>
+                <div 
+                    className={`absolute top-0 left-0 right-0 h-3 ${isOnTime ? 'bg-green-500' : ''}`} 
+                    style={{ backgroundColor: isOnTime ? undefined : themeColor }}
+                ></div>
                 <div className="absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full blur-2xl opacity-50 pointer-events-none"></div>
 
                 <span className="text-gray-400 text-xs font-extrabold uppercase tracking-[0.2em] mb-4 mt-2">Your Number</span>
@@ -592,14 +646,15 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                     initial={{ opacity: 0, scale: 1.1 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="fixed inset-0 z-[60] bg-primary-600 flex flex-col items-center justify-center p-8 text-center"
+                    className="fixed inset-0 z-[60] flex flex-col items-center justify-center p-8 text-center"
+                    style={{ backgroundColor: themeColor }}
                 >
                     <motion.div 
                         animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }} 
                         transition={{ repeat: Infinity, duration: 1 }}
                         className="w-28 h-28 bg-white rounded-full flex items-center justify-center mb-8 shadow-2xl"
                     >
-                        <Bell size={56} className="text-primary-600" fill="currentColor" />
+                        <Bell size={56} style={{ color: themeColor }} fill="currentColor" />
                     </motion.div>
                     
                     <h2 className="text-4xl font-black text-white mb-4 leading-tight">It's Your Turn!</h2>
@@ -611,16 +666,17 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                         </div>
                     )}
 
-                    <p className="text-blue-100 text-lg mb-12 max-w-xs font-medium leading-relaxed">
+                    <p className="text-white/80 text-lg mb-12 max-w-xs font-medium leading-relaxed">
                         Please confirm you are here, or you will be moved to the back of the queue.
                     </p>
                     
                     <motion.button 
                         whileTap={{ scale: 0.9 }}
                         onClick={handleImComing}
-                        className="w-full max-w-xs py-5 bg-white text-primary-600 rounded-3xl font-black text-xl shadow-xl flex items-center justify-center gap-3 min-h-[64px]"
+                        className="w-full max-w-xs py-5 bg-white rounded-3xl font-black text-xl shadow-xl flex items-center justify-center gap-3 min-h-[64px]"
+                        style={{ color: themeColor }}
                     >
-                        <CheckCircle size={24} fill="currentColor" className="text-primary-600" /> I'M COMING
+                        <CheckCircle size={24} fill="currentColor" /> I'M COMING
                     </motion.button>
                 </motion.div>
             )}
