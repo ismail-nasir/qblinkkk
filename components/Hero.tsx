@@ -11,14 +11,20 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
   return (
-    <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden selection:bg-primary-100 selection:text-primary-700">
+    <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden w-full min-h-[90vh] flex items-center bg-[#F8FAFC]">
       
-      {/* 3D Background Scene */}
-      <HeroScene />
+      {/* 1. Background Base (Fallback if 3D fails) */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 z-0"></div>
+
+      {/* 2. 3D Animation Layer */}
+      <div className="absolute inset-0 z-0 opacity-60">
+        <HeroScene />
+      </div>
+
+      {/* 3. Gradient Overlay (Ensures text readability over 3D) */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent via-white/20 to-white/80 pointer-events-none"></div>
       
-      {/* Gradient Fallbacks */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 -z-10"></div>
-      
+      {/* 4. Main Content */}
       <div className="container mx-auto px-4 md:px-6 relative z-10">
         <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-24">
           
@@ -72,7 +78,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                 onClick={onGetStarted}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="group relative w-full sm:w-auto h-16 px-10 rounded-2xl bg-gray-900/90 backdrop-blur-xl text-white font-bold text-lg shadow-2xl shadow-gray-900/20 hover:bg-black transition-all flex items-center justify-center gap-3 overflow-hidden border border-gray-700"
+                className="group relative w-full sm:w-auto h-16 px-10 rounded-2xl bg-gray-900/90 backdrop-blur-xl text-white font-bold text-lg shadow-2xl shadow-gray-900/20 hover:bg-black transition-all flex items-center justify-center gap-3 overflow-hidden border border-gray-700 cursor-pointer"
               >
                 <span className="relative z-10 flex items-center gap-2">Start for Free <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform"/></span>
                 
