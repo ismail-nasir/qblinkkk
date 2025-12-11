@@ -24,7 +24,10 @@
     "zod": "^4.1.13",
     "socket.io": "^4.8.1",
     "bcryptjs": "^3.0.3",
-    "firebase": "^12.6.0"
+    "firebase": "^12.6.0",
+    "three": "0.160.0",
+    "@react-three/fiber": "8.15.14",
+    "@react-three/drei": "9.96.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

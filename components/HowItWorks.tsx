@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
 
@@ -191,9 +192,10 @@ const StepCard = ({ step, title, desc, children }: { step: number, title: string
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ delay: step * 0.1 }}
+        whileHover={{ y: -10, scale: 1.02 }}
         className="flex flex-col gap-4 group"
     >
-        <div className="relative aspect-[4/5] w-full rounded-[32px] overflow-hidden bg-gray-100 shadow-sm border border-gray-100 group-hover:shadow-xl group-hover:shadow-blue-900/5 transition-all duration-500">
+        <div className="relative aspect-[4/5] w-full rounded-[32px] overflow-hidden bg-gray-100 shadow-sm border border-gray-100 group-hover:shadow-2xl group-hover:shadow-blue-900/10 transition-all duration-500 perspective-1000">
              {children}
              
              {/* Number Badge */}

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Utensils, Stethoscope, Scissors, Wrench, GraduationCap, Calendar, MapPin, Clock, Star } from 'lucide-react';
@@ -100,18 +101,22 @@ const UseCases: React.FC = () => {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: item.id * 0.1 }}
-                className={`flex items-center gap-6 p-6 rounded-3xl text-left transition-all duration-300 border-2 group ${
+                className={`flex items-center gap-6 p-6 rounded-3xl text-left transition-all duration-300 border-2 group relative overflow-hidden ${
                   activeId === item.id 
                     ? 'bg-white border-primary-600 shadow-xl shadow-primary-600/10 scale-[1.02]' 
                     : 'bg-gray-50 border-transparent hover:bg-white hover:border-gray-200'
                 }`}
               >
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-300 ${
-                   activeId === item.id ? 'bg-primary-600 text-white' : 'bg-white text-gray-400 group-hover:text-primary-600'
-                }`}>
+                <motion.div 
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-300 relative z-10 ${
+                    activeId === item.id ? 'bg-primary-600 text-white' : 'bg-white text-gray-400 group-hover:text-primary-600'
+                    }`}
+                    whileHover={{ rotateY: 360 }}
+                    transition={{ duration: 0.6 }}
+                >
                   <item.icon size={28} />
-                </div>
-                <div>
+                </motion.div>
+                <div className="relative z-10">
                   <h3 className={`text-xl font-bold mb-1 transition-colors ${activeId === item.id ? 'text-gray-900' : 'text-gray-600'}`}>
                     {item.title}
                   </h3>
@@ -119,6 +124,11 @@ const UseCases: React.FC = () => {
                     {item.desc}
                   </p>
                 </div>
+                
+                {/* Background Hover Effect */}
+                {activeId !== item.id && (
+                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0"></div>
+                )}
               </motion.button>
             ))}
           </div>
