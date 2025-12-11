@@ -1,25 +1,26 @@
 
-import React, { useState, useEffect } from 'react';
-import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import TrustedBy from './components/TrustedBy';
-import HowItWorks from './components/HowItWorks';
-import Features from './components/Features';
-import UseCases from './components/UseCases';
-import Pricing from './components/Pricing';
-import FAQ from './components/FAQ';
-import Footer from './components/Footer';
-import Dashboard from './components/Dashboard';
-import PainPoints from './components/PainPoints';
-import About from './components/About';
-import PrivacyPolicy from './components/PrivacyPolicy';
-import Terms from './components/Terms';
-import Auth from './components/Auth';
-import CustomerView from './components/CustomerView';
-import DisplayView from './components/DisplayView';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { AppView, User } from './types';
 import { authService } from './services/auth';
-import { Loader2 } from 'lucide-react';
+
+// Lazy load ALL components to prevent module evaluation errors from blocking the app mount
+const Navbar = lazy(() => import('./components/Navbar'));
+const Hero = lazy(() => import('./components/Hero'));
+const TrustedBy = lazy(() => import('./components/TrustedBy'));
+const HowItWorks = lazy(() => import('./components/HowItWorks'));
+const Features = lazy(() => import('./components/Features'));
+const UseCases = lazy(() => import('./components/UseCases'));
+const Pricing = lazy(() => import('./components/Pricing'));
+const FAQ = lazy(() => import('./components/FAQ'));
+const Footer = lazy(() => import('./components/Footer'));
+const PainPoints = lazy(() => import('./components/PainPoints'));
+const About = lazy(() => import('./components/About'));
+const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
+const Terms = lazy(() => import('./components/Terms'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Auth = lazy(() => import('./components/Auth'));
+const CustomerView = lazy(() => import('./components/CustomerView'));
+const DisplayView = lazy(() => import('./components/DisplayView'));
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.LANDING);
@@ -99,41 +100,59 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
+  // Native SVG Loader to avoid dependencies in the critical path
+  const LoadingScreen = () => (
+    <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+      <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+    </div>
+  );
+
   if (isInitializing) {
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-            <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
-        </div>
-    );
+    return <LoadingScreen />;
   }
 
   // Handle Standalone Views first
   if (view === AppView.CUSTOMER && urlParams.queueId) {
-      return <CustomerView queueId={urlParams.queueId} />;
+      return (
+        <Suspense fallback={<LoadingScreen />}>
+          <CustomerView queueId={urlParams.queueId} />
+        </Suspense>
+      );
   }
 
   if (view === AppView.DISPLAY && urlParams.queueId) {
-      return <DisplayView queueId={urlParams.queueId} />;
+      return (
+        <Suspense fallback={<LoadingScreen />}>
+          <DisplayView queueId={urlParams.queueId} />
+        </Suspense>
+      );
   }
 
   // Render Full Page Auth
   if (view === AppView.AUTH) {
     return (
-      <Auth 
-        initialMode={authMode} 
-        onLogin={handleAuthSuccess} 
-        onBack={handleBackToHome}
-        onNavigate={handleNavigate}
-      />
+      <Suspense fallback={<LoadingScreen />}>
+        <Auth 
+          initialMode={authMode} 
+          onLogin={handleAuthSuccess} 
+          onBack={handleBackToHome}
+          onNavigate={handleNavigate}
+        />
+      </Suspense>
     );
   }
 
   if (view === AppView.DASHBOARD && user) {
     return (
-      <Dashboard 
-        user={user} 
-        onLogout={handleLogout} 
-      />
+      <Suspense fallback={<LoadingScreen />}>
+        <Dashboard 
+          user={user} 
+          onLogout={handleLogout} 
+        />
+      </Suspense>
     );
   }
 
@@ -145,11 +164,13 @@ const App: React.FC = () => {
         <div className="absolute top-[20%] right-[-10%] w-[40%] h-[60%] bg-blue-200/30 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[-10%] left-[20%] w-[60%] h-[50%] bg-cyan-200/30 rounded-full blur-[120px] animate-blob animation-delay-4000"></div>
       </div>
-      <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
-      <main className="relative z-10 min-h-screen">
-        {content}
-      </main>
-      <Footer onNavigate={handleNavigate} />
+      <Suspense fallback={<LoadingScreen />}>
+        <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
+        <main className="relative z-10 min-h-screen">
+          {content}
+        </main>
+        <Footer onNavigate={handleNavigate} />
+      </Suspense>
     </div>
   );
   
@@ -174,20 +195,22 @@ const App: React.FC = () => {
         <div className="absolute bottom-[-10%] left-[20%] w-[60%] h-[50%] bg-cyan-200/30 rounded-full blur-[120px] animate-blob animation-delay-4000"></div>
       </div>
 
-      <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
-      
-      <main className="relative z-10">
-        <Hero onGetStarted={handleGetStarted} />
-        <div id="trusted-by"><TrustedBy /></div>
-        <PainPoints />
-        <div id="how-it-works"><HowItWorks /></div>
-        <div id="features"><Features /></div>
-        <div id="use-cases"><UseCases /></div>
-        <div id="pricing"><Pricing onGetStarted={handleGetStarted} /></div>
-        <div id="faq"><FAQ /></div>
-      </main>
+      <Suspense fallback={<LoadingScreen />}>
+        <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
+        
+        <main className="relative z-10">
+          <Hero onGetStarted={handleGetStarted} />
+          <div id="trusted-by"><TrustedBy /></div>
+          <PainPoints />
+          <div id="how-it-works"><HowItWorks /></div>
+          <div id="features"><Features /></div>
+          <div id="use-cases"><UseCases /></div>
+          <div id="pricing"><Pricing onGetStarted={handleGetStarted} /></div>
+          <div id="faq"><FAQ /></div>
+        </main>
 
-      <Footer onNavigate={handleNavigate} />
+        <Footer onNavigate={handleNavigate} />
+      </Suspense>
     </div>
   );
 };

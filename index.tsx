@@ -7,11 +7,9 @@ const container = document.getElementById('root');
 
 if (container) {
   const root = createRoot(container);
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
+  // StrictMode removed to prevent double-invocation of refs in HeroScene
+  // and minimize context conflicts in the ESM environment.
+  root.render(<App />);
 } else {
   console.error("Failed to find the root element.");
 }
