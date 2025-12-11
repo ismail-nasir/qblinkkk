@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
+import { User, QueueData, QueueInfo, Visitor, QueueSettings, BusinessType } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -61,6 +61,15 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   // Analytics Data
   const [chartData, setChartData] = useState<any[]>([]);
+
+  const businessTypes: { type: BusinessType; icon: any; label: string }[] = [
+      { type: 'general', icon: LayoutGrid, label: 'General' },
+      { type: 'restaurant', icon: Utensils, label: 'Restaurant' },
+      { type: 'clinic', icon: Stethoscope, label: 'Clinic' },
+      { type: 'salon', icon: Scissors, label: 'Salon' },
+      { type: 'bank', icon: Building2, label: 'Bank' },
+      { type: 'retail', icon: ShoppingBag, label: 'Retail' },
+  ];
 
   const fetchData = useCallback(async () => {
       try {
@@ -211,6 +220,20 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       const newFeatures = { ...currentQueue.features, [feature]: value };
       const updated = await queueService.updateQueue(user.id, queue.id, { features: newFeatures });
       if (updated) setCurrentQueue(updated);
+  };
+
+  const handleBusinessTypeChange = async (type: BusinessType) => {
+      if (type === currentQueue.businessType) return;
+      if (confirm(`Switching to ${type.charAt(0).toUpperCase() + type.slice(1)} will reset features to default. Continue?`)) {
+          const defaultFeatures = queueService.getDefaultFeatures(type);
+          const updated = await queueService.updateQueue(user.id, queue.id, { 
+              businessType: type, 
+              features: defaultFeatures 
+          });
+          if (updated) {
+              setCurrentQueue(updated);
+          }
+      }
   };
 
   // --- ACTIONS ---
@@ -501,6 +524,23 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {/* Branding */}
                   <div className="space-y-4">
+                      {/* Business Type Selection */}
+                      <div className="bg-gray-50 p-4 rounded-2xl mb-4">
+                          <label className="block text-sm font-bold text-gray-700 mb-3">Business Type</label>
+                          <div className="grid grid-cols-3 gap-2">
+                              {businessTypes.map((b) => (
+                                  <button
+                                      key={b.type}
+                                      onClick={() => handleBusinessTypeChange(b.type)}
+                                      className={`p-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all border ${currentQueue.businessType === b.type ? 'bg-white border-primary-500 text-primary-600 shadow-sm' : 'border-transparent text-gray-500 hover:bg-gray-100'}`}
+                                  >
+                                      <b.icon size={20} />
+                                      <span className="text-[10px] font-bold">{b.label}</span>
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+
                       <h4 className="font-bold text-gray-700 flex items-center gap-2"><Palette size={18} /> Branding</h4>
                       <div className="bg-gray-50 p-4 rounded-2xl">
                           <label className="block text-sm font-bold text-gray-700 mb-2">Theme Color</label>
