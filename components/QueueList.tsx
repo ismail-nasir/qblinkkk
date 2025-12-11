@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, QueueInfo, QueueData, BusinessType, QueueFeatures } from '../types';
 import { queueService } from '../services/queue';
@@ -55,7 +56,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   const [estimatedTime, setEstimatedTime] = useState('');
   const [selectedType, setSelectedType] = useState<BusinessType>('general');
   const [featureOverrides, setFeatureOverrides] =
-    useState<Partial<QueueFeatures>>({});
+    useState<QueueFeatures>({ vip: false, multiCounter: false, anonymousMode: false, sms: false });
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // State for toggling stats visibility per queue
@@ -198,12 +199,19 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
     loadQueues();
   };
 
+  const handleTypeSelect = (type: BusinessType) => {
+      setSelectedType(type);
+      const defaults = queueService.getDefaultFeatures(type);
+      setFeatureOverrides(defaults);
+      setStep(2);
+  };
+
   const resetCreateModal = () => {
     setNewQueueName('');
     setEstimatedTime('');
     setStep(1);
     setSelectedType('general');
-    setFeatureOverrides({});
+    setFeatureOverrides({ vip: false, multiCounter: false, anonymousMode: false, sms: false });
     setShowAdvanced(false);
     setShowCreateModal(false);
   };
@@ -777,7 +785,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                     {businessTypes.map((b) => (
                       <button
                         key={b.type}
-                        onClick={() => setSelectedType(b.type)}
+                        onClick={() => handleTypeSelect(b.type)}
                         className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-3 transition-all ${
                           selectedType === b.type
                             ? 'border-primary-600 bg-primary-50 text-primary-700'
@@ -792,7 +800,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
 
                   <div className="flex justify-end">
                     <button
-                      onClick={() => setStep(2)}
+                      onClick={() => handleTypeSelect(selectedType)}
                       className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg hover:bg-primary-700"
                     >
                       Next Step
@@ -850,7 +858,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                       ) : (
                         <ChevronDown size={16} />
                       )}{' '}
-                      Advanced Features
+                      Advanced Features (Pre-configured)
                     </button>
 
                     {showAdvanced && (
@@ -859,10 +867,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                           <input
                             type="checkbox"
                             className="w-4 h-4 text-primary-600"
-                            checked={
-                              featureOverrides.vip ??
-                              queueService.getDefaultFeatures(selectedType).vip
-                            }
+                            checked={featureOverrides.vip}
                             onChange={(e) =>
                               setFeatureOverrides({
                                 ...featureOverrides,
@@ -878,11 +883,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                           <input
                             type="checkbox"
                             className="w-4 h-4 text-primary-600"
-                            checked={
-                              featureOverrides.multiCounter ??
-                              queueService.getDefaultFeatures(selectedType)
-                                .multiCounter
-                            }
+                            checked={featureOverrides.multiCounter}
                             onChange={(e) =>
                               setFeatureOverrides({
                                 ...featureOverrides,
@@ -898,11 +899,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                           <input
                             type="checkbox"
                             className="w-4 h-4 text-primary-600"
-                            checked={
-                              featureOverrides.anonymousMode ??
-                              queueService.getDefaultFeatures(selectedType)
-                                .anonymousMode
-                            }
+                            checked={featureOverrides.anonymousMode}
                             onChange={(e) =>
                               setFeatureOverrides({
                                 ...featureOverrides,
@@ -935,46 +932,6 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                   </div>
                 </form>
               )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {queueToDelete && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center"
-            >
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
-                <AlertTriangle size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                Delete Queue?
-              </h3>
-              <p className="text-gray-500 text-sm mb-6 leading-relaxed">
-                Are you sure you want to delete this queue? <br />
-                All active tickets and data will be permanently removed.
-              </p>
-
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={confirmDeleteQueue}
-                  className="w-full py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-600/30 hover:bg-red-700 transition-all"
-                >
-                  Yes, Delete Queue
-                </button>
-                <button
-                  onClick={() => setQueueToDelete(null)}
-                  className="w-full py-3 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold hover:bg-gray-50 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
             </motion.div>
           </div>
         )}

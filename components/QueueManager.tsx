@@ -331,26 +331,33 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
             </div>
         </div>
         
-        {/* Tab Switcher */}
-        <div className="flex bg-gray-100 p-1 rounded-xl">
-            <button onClick={() => setActiveTab('operations')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'operations' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                <Store size={16} /> Operations
-            </button>
-            <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'analytics' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                <BarChart2 size={16} /> Analytics
-            </button>
-            <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                <Settings size={16} /> Settings
-            </button>
-        </div>
-        
-        <div className="flex gap-2">
-             <button onClick={() => setShowQrModal(true)} className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm" title="Show QR Code">
-                <QrCode size={20} />
-            </button>
-             <button onClick={() => window.open(`${window.location.origin}?view=display&queueId=${queue.id}`, '_blank')} className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm" title="Open Display">
-                <Share2 size={20} />
-            </button>
+        {/* Tab Switcher and QR Action */}
+        <div className="flex items-center gap-3">
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+                <button onClick={() => setActiveTab('operations')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'operations' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                    <Store size={16} /> <span className="hidden sm:inline">Operations</span>
+                </button>
+                <button onClick={() => setActiveTab('analytics')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'analytics' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                    <BarChart2 size={16} /> <span className="hidden sm:inline">Analytics</span>
+                </button>
+                <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                    <Settings size={16} /> <span className="hidden sm:inline">Settings</span>
+                </button>
+            </div>
+            
+            <div className="flex gap-2">
+                 <button 
+                    onClick={() => setShowQrModal(true)} 
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl font-bold shadow-lg hover:bg-black transition-all hover:scale-105 active:scale-95" 
+                    title="Show QR Code"
+                 >
+                    <QrCode size={18} /> 
+                    <span className="hidden sm:inline">QR Code</span>
+                </button>
+                 <button onClick={() => window.open(`${window.location.origin}?view=display&queueId=${queue.id}`, '_blank')} className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 shadow-sm" title="Open Display">
+                    <Share2 size={20} />
+                </button>
+            </div>
         </div>
       </div>
 
