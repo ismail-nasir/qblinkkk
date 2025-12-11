@@ -144,7 +144,7 @@ class MockBackendService {
     }
 
     if (endpoint === '/queue' && method === 'POST') {
-      const { name, estimatedWaitTime } = body;
+      const { name, estimatedWaitTime, businessType, features } = body;
       const newQueue: QueueInfo = {
         id: Math.random().toString(36).substr(2, 9),
         userId: user!.id,
@@ -153,9 +153,17 @@ class MockBackendService {
         status: 'active',
         createdAt: new Date().toISOString(),
         estimatedWaitTime: estimatedWaitTime || 5,
-        settings: { soundEnabled: true, soundVolume: 1, soundType: 'beep' },
+        settings: { 
+            soundEnabled: true, 
+            soundVolume: 1, 
+            soundType: 'beep', 
+            themeColor: '#3b82f6', 
+            gracePeriodMinutes: 2 
+        },
         isPaused: false,
-        announcement: ''
+        announcement: '',
+        businessType: businessType || 'general',
+        features: features || { vip: true, multiCounter: true, anonymousMode: false, sms: false }
       };
       this.queues.push(newQueue);
       this.save();

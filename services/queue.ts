@@ -1,5 +1,5 @@
 
-import { QueueData, QueueInfo, Visitor, ActivityLog } from '../types';
+import { QueueData, QueueInfo, Visitor, ActivityLog, BusinessType, QueueFeatures } from '../types';
 import { api } from './api';
 import { firebaseService } from './firebase';
 
@@ -60,12 +60,13 @@ export const queueService = {
               lastCalledNumber: lastCalled,
               metrics: { waiting, served, avgWaitTime: queue.estimatedWaitTime || 5 },
               visitors: visitors.sort((a,b) => {
-                  // Primary sort: Priority
+                  // 1. VIPs always on top (unless late logic applies, handled by order logic below)
+                  if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                  
+                  // Fallback for older data or manual adds without order
                   if (a.isPriority && !b.isPriority) return -1;
                   if (!a.isPriority && b.isPriority) return 1;
-                  // Secondary sort: Custom Order
-                  if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
-                  // Fallback: Ticket Number
+                  
                   return a.ticketNumber - b.ticketNumber;
               }),
               recentActivity
@@ -76,7 +77,23 @@ export const queueService = {
 
   // --- WRITES (Actions) ---
 
-  createQueue: async (userId: string, name: string, estimatedWaitTime?: number): Promise<QueueInfo> => {
+  getDefaultFeatures: (type: BusinessType): QueueFeatures => {
+      switch(type) {
+          case 'restaurant': return { vip: true, multiCounter: true, anonymousMode: false, sms: true };
+          case 'clinic': return { vip: true, multiCounter: true, anonymousMode: true, sms: true };
+          case 'bank': return { vip: true, multiCounter: true, anonymousMode: true, sms: false };
+          case 'salon': return { vip: false, multiCounter: true, anonymousMode: false, sms: true };
+          case 'retail': return { vip: false, multiCounter: true, anonymousMode: false, sms: false };
+          case 'general': 
+          default: return { vip: true, multiCounter: true, anonymousMode: false, sms: false };
+      }
+  },
+
+  createQueue: async (userId: string, name: string, estimatedWaitTime?: number, type: BusinessType = 'general', features?: Partial<QueueFeatures>): Promise<QueueInfo> => {
+      // Merge default features for type with any custom overrides
+      const defaultFeatures = queueService.getDefaultFeatures(type);
+      const finalFeatures = { ...defaultFeatures, ...features };
+
       if (firebaseService.isAvailable) {
           const queuesRef = firebaseService.ref(firebaseService.db, 'queues');
           const newQueueRef = firebaseService.push(queuesRef);
@@ -88,14 +105,22 @@ export const queueService = {
               status: 'active',
               createdAt: new Date().toISOString(),
               estimatedWaitTime: estimatedWaitTime || 5,
-              settings: { soundEnabled: true, soundVolume: 1, soundType: 'beep' },
+              businessType: type,
+              features: finalFeatures,
+              settings: { 
+                  soundEnabled: true, 
+                  soundVolume: 1, 
+                  soundType: 'beep', 
+                  themeColor: '#3b82f6', 
+                  gracePeriodMinutes: 2 
+              },
               isPaused: false,
               announcement: ''
           };
           await firebaseService.set(newQueueRef, newQueue);
           return newQueue;
       }
-      return await api.post('/queue', { name, estimatedWaitTime });
+      return await api.post('/queue', { name, estimatedWaitTime, businessType: type, features: finalFeatures });
   },
 
   updateQueue: async (userId: string, queueId: string, updates: Partial<QueueInfo>): Promise<QueueInfo | null> => {
@@ -137,13 +162,17 @@ export const queueService = {
           
           let ticketNumber = 1;
 
-          await firebaseService.runTransaction(firebaseService.ref(firebaseService.db, `queues/${queueId}/counter`), (currentCounter) => {
+          await firebaseService.runTransaction(firebaseService.ref(firebaseService.db, `queues/${queueId}/counter`), (currentCounter: any) => {
               return (currentCounter || 0) + 1;
           }).then(res => {
               if (res.committed) ticketNumber = res.snapshot.val();
           });
 
-          // Order defaults to ticket number initially
+          // Determine Order: Get max order from existing
+          const vSnap = await firebaseService.get(firebaseService.ref(firebaseService.db, `visitors/${queueId}`));
+          const vMap = vSnap.val() || {};
+          const currentMaxOrder = Object.values(vMap).reduce((max: number, v: any) => Math.max(max, v.order || 0), 0);
+
           const newVisitor: Visitor = {
               id: visitorRef.key!,
               ticketNumber,
@@ -153,7 +182,8 @@ export const queueService = {
               status: 'waiting',
               source,
               isPriority: false,
-              order: ticketNumber
+              order: currentMaxOrder + 1, // Ensure new joins are at end
+              isLate: false
           };
 
           await firebaseService.set(visitorRef, newVisitor);
@@ -189,22 +219,25 @@ export const queueService = {
           const visitorsMap = vSnap.val() || {};
           const visitors: Visitor[] = Object.keys(visitorsMap).map(k => ({...visitorsMap[k], id: k}));
 
+          // Complete current serving
           const serving = visitors.find(v => v.status === 'serving' && (!servedBy || v.servedBy === servedBy || !v.servedBy));
-          
           if (serving) {
               await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${serving.id}`), {
                   status: 'served',
                   servedTime: new Date().toISOString(),
-                  isAlerting: false
+                  isAlerting: false,
+                  calledAt: null // clear grace timer
               });
           }
 
+          // Find Next
           const next = visitors
               .filter(v => v.status === 'waiting')
               .sort((a,b) => {
+                   // Respect order first (handles late people moved to end), then priority fallback
+                   if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
                    if (a.isPriority && !b.isPriority) return -1;
                    if (!a.isPriority && b.isPriority) return 1;
-                   if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
                    return a.ticketNumber - b.ticketNumber;
               })[0];
 
@@ -213,6 +246,7 @@ export const queueService = {
                   status: 'serving',
                   isAlerting: true,
                   servingStartTime: new Date().toISOString(),
+                  calledAt: new Date().toISOString(), // Start Grace Timer
                   servedBy: servedBy || 'Staff'
               });
               
@@ -245,7 +279,8 @@ export const queueService = {
               await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${serving.id}`), {
                   status: 'served',
                   servedTime: new Date().toISOString(),
-                  isAlerting: false
+                  isAlerting: false,
+                  calledAt: null
               });
           }
 
@@ -255,6 +290,7 @@ export const queueService = {
                   status: 'serving',
                   isAlerting: true,
                   servingStartTime: new Date().toISOString(),
+                  calledAt: new Date().toISOString(), // Start Grace Timer
                   servedBy: servedBy || 'Staff'
               });
               
@@ -274,6 +310,75 @@ export const queueService = {
       return await api.post(`/queue/${queueId}/call-number`, { ticketNumber, servedBy });
   },
 
+  confirmPresence: async (queueId: string, visitorId: string) => {
+      // Logic for "I'm Coming"
+      if (firebaseService.isAvailable) {
+          // Stop alerting, keep serving, remove calledAt to stop grace timer logic
+          await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${visitorId}`), { 
+              isAlerting: false,
+              calledAt: null, // Timer stops
+              isLate: false
+          });
+          return;
+      }
+      return await api.post(`/queue/${queueId}/confirm`, { visitorId });
+  },
+
+  handleGracePeriodExpiry: async (queueId: string, gracePeriodMinutes: number) => {
+      if (firebaseService.isAvailable) {
+          const vRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
+          const vSnap = await firebaseService.get(vRef);
+          const visitorsMap = vSnap.val() || {};
+          const visitors: Visitor[] = Object.keys(visitorsMap).map(k => ({...visitorsMap[k], id: k}));
+          
+          const now = Date.now();
+          const graceMs = gracePeriodMinutes * 60 * 1000;
+
+          // Find max order to push to back
+          const maxOrder = visitors.reduce((max, v) => Math.max(max, v.order || 0), 0);
+          let nextOrder = maxOrder + 1;
+
+          const updates: any = {};
+          let hasUpdates = false;
+
+          visitors.forEach(v => {
+              if (v.status === 'serving' && v.isAlerting && v.calledAt) {
+                  const calledTime = new Date(v.calledAt).getTime();
+                  if (now - calledTime > graceMs) {
+                      // EXPIRED - Move to end
+                      updates[`${v.id}/status`] = 'waiting';
+                      updates[`${v.id}/isAlerting`] = false;
+                      updates[`${v.id}/calledAt`] = null;
+                      updates[`${v.id}/isLate`] = true;
+                      updates[`${v.id}/order`] = nextOrder; // Move to end
+                      updates[`${v.id}/servedBy`] = null; // Free up counter
+                      
+                      // Log the late event
+                      const logKey = firebaseService.push(firebaseService.ref(firebaseService.db, `logs/${queueId}`)).key;
+                      updates[`../logs/${queueId}/${logKey}`] = {
+                          queueId,
+                          ticket: v.ticketNumber,
+                          action: 'late',
+                          time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+                          rawTime: new Date().toISOString(),
+                          user: 'System (Auto)',
+                          email: 'system@qblink.com',
+                          details: 'Auto-skipped due to no confirmation'
+                      };
+
+                      nextOrder++; // Increment for next late person if multiple
+                      hasUpdates = true;
+                  }
+              }
+          });
+
+          if (hasUpdates) {
+              await firebaseService.update(vRef, updates);
+          }
+      }
+      // Note: Backend implementation would handle this via a cron or similar interval
+  },
+
   recallVisitor: async (queueId: string, visitorId: string, servedBy?: string) => {
       if (firebaseService.isAvailable) {
           const vRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
@@ -285,14 +390,17 @@ export const queueService = {
           if (serving && serving.id !== visitorId) {
               await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${serving.id}`), {
                   status: 'served',
-                  isAlerting: false
+                  isAlerting: false,
+                  calledAt: null
               });
           }
 
           await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${visitorId}`), {
               status: 'serving',
               isAlerting: true,
-              servedBy: servedBy || 'Staff'
+              servedBy: servedBy || 'Staff',
+              calledAt: new Date().toISOString(), // Start Grace Timer again on recall
+              isLate: false // Reset late status
           });
           return;
       }
@@ -311,7 +419,8 @@ export const queueService = {
               await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${serving.id}`), {
                   status: 'waiting',
                   isAlerting: false,
-                  servedBy: null
+                  servedBy: null,
+                  calledAt: null
               });
           }
           return;
@@ -340,16 +449,16 @@ export const queueService = {
   },
 
   dismissAlert: async (queueId: string, visitorId: string) => {
-      if (firebaseService.isAvailable) {
-          await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${visitorId}`), { isAlerting: false });
-          return;
-      }
-      return await api.post(`/queue/${queueId}/alert`, { visitorId, type: 'dismiss' });
+      // Renamed to confirmPresence for clarity in new logic, but keeping for backward compat if needed
+      return queueService.confirmPresence(queueId, visitorId);
   },
 
   triggerAlert: async (queueId: string, visitorId: string) => {
       if (firebaseService.isAvailable) {
-           await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${visitorId}`), { isAlerting: true });
+           await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${visitorId}`), { 
+               isAlerting: true,
+               calledAt: new Date().toISOString() // Restart grace timer
+           });
            return;
       }
       return await api.post(`/queue/${queueId}/alert`, { visitorId, type: 'trigger' });
@@ -377,11 +486,12 @@ export const queueService = {
   },
 
   autoSkipInactive: async (queueId: string, minutes: number) => {
+      // Long-term service timeout logic (not grace period)
       const data = await queueService.getQueueData(queueId);
       const now = new Date().getTime();
 
       const expiredVisitors = data.visitors.filter(v => {
-          if (v.status === 'serving' && v.servingStartTime) {
+          if (v.status === 'serving' && v.servingStartTime && !v.isAlerting) { // Only check if confirmed present
               const startTime = new Date(v.servingStartTime).getTime();
               const diffMinutes = (now - startTime) / 60000;
               return diffMinutes > minutes;
@@ -394,7 +504,8 @@ export const queueService = {
                await firebaseService.update(firebaseService.ref(firebaseService.db, `visitors/${queueId}/${v.id}`), {
                   status: 'skipped',
                   servedTime: new Date().toISOString(),
-                  isAlerting: false
+                  isAlerting: false,
+                  calledAt: null
                });
           } else {
                await queueService.leaveQueue(queueId, v.id);
@@ -404,6 +515,34 @@ export const queueService = {
 
   getSystemLogs: async () => {
       return await api.get('/admin/system-logs');
+  },
+
+  exportStatsCSV: async (queueId: string, name: string) => {
+      // ... existing code ...
+      const data = await queueService.getQueueData(queueId);
+      const headers = ['Ticket Number', 'Name', 'Phone', 'Status', 'Join Time', 'Served Time', 'Served By', 'Priority', 'Late'];
+      const rows = data.visitors.map(v => [
+          v.ticketNumber,
+          v.name,
+          v.phoneNumber || '',
+          v.status,
+          new Date(v.joinTime).toLocaleString(),
+          v.servedTime ? new Date(v.servedTime).toLocaleString() : '',
+          v.servedBy || '',
+          v.isPriority ? 'Yes' : 'No',
+          v.isLate ? 'Yes' : 'No'
+      ]);
+      // ... (rest of export logic remains same)
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${name.replace(/\s+/g, '_')}_stats_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   },
 
   exportUserData: (userId: string) => {

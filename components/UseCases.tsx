@@ -36,7 +36,7 @@ const cases = [
     id: 2,
     icon: Scissors, 
     title: "Salons", 
-    desc: "Efficient appointments.",
+    desc: "Manage walk-ins seamlessly.",
     mockupData: {
       name: "Luxe Salon",
       status: "Haircut",

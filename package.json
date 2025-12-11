@@ -23,7 +23,8 @@
     "jsonwebtoken": "^9.0.3",
     "zod": "^4.1.13",
     "socket.io": "^4.8.1",
-    "bcryptjs": "^3.0.3"
+    "bcryptjs": "^3.0.3",
+    "firebase": "^12.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

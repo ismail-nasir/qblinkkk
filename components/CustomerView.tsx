@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw } from 'lucide-react';
+import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CustomerViewProps {
@@ -37,6 +37,9 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   // Background Tab handling (Title blink)
   const titleIntervalRef = useRef<number | null>(null);
+
+  // Countdown State
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
         try {
@@ -114,6 +117,23 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         document.title = "Join Queue - Qblink";
     }
   }, [queueData, myVisitorId, alertShown, queueInfo?.name]);
+
+  // Countdown Timer Logic
+  useEffect(() => {
+      if (isAlerting && myVisitor?.calledAt && queueInfo?.settings?.gracePeriodMinutes) {
+          const timer = setInterval(() => {
+              const callTime = new Date(myVisitor.calledAt!).getTime();
+              const graceMs = (queueInfo.settings.gracePeriodMinutes || 2) * 60 * 1000;
+              const expireTime = callTime + graceMs;
+              const remaining = Math.max(0, Math.ceil((expireTime - Date.now()) / 1000));
+              setTimeLeft(remaining);
+              if (remaining === 0) clearInterval(timer);
+          }, 1000);
+          return () => clearInterval(timer);
+      } else {
+          setTimeLeft(null);
+      }
+  }, [isAlerting, myVisitor?.calledAt, queueInfo?.settings?.gracePeriodMinutes]);
 
   const sendNotification = (title: string, body: string) => {
       if ('Notification' in window && Notification.permission === 'granted') {
@@ -322,7 +342,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   const handleImComing = () => {
       if (myVisitorId) {
-          queueService.dismissAlert(queueId, myVisitorId);
+          queueService.confirmPresence(queueId, myVisitorId);
           socketService.emit('customer_ack', { queueId, visitorId: myVisitorId });
           setIsAlerting(false);
           stopAlertLoop();
@@ -515,6 +535,18 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                     </div>
                 </div>
                 
+                {/* Visual Alert for Late Status */}
+                {myVisitor.isLate && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-4 w-full bg-red-50 text-red-600 border border-red-100 p-3 rounded-2xl text-center text-xs font-bold leading-relaxed"
+                    >
+                        <div className="flex justify-center mb-1"><AlertTriangle size={20} /></div>
+                        You missed your turn and were moved to the back of the queue.
+                    </motion.div>
+                )}
+
                 <div className="mt-8 w-full">
                     <motion.div 
                         animate={isOnTime ? { scale: [1, 1.02, 1], boxShadow: ["0 0 0px rgba(34,197,94,0)", "0 0 20px rgba(34,197,94,0.3)", "0 0 0px rgba(34,197,94,0)"] } : {}}
@@ -571,8 +603,16 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                     </motion.div>
                     
                     <h2 className="text-4xl font-black text-white mb-4 leading-tight">It's Your Turn!</h2>
+                    
+                    {timeLeft !== null && (
+                        <div className="mb-8">
+                            <span className="text-blue-100 font-bold text-sm uppercase tracking-widest">Confirm in</span>
+                            <div className="text-6xl font-black text-white font-mono mt-2">{timeLeft}s</div>
+                        </div>
+                    )}
+
                     <p className="text-blue-100 text-lg mb-12 max-w-xs font-medium leading-relaxed">
-                        Please proceed to the counter immediately.
+                        Please confirm you are here, or you will be moved to the back of the queue.
                     </p>
                     
                     <motion.button 

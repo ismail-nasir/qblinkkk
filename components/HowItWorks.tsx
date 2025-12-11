@@ -12,7 +12,7 @@ const HowItWorks: React.FC = () => {
             viewport={{ once: true }}
             className="text-3xl md:text-5xl font-bold text-gray-900 mb-4"
           >
-            Simple as 1-2-3-4
+            Dynamic Flow, Zero Gaps
           </motion.h2>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
@@ -21,7 +21,7 @@ const HowItWorks: React.FC = () => {
             transition={{ delay: 0.1 }}
             className="text-gray-500 text-base md:text-lg max-w-2xl mx-auto"
           >
-            A seamless experience for your customers from start to finish.
+            No appointments. No fixed slots. Just a smart, self-correcting queue.
           </motion.p>
         </div>
 
@@ -29,8 +29,8 @@ const HowItWorks: React.FC = () => {
             {/* Step 1: Scan */}
             <StepCard 
                 step={1} 
-                title="Scan QR" 
-                desc="Customers scan a code. No app download required."
+                title="Scan to Join" 
+                desc="Every customer—walk-in or expected—scans to enter the live queue. No fixed time slots."
             >
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
                     <div className="w-24 h-24 bg-white p-2 rounded-lg grid grid-cols-6 gap-1 opacity-50 absolute">
@@ -54,83 +54,62 @@ const HowItWorks: React.FC = () => {
                 </div>
             </StepCard>
 
-            {/* Step 2: Join */}
+            {/* Step 2: Dynamic Estimates */}
             <StepCard 
                 step={2} 
-                title="Join" 
-                desc="They enter their name to secure a spot in line."
+                title="Dynamic Estimates" 
+                desc="Receive a live wait time based on flow. If the line moves fast, your time updates instantly."
             >
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
                     <PhoneFrame>
-                        <div className="h-full bg-white flex flex-col p-4 relative">
-                            {/* App Header */}
-                            <div className="h-4 w-1/3 bg-gray-100 rounded-full mb-6"></div>
-                            
-                            {/* Input Field Animation */}
-                            <div className="space-y-2 mb-auto">
-                                <div className="h-2 w-1/4 bg-gray-100 rounded-full"></div>
-                                <motion.div 
-                                    initial={{ width: "30%" }}
-                                    whileInView={{ width: "100%" }}
-                                    transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2 }}
-                                    className="h-10 bg-gray-50 rounded-xl border border-gray-200 flex items-center px-3"
-                                >
-                                    <div className="w-0.5 h-4 bg-primary-500 animate-pulse"></div>
-                                </motion.div>
-                            </div>
-                            
-                            {/* Button Press Animation */}
+                        <div className="h-full bg-white flex flex-col p-4 relative items-center justify-center">
+                            <span className="text-gray-400 text-[10px] uppercase font-bold tracking-widest mb-2">Est. Wait</span>
                             <motion.div 
-                                animate={{ scale: [1, 0.95, 1] }}
-                                transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-                                className="h-10 w-full bg-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-600/20 mt-4"
+                                animate={{ scale: [1, 1.05, 1], color: ["#111827", "#3b82f6", "#111827"] }}
+                                transition={{ duration: 4, repeat: Infinity }}
+                                className="text-4xl font-black text-gray-900"
                             >
-                                <span className="text-[10px] font-bold text-white uppercase tracking-wider">Join Queue</span>
+                                12<span className="text-lg text-gray-400 font-medium">m</span>
                             </motion.div>
-
-                            {/* Finger Tap */}
-                            <motion.div
-                                animate={{ scale: [1, 0.8, 1], x: [10, 0, 10], y: [10, 0, 10], opacity: [0, 1, 0] }}
-                                transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-                                className="absolute bottom-6 right-10 w-8 h-8 bg-gray-900/20 rounded-full z-20 pointer-events-none blur-[2px]"
-                            />
+                            <div className="mt-4 flex gap-2">
+                                <div className="h-1.5 w-12 bg-gray-200 rounded-full overflow-hidden">
+                                    <motion.div animate={{ x: ["-100%", "100%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }} className="h-full w-full bg-green-500/50" />
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-2 font-medium">Updating live...</p>
                         </div>
                     </PhoneFrame>
                 </div>
             </StepCard>
 
-            {/* Step 3: Wait */}
+            {/* Step 3: Smart Grace Period */}
             <StepCard 
                 step={3} 
-                title="Wait" 
-                desc="Real-time updates keep them informed while they shop."
+                title="Smart Grace Period" 
+                desc="Turn arrived? You have 3 minutes. Miss it, and you're auto-moved to the back."
             >
                  <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
                      <PhoneFrame>
-                         {/* Lock Screen Wallpaper */}
-                         <div className="h-full w-full bg-gradient-to-br from-blue-500 to-indigo-600 relative p-4 flex flex-col items-center pt-8 text-white">
-                             {/* Time */}
-                             <div className="text-4xl font-thin tracking-tighter mb-1">09:41</div>
-                             <div className="text-[10px] font-medium opacity-80 mb-8">Wednesday, Jan 20</div>
+                         {/* Alert Screen */}
+                         <div className="h-full w-full bg-gray-900 relative p-4 flex flex-col items-center justify-center text-white overflow-hidden">
+                             {/* Pulse BG */}
+                             <motion.div animate={{ opacity: [0.1, 0.3, 0.1] }} transition={{ duration: 1, repeat: Infinity }} className="absolute inset-0 bg-yellow-500/20" />
+                             
+                             <div className="text-yellow-400 mb-2">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                             </div>
 
-                             {/* Notification */}
-                             <motion.div
-                                initial={{ y: 20, opacity: 0, scale: 0.9 }}
-                                whileInView={{ y: 0, opacity: 1, scale: 1 }}
-                                transition={{ type: "spring", bounce: 0.5, delay: 0.5, repeat: Infinity, repeatDelay: 4 }}
-                                className="w-full bg-white/20 backdrop-blur-md rounded-2xl p-3 shadow-lg border border-white/20 flex items-start gap-3"
-                             >
-                                 <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0">
-                                     <span className="text-primary-600 text-xs font-bold">Q</span>
-                                 </div>
-                                 <div className="flex-1 min-w-0">
-                                     <div className="flex justify-between items-baseline mb-0.5">
-                                         <span className="text-[10px] font-bold">Qblink</span>
-                                         <span className="text-[8px] opacity-70">Now</span>
-                                     </div>
-                                     <p className="text-[10px] leading-tight font-medium">It's almost your turn! You are 3rd in line.</p>
-                                 </div>
-                             </motion.div>
+                             <div className="text-lg font-bold mb-1">Your Turn!</div>
+                             <div className="text-[10px] opacity-80 mb-4 text-center px-2">Please confirm arrival</div>
+
+                             {/* Countdown */}
+                             <div className="text-4xl font-mono font-bold text-yellow-400 tabular-nums">
+                                 2:59
+                             </div>
+                             
+                             <div className="mt-6 w-full h-10 bg-white text-gray-900 rounded-xl flex items-center justify-center text-xs font-bold">
+                                 I'm Here
+                             </div>
                          </div>
                      </PhoneFrame>
                  </div>
@@ -139,8 +118,8 @@ const HowItWorks: React.FC = () => {
             {/* Step 4: Served */}
             <StepCard 
                 step={4} 
-                title="Served" 
-                desc="They arrive exactly when it's their turn."
+                title="Zero Idle Time" 
+                desc="We serve whoever is digitally present next. No gaps, no waiting for latecomers."
             >
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
                      <PhoneFrame>
@@ -149,35 +128,33 @@ const HowItWorks: React.FC = () => {
                             <motion.div
                                 animate={{ scale: [1, 1.1, 1] }}
                                 transition={{ duration: 2, repeat: Infinity }}
-                                className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/30 relative z-10"
+                                className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-600/30 relative z-10"
                             >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-white">
-                                    <polyline points="20 6 9 17 4 12" />
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-white">
+                                    <path d="M5 12l5 5L20 7" />
                                 </svg>
                             </motion.div>
                             
                             <motion.div 
                                 initial={{ opacity: 0, y: 10 }}
                                 whileInView={{ opacity: 1, y: 0 }}
-                                className="mt-6 text-sm font-bold text-gray-900 uppercase tracking-widest text-center"
+                                className="mt-4 text-sm font-bold text-gray-900 text-center"
                             >
-                                You're Up!
+                                Now Serving
                             </motion.div>
-
-                             {/* Confetti Particles */}
-                             {[...Array(6)].map((_, i) => (
-                                <motion.div
-                                    key={i}
-                                    animate={{ 
-                                        y: [0, -100],
-                                        x: [0, (i % 2 === 0 ? 20 : -20)],
-                                        opacity: [1, 0],
-                                        rotate: [0, 180] 
-                                    }}
-                                    transition={{ duration: 2, repeat: Infinity, delay: i * 0.2 }}
-                                    className={`absolute top-1/2 left-1/2 w-2 h-2 rounded-sm ${i % 2 === 0 ? 'bg-blue-400' : 'bg-yellow-400'}`}
-                                />
-                             ))}
+                            
+                            {/* Flow lines */}
+                            <div className="absolute inset-0 pointer-events-none">
+                                {[...Array(3)].map((_, i) => (
+                                    <motion.div
+                                        key={i}
+                                        className="absolute h-0.5 bg-blue-100 w-full left-0"
+                                        style={{ top: `${20 + i * 30}%` }}
+                                        animate={{ x: ["-100%", "100%"] }}
+                                        transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2, ease: "linear" }}
+                                    />
+                                ))}
+                            </div>
                          </div>
                      </PhoneFrame>
                 </div>

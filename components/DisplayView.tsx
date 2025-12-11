@@ -29,18 +29,9 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
 
   useEffect(() => {
     fetchData();
-
-    // Join Room
     socketService.joinQueue(queueId);
-
-    // Listen
-    socketService.on('queue:update', () => {
-        fetchData();
-    });
-
-    return () => {
-        socketService.off('queue:update');
-    };
+    socketService.on('queue:update', () => fetchData());
+    return () => { socketService.off('queue:update'); };
   }, [fetchData, queueId]);
 
   if (loading || !queueData) {
@@ -48,20 +39,32 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
           <div className="h-screen w-screen bg-gray-950 text-white flex items-center justify-center overflow-hidden">
               <div className="flex flex-col items-center gap-4">
                   <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-                  <div className="text-xl font-mono text-gray-400">Connecting to Display...</div>
+                  <div className="text-xl font-mono text-gray-400">Connecting...</div>
               </div>
           </div>
       );
   }
 
-  // Filter visitors who are waiting, sorted by ticket number
   const nextVisitors = queueData.visitors
     .filter(v => v.status === 'waiting')
-    .sort((a,b) => a.ticketNumber - b.ticketNumber)
-    .slice(0, 5); // Show next 5
+    .sort((a,b) => (a.isPriority === b.isPriority ? 0 : a.isPriority ? -1 : 1) || a.ticketNumber - b.ticketNumber)
+    .slice(0, 5);
+
+  // Dynamic Theme Color
+  const themeColor = queueInfo?.settings?.themeColor || '#3b82f6';
+  
+  // Format Name for Display
+  const getDisplayName = (name: string, ticket: number) => {
+      if (queueInfo?.features?.anonymousMode) {
+          // If masked, return "Guest {Ticket}" or partial mask
+          // For simplicity and total privacy in clinics/banks, use Ticket ID reference
+          return `Visitor ${ticket}`;
+      }
+      return name;
+  };
 
   return (
-    <div className="h-screen w-screen bg-gray-950 text-white p-4 md:p-6 flex flex-col overflow-hidden font-sans selection:bg-primary-500/30 relative">
+    <div className="h-screen w-screen bg-gray-950 text-white p-4 md:p-6 flex flex-col overflow-hidden font-sans relative">
       
       {/* Announcement Overlay */}
       <AnimatePresence>
@@ -70,7 +73,8 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
                 initial={{ y: -100 }}
                 animate={{ y: 0 }}
                 exit={{ y: -100 }}
-                className="absolute top-0 left-0 right-0 bg-orange-600 text-white z-50 py-3 px-6 text-center font-bold text-xl md:text-2xl shadow-xl flex items-center justify-center gap-3"
+                className="absolute top-0 left-0 right-0 z-50 py-3 px-6 text-center font-bold text-xl md:text-2xl shadow-xl flex items-center justify-center gap-3"
+                style={{ backgroundColor: themeColor }}
               >
                   <Megaphone size={28} />
                   {queueInfo.announcement}
@@ -81,7 +85,7 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
       {/* Header */}
       <div className={`flex justify-between items-center mb-4 md:mb-6 border-b border-gray-800 pb-4 shrink-0 transition-all ${queueInfo?.announcement ? 'mt-14' : ''}`}>
           <div className="flex items-center gap-4 md:gap-6">
-              <div className="w-12 h-12 md:w-16 md:h-16 bg-primary-600 rounded-2xl flex items-center justify-center font-bold text-2xl md:text-4xl shadow-lg shadow-primary-600/20 text-white">
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center font-bold text-2xl md:text-4xl shadow-lg text-white" style={{backgroundColor: themeColor}}>
                 Q
               </div>
               <div>
@@ -93,17 +97,13 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
               <div className="text-3xl md:text-5xl font-mono font-bold text-gray-200">
                   {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
-              <div className="text-gray-500 font-medium uppercase tracking-widest text-xs md:text-sm mt-1">
-                  {new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric'})}
-              </div>
           </div>
       </div>
 
       <div className="flex flex-col lg:flex-row flex-1 gap-4 lg:gap-8 h-full min-h-0 overflow-hidden">
           {/* Main Section: Now Serving */}
           <div className="w-full lg:w-2/3 bg-gray-900 rounded-[32px] md:rounded-[48px] p-6 md:p-8 flex flex-col items-center justify-center text-center relative overflow-hidden border border-gray-800 shadow-2xl shrink-0 lg:shrink">
-              {/* Decorative Background Elements */}
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-primary-500 to-purple-500"></div>
+              <div className="absolute top-0 left-0 w-full h-2" style={{ background: `linear-gradient(90deg, ${themeColor}, #ffffff, ${themeColor})` }}></div>
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gray-800/50 to-transparent pointer-events-none"></div>
               
               <h2 className="text-2xl md:text-4xl font-bold text-gray-500 uppercase tracking-[0.2em] mb-2 md:mb-4 relative z-10">Now Serving</h2>
@@ -123,10 +123,10 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
                   </AnimatePresence>
               </div>
 
-              <div className="mt-4 md:mt-8 text-lg md:text-2xl font-medium text-primary-400 flex items-center gap-3 md:gap-4 bg-primary-500/10 px-6 py-3 md:px-8 md:py-4 rounded-full border border-primary-500/20">
+              <div className="mt-4 md:mt-8 text-lg md:text-2xl font-medium flex items-center gap-3 md:gap-4 px-6 py-3 md:px-8 md:py-4 rounded-full border border-white/10" style={{ color: themeColor, backgroundColor: `${themeColor}20` }}>
                   <span className="relative flex h-3 w-3 md:h-4 md:w-4 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 md:h-4 md:w-4 bg-primary-500"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{backgroundColor: themeColor}}></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 md:h-4 md:w-4" style={{backgroundColor: themeColor}}></span>
                   </span>
                   Please proceed to counter
               </div>
@@ -158,11 +158,11 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
                                           {String(v.ticketNumber).padStart(3, '0')}
                                       </div>
                                       <div className="flex flex-col min-w-0">
-                                          <span className={`text-base md:text-lg font-bold truncate ${v.isPriority ? 'text-amber-400' : 'text-gray-200'}`}>{v.name}</span>
+                                          <span className={`text-base md:text-lg font-bold truncate ${v.isPriority ? 'text-amber-400' : 'text-gray-200'}`}>{getDisplayName(v.name, v.ticketNumber)}</span>
                                           <span className="text-xs text-gray-500 font-mono">Visitor</span>
                                       </div>
                                   </div>
-                                  <div className={`w-2 h-2 rounded-full transition-colors shrink-0 ${v.isPriority ? 'bg-amber-500' : 'bg-gray-700 group-hover:bg-primary-500'}`}></div>
+                                  <div className={`w-2 h-2 rounded-full transition-colors shrink-0 ${v.isPriority ? 'bg-amber-500' : 'bg-gray-700'}`} style={{ backgroundColor: v.isPriority ? undefined : themeColor }}></div>
                               </motion.div>
                           ))}
                       </AnimatePresence>

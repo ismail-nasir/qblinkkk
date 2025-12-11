@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, QueueInfo, QueueData } from '../types';
+import { User, QueueInfo, QueueData, BusinessType, QueueFeatures } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { Plus, LayoutGrid, Clock, Users, ExternalLink, Activity, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, LayoutGrid, Clock, Users, ExternalLink, Activity, Trash2, TrendingUp, UserCheck, Hourglass, AlertTriangle, BarChart3, ChevronDown, ChevronUp, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Store } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 // @ts-ignore
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -17,8 +18,14 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
   const [queueStats, setQueueStats] = useState<Record<string, QueueData>>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [queueToDelete, setQueueToDelete] = useState<string | null>(null);
+  
+  // Create Wizard State
+  const [step, setStep] = useState(1);
   const [newQueueName, setNewQueueName] = useState('');
   const [estimatedTime, setEstimatedTime] = useState('');
+  const [selectedType, setSelectedType] = useState<BusinessType>('general');
+  const [featureOverrides, setFeatureOverrides] = useState<Partial<QueueFeatures>>({});
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   // State for toggling stats visibility per queue
   const [expandedQueues, setExpandedQueues] = useState<Set<string>>(new Set());
@@ -134,12 +141,22 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
       e.preventDefault();
       if (!newQueueName.trim()) return;
       const waitTime = estimatedTime ? parseInt(estimatedTime) : 5;
-      await queueService.createQueue(user.id, newQueueName, waitTime);
-      setNewQueueName('');
-      setEstimatedTime('');
-      setShowCreateModal(false);
+      
+      await queueService.createQueue(user.id, newQueueName, waitTime, selectedType, featureOverrides);
+      
+      resetCreateModal();
       loadQueues();
   };
+
+  const resetCreateModal = () => {
+      setNewQueueName('');
+      setEstimatedTime('');
+      setStep(1);
+      setSelectedType('general');
+      setFeatureOverrides({});
+      setShowAdvanced(false);
+      setShowCreateModal(false);
+  }
 
   const handleDeleteClick = (e: React.MouseEvent, queueId: string) => {
       e.stopPropagation();
@@ -166,6 +183,15 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
           return next;
       });
   };
+
+  const businessTypes: { type: BusinessType, icon: any, label: string }[] = [
+      { type: 'general', icon: LayoutGrid, label: 'General' },
+      { type: 'restaurant', icon: Utensils, label: 'Restaurant' },
+      { type: 'clinic', icon: Stethoscope, label: 'Clinic' },
+      { type: 'salon', icon: Scissors, label: 'Salon' },
+      { type: 'bank', icon: Building2, label: 'Bank' },
+      { type: 'retail', icon: ShoppingBag, label: 'Retail' }
+  ];
 
   // ... (CustomTooltip component remains same) ...
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -384,6 +410,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                   {queues.map((queue, index) => {
                       const stats = queueStats[queue.id];
                       const isExpanded = expandedQueues.has(queue.id);
+                      const TypeIcon = businessTypes.find(t => t.type === (queue.businessType || 'general'))?.icon || LayoutGrid;
                       
                       return (
                         <motion.div
@@ -394,10 +421,15 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                             className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300 relative group flex flex-col"
                         >
                             <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="text-2xl font-bold text-gray-900 mb-1">{queue.name}</h3>
-                                    <div className="flex items-center gap-2 text-sm text-gray-500 font-mono">
-                                        Code: <span className="text-gray-900 font-bold bg-gray-100 px-1.5 py-0.5 rounded">{queue.code}</span>
+                                <div className="flex items-start gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-600">
+                                        <TypeIcon size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-gray-900 mb-1">{queue.name}</h3>
+                                        <div className="flex items-center gap-2 text-sm text-gray-500 font-mono">
+                                            Code: <span className="text-gray-900 font-bold bg-gray-100 px-1.5 py-0.5 rounded">{queue.code}</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${queue.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -481,7 +513,7 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
           )}
       </div>
 
-      {/* Create Queue Modal - same structure, uses new handleCreateQueue */}
+      {/* Create Queue Wizard Modal */}
       <AnimatePresence>
           {showCreateModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
@@ -489,54 +521,91 @@ const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => {
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-white rounded-3xl p-8 max-w-md w-full"
+                    className="bg-white rounded-3xl p-8 max-w-2xl w-full"
                   >
-                      <h3 className="text-2xl font-bold mb-2">Create New Queue</h3>
-                      <p className="text-gray-500 mb-6">Set up your queue details.</p>
-                      
-                      <form onSubmit={handleCreateQueue}>
-                          <div className="space-y-4 mb-6">
-                              <div>
-                                  <label className="block text-sm font-bold text-gray-700 mb-2">Queue Name</label>
-                                  <input 
-                                    autoFocus
-                                    type="text" 
-                                    placeholder="e.g. Counter 1, Takeout" 
-                                    value={newQueueName}
-                                    onChange={(e) => setNewQueueName(e.target.value)}
-                                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
-                                  />
+                      {step === 1 ? (
+                          <>
+                            <h3 className="text-2xl font-bold mb-2 text-center">Select Business Type</h3>
+                            <p className="text-gray-500 mb-8 text-center">Choose the template that best fits your needs.</p>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                                {businessTypes.map((b) => (
+                                    <button
+                                        key={b.type}
+                                        onClick={() => setSelectedType(b.type)}
+                                        className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-3 transition-all ${selectedType === b.type ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-100 bg-white hover:border-gray-200 text-gray-600'}`}
+                                    >
+                                        <b.icon size={32} strokeWidth={1.5} />
+                                        <span className="font-bold text-sm">{b.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            
+                            <div className="flex justify-end">
+                                <button onClick={() => setStep(2)} className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg hover:bg-primary-700">
+                                    Next Step
+                                </button>
+                            </div>
+                          </>
+                      ) : (
+                          <form onSubmit={handleCreateQueue}>
+                              <h3 className="text-2xl font-bold mb-2">Configure Queue</h3>
+                              <p className="text-gray-500 mb-6">Finalize your queue settings.</p>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                  <div>
+                                      <label className="block text-sm font-bold text-gray-700 mb-2">Queue Name</label>
+                                      <input 
+                                        autoFocus
+                                        type="text" 
+                                        placeholder={`e.g. ${selectedType === 'restaurant' ? 'Main Dining' : 'Dr. Smith'}`}
+                                        value={newQueueName}
+                                        onChange={(e) => setNewQueueName(e.target.value)}
+                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-medium"
+                                      />
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-bold text-gray-700 mb-2">Est. Wait (Mins)</label>
+                                      <input 
+                                        type="number" 
+                                        placeholder="5" 
+                                        min="1"
+                                        value={estimatedTime}
+                                        onChange={(e) => setEstimatedTime(e.target.value)}
+                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-medium"
+                                      />
+                                  </div>
                               </div>
-                              <div>
-                                  <label className="block text-sm font-bold text-gray-700 mb-2">Est. Minutes per Customer</label>
-                                  <input 
-                                    type="number" 
-                                    placeholder="5" 
-                                    min="1"
-                                    value={estimatedTime}
-                                    onChange={(e) => setEstimatedTime(e.target.value)}
-                                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-lg font-medium"
-                                  />
-                                  <p className="text-xs text-gray-400 mt-1">If left blank, system will auto-estimate.</p>
+
+                              <div className="mb-8">
+                                  <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="text-sm font-bold text-primary-600 flex items-center gap-1 mb-3">
+                                      {showAdvanced ? <ChevronUp size={16}/> : <ChevronDown size={16}/>} Advanced Features
+                                  </button>
+                                  
+                                  {showAdvanced && (
+                                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
+                                          <label className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
+                                              <input type="checkbox" className="w-4 h-4 text-primary-600" checked={featureOverrides.vip ?? queueService.getDefaultFeatures(selectedType).vip} onChange={(e) => setFeatureOverrides({...featureOverrides, vip: e.target.checked})} />
+                                              <span className="text-sm font-medium">Enable VIP/Priority Status</span>
+                                          </label>
+                                          <label className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
+                                              <input type="checkbox" className="w-4 h-4 text-primary-600" checked={featureOverrides.multiCounter ?? queueService.getDefaultFeatures(selectedType).multiCounter} onChange={(e) => setFeatureOverrides({...featureOverrides, multiCounter: e.target.checked})} />
+                                              <span className="text-sm font-medium">Enable Multi-Counter / Tables</span>
+                                          </label>
+                                          <label className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
+                                              <input type="checkbox" className="w-4 h-4 text-primary-600" checked={featureOverrides.anonymousMode ?? queueService.getDefaultFeatures(selectedType).anonymousMode} onChange={(e) => setFeatureOverrides({...featureOverrides, anonymousMode: e.target.checked})} />
+                                              <span className="text-sm font-medium">Anonymous Mode (Mask Names)</span>
+                                          </label>
+                                      </div>
+                                  )}
                               </div>
-                          </div>
-                          
-                          <div className="flex gap-3">
-                              <button 
-                                type="button" 
-                                onClick={() => setShowCreateModal(false)}
-                                className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50"
-                              >
-                                  Cancel
-                              </button>
-                              <button 
-                                type="submit" 
-                                className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 shadow-lg shadow-primary-600/20"
-                              >
-                                  Create Queue
-                              </button>
-                          </div>
-                      </form>
+                              
+                              <div className="flex gap-3">
+                                  <button type="button" onClick={() => setStep(1)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50">Back</button>
+                                  <button type="submit" className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 shadow-lg">Create Queue</button>
+                              </div>
+                          </form>
+                      )}
                   </motion.div>
               </div>
           )}

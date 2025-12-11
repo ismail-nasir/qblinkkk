@@ -8,7 +8,7 @@ export interface QueueMetric {
 export interface ActivityLog {
   ticket: number;
   time: string;
-  action: 'call' | 'skip' | 'complete' | 'join' | 'leave';
+  action: 'call' | 'skip' | 'complete' | 'join' | 'leave' | 'late';
   details?: string;
 }
 
@@ -32,6 +32,8 @@ export interface Visitor {
   isAlerting?: boolean; // New flag for sound control
   servedTime?: string; // Time when status changed to served
   servingStartTime?: string; // Time when status changed to serving
+  calledAt?: string; // Timestamp when call started (grace period start)
+  isLate?: boolean; // Flag if they missed the grace period
   source?: UserSource; // Track how visitor was added
   isPriority?: boolean; // New: VIP Status
   servedBy?: string; // Staff member/Counter name
@@ -41,8 +43,20 @@ export interface Visitor {
 export interface QueueSettings {
   soundEnabled: boolean;
   soundVolume: number; // 0.1 to 1.0
-  soundType: 'beep' | 'chime' | 'alarm' | 'ding' | 'success'; // Extended sound types
-  autoSkipMinutes?: number; // Added autoSkipMinutes
+  soundType: 'beep' | 'chime' | 'alarm' | 'ding' | 'success'; 
+  autoSkipMinutes?: number; 
+  gracePeriodMinutes?: number; // Time to confirm presence
+  themeColor?: string; // Custom Branding Color (Hex)
+  enableSMS?: boolean; // Placeholder for future SMS
+}
+
+export type BusinessType = 'general' | 'restaurant' | 'clinic' | 'salon' | 'bank' | 'retail';
+
+export interface QueueFeatures {
+  vip: boolean;
+  multiCounter: boolean; // aka Tables for restaurants, Stylists for salons
+  anonymousMode: boolean; // Hide names on public display
+  sms: boolean;
 }
 
 export interface QueueInfo {
@@ -55,6 +69,8 @@ export interface QueueInfo {
   estimatedWaitTime?: number; // Manual override for wait time
   logo?: string; // Base64 or URL of the queue logo
   settings: QueueSettings;
+  businessType: BusinessType; // Added
+  features: QueueFeatures; // Added
   isPaused?: boolean; // New: Pause new joins
   announcement?: string; // New: Global message
 }
