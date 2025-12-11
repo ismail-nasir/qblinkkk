@@ -3,7 +3,9 @@ import React, { Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Zap, LogOut, CheckCircle2 } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
-import HeroScene from './HeroScene';
+
+// Lazy load the 3D scene so the rest of the app renders even if Three.js fails or loads slowly
+const HeroScene = React.lazy(() => import('./HeroScene'));
 
 interface HeroProps {
   onGetStarted?: () => void;
@@ -15,7 +17,9 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
       
       {/* 3D Background Scene */}
       <Suspense fallback={<div className="absolute inset-0 bg-blue-50/20" />}>
-         <HeroScene />
+         <div className="absolute inset-0 z-0">
+            <HeroScene />
+         </div>
       </Suspense>
 
       {/* Legacy Gradients (Lower opacity for 3D visibility) */}
