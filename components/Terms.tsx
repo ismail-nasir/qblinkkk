@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
@@ -12,15 +13,6 @@ const Terms: React.FC<TermsProps> = ({ onBack }) => {
     window.scrollTo(0, 0);
   }, []);
 
-  const simpleTerms = [
-    "Qlink is provided 'as-is' without guarantees.",
-    "You must use Qlink responsibly and legally.",
-    "You may not misuse or overload the system.",
-    "You accept that ads are displayed in the free plan.",
-    "Qlink can update features or rules at any time.",
-    "All content and branding belong to Qlink."
-  ];
-
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 pt-8 px-4 md:px-6">
       <div className="max-w-4xl mx-auto">
@@ -32,7 +24,7 @@ const Terms: React.FC<TermsProps> = ({ onBack }) => {
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                     </svg>
                 </div>
-                <span className="text-2xl font-bold text-gray-900">Qlink</span>
+                <span className="text-2xl font-bold text-gray-900">Qblink</span>
             </div>
             
             <button 
@@ -48,68 +40,154 @@ const Terms: React.FC<TermsProps> = ({ onBack }) => {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-8"
         >
-            <div className="mb-12">
+            <div className="mb-8">
                 <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 mb-6 tracking-tight">Terms & Conditions</h1>
-                <GlassCard className="p-6 md:p-8">
-                    <p className="text-xl font-bold text-gray-800">By using Qlink, you agree to the following:</p>
-                </GlassCard>
+                <p className="text-gray-500">Effective Date: January 1, 2025</p>
             </div>
 
-            <div className="space-y-4">
-                {simpleTerms.map((term, i) => (
-                    <div key={i} className="bg-blue-50/50 p-4 md:p-6 rounded-2xl border-l-4 border-primary-500">
-                        <p className="text-gray-700 font-medium">{term}</p>
+            <GlassCard className="p-8 md:p-10 space-y-8 text-gray-700 leading-relaxed">
+                
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">1. Introduction</h2>
+                    <p>
+                        Welcome to QBlink, a digital queue management platform (“the Platform”), owned and operated by Qblink.
+                        By accessing or using the Platform, you agree to comply with these Terms & Conditions (“Terms”). If you do not agree with any part of these Terms, you must not use the Platform.
+                        These Terms apply to all users, including businesses (“Business Users”) and customers (“Customers”).
+                    </p>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">2. Scope of Services</h2>
+                    <p>QBlink provides the following services:</p>
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                        <li>Digital queue management for businesses, allowing real-time customer management.</li>
+                        <li>Customer access to queues via QR codes, notifications, and live updates.</li>
+                        <li>Analytics and reporting tools for businesses.</li>
+                    </ul>
+                    <p className="mt-2">We reserve the right to modify, update, or discontinue any part of the Platform at any time without prior notice.</p>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">3. User Eligibility</h2>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>Users must be at least 18 years old or have consent from a legal guardian.</li>
+                        <li>Businesses must have the legal authority to operate in their jurisdiction.</li>
+                        <li>Users agree to provide accurate and up-to-date information when registering or using the Platform.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">4. User Responsibilities</h2>
+                    <h3 className="font-bold text-gray-800 mb-2">4.1 Customers</h3>
+                    <ul className="list-disc pl-5 mb-4 space-y-1">
+                        <li>Join queues only through the official Platform using valid QR codes.</li>
+                        <li>Provide accurate personal information (e.g., name, phone number) and keep it updated.</li>
+                        <li>Adhere to the queue instructions and estimated wait times.</li>
+                    </ul>
+                    <h3 className="font-bold text-gray-800 mb-2">4.2 Businesses</h3>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>Ensure that all information provided to the Platform is accurate and lawful.</li>
+                        <li>Respect customer data and comply with local and international data protection laws.</li>
+                        <li>Maintain operational integrity of their services and act responsibly.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">5. Account Security</h2>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>Users are responsible for keeping their account credentials secure.</li>
+                        <li>Any activity through a user’s account is considered authorized by that user.</li>
+                        <li>QBlink is not liable for any unauthorized access resulting from a user’s failure to secure their account.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">6. Data Collection & Privacy</h2>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>The Platform collects minimal personal data necessary for service operation, such as names, phone numbers, and queue participation.</li>
+                        <li>Personal data is processed according to our Privacy Policy.</li>
+                        <li>We do not sell user data to third parties.</li>
+                        <li>Users may request data access, correction, or deletion in compliance with local and global privacy regulations (e.g., GDPR, CCPA).</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">7. Intellectual Property</h2>
+                    <p>
+                        The Platform, its content, design, software, and branding are the exclusive property of QBlink and its licensors.
+                        Users may not copy, modify, distribute, or create derivative works from the Platform without prior written permission.
+                    </p>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">8. Limitation of Liability</h2>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>The Platform is provided “as is” and “as available,” without warranties of any kind.</li>
+                        <li>QBlink is not liable for indirect, incidental, special, or consequential damages arising from the use or inability to use the Platform.</li>
+                        <li>The Platform does not guarantee uninterrupted service or error-free operation.</li>
+                        <li>Users use the Platform at their own risk.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">9. Indemnification</h2>
+                    <p>
+                        Users agree to indemnify, defend, and hold harmless QBlink and its affiliates from any claims, damages, liabilities, or expenses arising from misuse of the Platform or violation of these Terms.
+                    </p>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">10. Termination</h2>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>QBlink may suspend or terminate a user’s access at any time for violations of these Terms or unlawful behavior.</li>
+                        <li>Users may terminate their account at any time by following the account deletion procedure.</li>
+                        <li>Termination does not absolve any pending obligations or liabilities.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">11. Changes to Terms</h2>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>QBlink may update these Terms periodically.</li>
+                        <li>Updated Terms take effect immediately upon posting on the Platform.</li>
+                        <li>Continued use of the Platform indicates acceptance of the updated Terms.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">12. Governing Law & Jurisdiction</h2>
+                    <p>
+                        These Terms are governed by the laws of International Standards and applicable local regulations.
+                        Any disputes shall be resolved under international arbitration guidelines if cross-border, or through courts with appropriate jurisdiction for local disputes.
+                    </p>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">13. Global Compliance Notes</h2>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>The Platform aims to comply with global data protection laws including GDPR (Europe), CCPA (California), and other applicable regulations.</li>
+                        <li>Businesses are responsible for compliance with local consumer protection, labor, and privacy laws.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2 className="text-xl font-bold text-gray-900 mb-3">14. Contact</h2>
+                    <p>For questions regarding these Terms, contact us at:</p>
+                    <div className="mt-2 text-gray-900 font-medium">
+                        <p>Email: hello@qblink.app</p>
+                        <p>Website: qblink.app</p>
                     </div>
-                ))}
-            </div>
+                </section>
 
-            <GlassCard className="p-8 md:p-10 space-y-4 mt-8">
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Google AdSense Compliance</h2>
-                <p className="text-gray-600 mb-4">
-                    This service uses Google AdSense to display advertisements. By using this service, you acknowledge and agree to Google's advertising policies and terms:
-                </p>
-                <ul className="space-y-3 pl-5 list-disc text-gray-600">
-                    <li>Ads are provided by Google AdSense and are subject to Google's policies</li>
-                    <li>Ad content is determined by Google and may be personalized based on your browsing</li>
-                    <li>You may not click on ads for fraudulent purposes or encourage others to do so</li>
-                    <li>You must not interfere with or manipulate the display or functionality of ads</li>
-                    <li>Google may use cookies and similar technologies for ad serving and personalization</li>
-                </ul>
-                <p className="text-sm text-gray-500 mt-4">
-                    For more information about Google's advertising policies, visit: <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">Google AdSense Program Policies</a>
-                </p>
             </GlassCard>
 
-            <GlassCard className="p-8 md:p-10 space-y-4">
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">User Conduct</h2>
-                <p className="text-gray-600 mb-4">You agree not to engage in any of the following prohibited activities:</p>
-                <ul className="space-y-3 pl-5 list-disc text-gray-600">
-                    <li>Attempting to manipulate, interfere with, or disrupt the service</li>
-                    <li>Creating fake queues or customer entries</li>
-                    <li>Using the service for any illegal or unauthorized purpose</li>
-                    <li>Attempting to circumvent or interfere with the advertising system</li>
-                    <li>Collecting or harvesting any personally identifiable information</li>
-                </ul>
-            </GlassCard>
-
-            <GlassCard className="p-8 md:p-10 space-y-4">
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Limitation of Liability</h2>
-                <p className="text-gray-600">
-                    Qlink and its operators shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use or inability to use the service, including but not limited to loss of revenue, loss of data, or service interruptions.
-                </p>
-            </GlassCard>
-
-            <GlassCard className="p-8 md:p-10 space-y-4">
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Changes to Terms</h2>
-                <p className="text-gray-600">
-                    We reserve the right to modify these terms at any time. Continued use of the service after changes constitutes acceptance of the new terms.
-                </p>
-            </GlassCard>
-
-            <div className="bg-red-50 p-8 md:p-10 rounded-[32px] border border-red-100 text-center">
-                <h3 className="text-xl md:text-2xl font-bold text-gray-900">
-                    If you disagree with these terms, please stop using the service.
+            <div className="bg-blue-50 p-8 md:p-10 rounded-[32px] border border-blue-100 text-center">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    Acceptance
                 </h3>
+                <p className="text-gray-600">
+                    By using Qblink, you acknowledge that you have read and understood these Terms & Conditions.
+                </p>
             </div>
 
         </motion.div>
