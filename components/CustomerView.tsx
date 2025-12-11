@@ -117,10 +117,10 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
             const peopleAhead = queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < visitor.ticketNumber).length;
 
             // 1. Proximity Alert (2 people ahead) - Only once
-            if (peopleAhead === 2 && !alertShown && visitor.status === 'waiting') {
+            if (peopleAhead <= 2 && peopleAhead > 0 && !alertShown && visitor.status === 'waiting') {
                 setShowNotificationPopup(true);
                 setAlertShown(true);
-                sendNotification("Get Ready!", `Only 2 people ahead of you in ${queueInfo?.name || 'the queue'}.`);
+                sendNotification("Get Ready!", `Only ${peopleAhead} people ahead of you in ${queueInfo?.name || 'the queue'}.`);
             }
             
             // 2. Title Updates based on position
@@ -129,6 +129,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                     document.title = `(${peopleAhead + 1}) Position - Qblink`;
                 } else if (visitor.status === 'serving') {
                     document.title = `🔔 IT'S YOUR TURN!`;
+                    sendNotification("It's Your Turn!", "Please proceed to the counter immediately.");
                 }
             }
         } else {
@@ -162,9 +163,33 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       }
   }, [isAlerting, myVisitor?.calledAt, queueInfo?.settings?.gracePeriodMinutes]);
 
+  const requestNotificationPermission = async () => {
+     if ('Notification' in window) {
+         if (Notification.permission === 'default') {
+             await Notification.requestPermission();
+         }
+     }
+  };
+
   const sendNotification = (title: string, body: string) => {
       if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(title, { body, icon: '/favicon.ico' });
+          // Check if visibility is hidden (user is in another tab) to make it more useful
+          if (document.visibilityState === 'hidden' || !document.hasFocus()) {
+              try {
+                  const notification = new Notification(title, { 
+                      body, 
+                      icon: '/favicon.ico',
+                      tag: 'qblink-update', // Prevent stacking
+                      requireInteraction: true // Keep it on screen
+                  });
+                  notification.onclick = () => {
+                      window.focus();
+                      notification.close();
+                  };
+              } catch (e) {
+                  console.warn("Notification error:", e);
+              }
+          }
       }
   };
 
@@ -215,12 +240,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
           setPullY(0);
       }
       pullStartY.current = 0;
-  };
-
-  const requestNotificationPermission = () => {
-     if ('Notification' in window && Notification.permission !== 'granted') {
-         Notification.requestPermission();
-     }
   };
 
   const startAlertLoop = () => {
@@ -318,7 +337,15 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const handleJoin = async (e: React.FormEvent) => {
       e.preventDefault();
       setJoinError('');
-      requestNotificationPermission();
+      
+      // Request permission on user gesture (Join click)
+      await requestNotificationPermission();
+      
+      // Basic Phone Validation
+      if (joinPhone && joinPhone.length < 7) {
+          setJoinError("Please enter a valid phone number.");
+          return;
+      }
       
       try {
         if (!audioContextRef.current) {
@@ -462,28 +489,32 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                                 placeholder="Enter your name" 
                                 value={joinName}
                                 onChange={(e) => setJoinName(e.target.value)}
-                                className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400"
+                                className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400 appearance-none"
                                 style={{ fontSize: '16px' }} // Prevent iOS zoom
                               />
                           </div>
                           <div className="space-y-1">
-                              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Phone Number (Optional)</label>
+                              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Phone Number</label>
                               <div className="relative">
                                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                                   <input 
-                                    type="tel" 
-                                    placeholder="For alerts & no-duplicates" 
+                                    type="tel"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*" 
+                                    placeholder="Required for updates" 
                                     value={joinPhone}
                                     onChange={(e) => setJoinPhone(e.target.value)}
-                                    className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400"
+                                    className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400 appearance-none"
                                     style={{ fontSize: '16px' }}
+                                    required
                                   />
                               </div>
+                              <p className="text-[10px] text-gray-400 font-medium ml-1">Used to prevent duplicate entries.</p>
                           </div>
                           
                           {joinError && (
-                              <div className="p-3 bg-red-50 text-red-600 text-sm font-bold rounded-xl text-center">
-                                  {joinError}
+                              <div className="p-3 bg-red-50 text-red-600 text-sm font-bold rounded-xl text-center flex items-center justify-center gap-2">
+                                  <AlertCircle size={16} /> {joinError}
                               </div>
                           )}
 
@@ -491,7 +522,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                             whileTap={{ scale: 0.98 }}
                             type="submit"
                             style={{ backgroundColor: themeColor }}
-                            className="w-full py-5 text-white rounded-2xl font-bold text-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-2 hover:opacity-90"
+                            className="w-full py-5 text-white rounded-2xl font-bold text-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-2 hover:opacity-90 active:scale-95"
                           >
                               Get Ticket <Zap size={20} fill="currentColor" />
                           </motion.button>
@@ -600,14 +631,14 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         </AnimatePresence>
 
         {/* Main Content Area */}
-        <div className="flex-1 px-4 py-6 flex flex-col items-center justify-start space-y-6 overflow-y-auto no-scrollbar">
+        <div className="flex-1 px-4 py-6 flex flex-col items-center justify-start space-y-6 overflow-y-auto no-scrollbar pb-24">
             
             {/* Header */}
             <div className="text-center w-full max-w-sm">
                  <div className="flex items-center justify-center gap-1.5 text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
                     <MapPin size={12} /> {queueInfo?.name || 'Queue'}
                  </div>
-                 <h1 className="text-2xl font-black text-gray-900">{myVisitor.name}</h1>
+                 <h1 className="text-2xl font-black text-gray-900 break-words">{myVisitor.name}</h1>
             </div>
 
             {/* Ticket Card (Hero) */}
@@ -743,7 +774,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                         </div>
                         <div>
                             <p className="font-bold text-sm">Almost there!</p>
-                            <p className="text-xs text-gray-400">Only 2 people ahead of you.</p>
+                            <p className="text-xs text-gray-400">Only {peopleAhead} people ahead of you.</p>
                         </div>
                     </div>
                     <button onClick={() => setShowNotificationPopup(false)} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition-colors">
