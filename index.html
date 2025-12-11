@@ -5,113 +5,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Qblink - Queue Smarter</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            },
-            colors: {
-              primary: {
-                50: '#eff6ff',
-                100: '#dbeafe',
-                500: '#3b82f6',
-                600: '#0066FF', // Qblink Blue
-                700: '#1d4ed8',
-              },
-              dark: '#0f172a',
-            },
-            boxShadow: {
-              'soft': '0 20px 40px -15px rgba(0, 0, 0, 0.05)',
-              'glow': '0 0 20px rgba(0, 102, 255, 0.3)',
-              'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
-              'glass-hover': '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
-            },
-            animation: {
-              'blob': 'blob 7s infinite',
-              'fade-in': 'fadeIn 0.5s ease-out forwards',
-              'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
-              'pop-in': 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
-              'shimmer': 'shimmer 2s infinite linear',
-            },
-            keyframes: {
-              blob: {
-                '0%': { transform: 'translate(0px, 0px) scale(1)' },
-                '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
-                '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
-                '100%': { transform: 'translate(0px, 0px) scale(1)' },
-              },
-              fadeIn: {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
-              },
-              fadeInUp: {
-                '0%': { opacity: '0', transform: 'translateY(20px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              popIn: {
-                '0%': { opacity: '0', transform: 'scale(0.5)' },
-                '100%': { opacity: '1', transform: 'scale(1)' },
-              },
-              shimmer: {
-                '0%': { transform: 'translateX(-100%)' },
-                '100%': { transform: 'translateX(100%)' },
-              }
-            }
-          }
-        }
-      }
-    </script>
-    <style>
-      html {
-        scroll-behavior: smooth;
-      }
-      body {
-        background-color: #F8FAFC;
-        color: #0f172a;
-        overflow-x: hidden;
-      }
-      .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-      }
-      .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-      }
-      .animation-delay-100 { animation-delay: 100ms; }
-      .animation-delay-200 { animation-delay: 200ms; }
-      .animation-delay-300 { animation-delay: 300ms; }
-      .animation-delay-2000 { animation-delay: 2000ms; }
-      .animation-delay-4000 { animation-delay: 4000ms; }
-      
-      .perspective-1000 {
-        perspective: 1000px;
-      }
-      .preserve-3d {
-        transform-style: preserve-3d;
-      }
-    </style>
-    <!-- BROWSER SAFE IMPORT MAP -->
-    <script type="importmap">
+  <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.2.0",
-    "react/": "https://esm.sh/react@18.2.0/",
-    "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-    "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom",
-    "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react,react-dom",
-    "three": "https://esm.sh/three@0.160.0",
-    "@google/genai": "https://esm.sh/@google/genai@0.21.0",
-    "qrcode": "https://esm.sh/qrcode@1.5.3",
-    "recharts": "https://esm.sh/recharts@2.12.0?external=react,react-dom",
-    "socket.io-client": "https://esm.sh/socket.io-client@4.7.5",
-    "zod": "https://esm.sh/zod@3.22.4",
-    "firebase/app": "https://esm.sh/firebase@10.7.1/app",
-    "firebase/database": "https://esm.sh/firebase@10.7.1/database",
     "react-dom/": "https://esm.sh/react-dom@^19.2.2/",
     "express": "https://esm.sh/express@^5.2.1",
     "pg": "https://esm.sh/pg@^8.16.3",
@@ -119,7 +15,18 @@
     "http": "https://esm.sh/http@^0.0.1-security",
     "jsonwebtoken": "https://esm.sh/jsonwebtoken@^9.0.3",
     "bcryptjs": "https://esm.sh/bcryptjs@^3.0.3",
-    "firebase/": "https://esm.sh/firebase@^12.6.0/"
+    "firebase/": "https://esm.sh/firebase@^12.6.0/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.560.0",
+    "framer-motion": "https://esm.sh/framer-motion@^12.23.26",
+    "vite": "https://esm.sh/vite@^7.2.7",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "recharts": "https://esm.sh/recharts@^3.5.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "three": "https://esm.sh/three@^0.182.0",
+    "qrcode": "https://esm.sh/qrcode@^1.5.4",
+    "zod": "https://esm.sh/zod@^4.1.13"
   }
 }
 </script>
