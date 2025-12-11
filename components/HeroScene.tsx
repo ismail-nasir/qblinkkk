@@ -1,6 +1,5 @@
 
-// This file has been disabled to improve performance and compatibility.
-// It previously contained Three.js/Fiber logic which is heavy for some environments.
+// This file has been completely disabled to prevent 3D library crashes.
 import React from 'react';
 
 const HeroScene: React.FC = () => {
