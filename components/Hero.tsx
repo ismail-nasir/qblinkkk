@@ -13,15 +13,15 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
   return (
     <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden w-full min-h-[90vh] flex items-center bg-[#F8FAFC]">
       
-      {/* 1. Background Base (Fallback if 3D fails) */}
+      {/* 1. Background Base (Fallback) */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 z-0"></div>
 
       {/* 2. 3D Animation Layer */}
-      <div className="absolute inset-0 z-0 opacity-60">
+      <div className="absolute inset-0 z-0 opacity-60 pointer-events-none">
         <HeroScene />
       </div>
 
-      {/* 3. Gradient Overlay (Ensures text readability over 3D) */}
+      {/* 3. Gradient Overlay */}
       <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent via-white/20 to-white/80 pointer-events-none"></div>
       
       {/* 4. Main Content */}
