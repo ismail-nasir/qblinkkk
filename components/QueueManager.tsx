@@ -502,17 +502,21 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
               <AnimatePresence>
                   {smartSortReasoning && (
                       <motion.div 
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="bg-purple-50 border border-purple-100 rounded-2xl p-4 mb-6 flex items-start gap-3"
+                          initial={{ opacity: 0, height: 0, y: -10 }}
+                          animate={{ opacity: 1, height: 'auto', y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: -10 }}
+                          className="bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-sm"
                       >
-                          <BrainCircuit size={20} className="text-purple-600 mt-0.5 shrink-0" />
-                          <div>
-                              <h4 className="text-sm font-bold text-purple-900">AI Reorder Applied</h4>
-                              <p className="text-xs text-purple-700 mt-1 leading-relaxed">{smartSortReasoning}</p>
-                              <button onClick={() => setSmartSortReasoning(null)} className="text-xs font-bold text-purple-600 hover:underline mt-2">Dismiss</button>
+                          <div className="p-2 bg-white rounded-xl shadow-sm text-violet-600">
+                              <BrainCircuit size={20} />
                           </div>
+                          <div className="flex-1">
+                              <h4 className="text-sm font-bold text-violet-900">AI Optimization Applied</h4>
+                              <p className="text-xs text-violet-700 mt-1 leading-relaxed font-medium">{smartSortReasoning}</p>
+                          </div>
+                          <button onClick={() => setSmartSortReasoning(null)} className="text-xs font-bold text-violet-400 hover:text-violet-600 p-1">
+                              <X size={16} />
+                          </button>
                       </motion.div>
                   )}
               </AnimatePresence>
@@ -536,7 +540,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                           <button 
                               onClick={handleSmartSort}
                               disabled={isSmartSorting || queueData.metrics.waiting < 2}
-                              className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 rounded-xl border border-purple-100 hover:bg-purple-100 transition-colors disabled:opacity-50 text-sm font-bold"
+                              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all shadow-sm ${
+                                  isSmartSorting || queueData.metrics.waiting < 2 
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                  : 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:opacity-90 hover:scale-105 active:scale-95'
+                              }`}
                               title="Smart Sort with AI"
                           >
                               {isSmartSorting ? <Sparkles size={16} className="animate-spin" /> : <Sparkles size={16} />}
@@ -635,47 +643,54 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
                   {/* Feedback Analysis Card */}
                   <div className="mb-12 border border-gray-100 rounded-3xl p-6 bg-gray-50/50">
-                      <div className="flex justify-between items-center mb-4">
+                      <div className="flex justify-between items-center mb-6">
                           <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                              <MessageSquare size={18} className="text-gray-500" /> AI Feedback Analysis
+                              <MessageSquare size={20} className="text-gray-500" /> AI Feedback Analysis
                           </h4>
                           <button 
                               onClick={handleAnalyzeFeedback}
                               disabled={isAnalyzingFeedback}
-                              className="text-xs font-bold text-primary-600 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors"
+                              className="flex items-center gap-2 text-xs font-bold text-white bg-gray-900 hover:bg-black px-4 py-2 rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50"
                           >
+                              {isAnalyzingFeedback ? <Sparkles size={14} className="animate-spin" /> : <Sparkles size={14} />}
                               {isAnalyzingFeedback ? 'Analyzing...' : 'Analyze Feedback'}
                           </button>
                       </div>
                       
                       {feedbackAnalysis ? (
-                          <div className="space-y-4 animate-fade-in">
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4"
+                          >
                               <div className="flex items-center gap-3">
-                                  <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                                  <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border flex items-center gap-2 ${
                                       feedbackAnalysis.sentiment === 'positive' ? 'bg-green-100 text-green-700 border-green-200' :
                                       feedbackAnalysis.sentiment === 'negative' ? 'bg-red-100 text-red-700 border-red-200' :
                                       'bg-gray-100 text-gray-700 border-gray-200'
                                   }`}>
+                                      {feedbackAnalysis.sentiment === 'positive' ? <ThumbsUp size={14} /> : feedbackAnalysis.sentiment === 'negative' ? <ThumbsDown size={14} /> : <Minus size={14} />}
                                       {feedbackAnalysis.sentiment} Sentiment
                                   </div>
                               </div>
-                              <p className="text-gray-700 text-sm leading-relaxed font-medium">
+                              <p className="text-gray-800 text-base leading-relaxed font-medium">
                                   "{feedbackAnalysis.summary}"
                               </p>
                               <div>
                                   <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Key Topics</span>
                                   <div className="flex flex-wrap gap-2">
                                       {feedbackAnalysis.keywords.map((k, i) => (
-                                          <span key={i} className="px-2 py-1 bg-white border border-gray-200 rounded-md text-xs text-gray-600">
+                                          <span key={i} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 transition-colors cursor-default">
                                               #{k}
                                           </span>
                                       ))}
                                   </div>
                               </div>
-                          </div>
+                          </motion.div>
                       ) : (
-                          <div className="text-center py-8 text-gray-400 text-sm">
-                              <Sparkles size={24} className="mx-auto mb-2 opacity-30" />
+                          <div className="text-center py-12 text-gray-400 text-sm bg-white rounded-2xl border border-dashed border-gray-200">
+                              <Sparkles size={32} className="mx-auto mb-3 opacity-20" />
+                              <p className="font-medium text-gray-500">No analysis generated yet</p>
                               <p>Run analysis to get AI-powered insights from customer feedback.</p>
                           </div>
                       )}
