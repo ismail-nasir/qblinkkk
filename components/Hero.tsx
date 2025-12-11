@@ -3,6 +3,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, Zap, LogOut } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
+import HeroScene from './HeroScene';
 
 interface HeroProps {
   onGetStarted?: () => void;
@@ -12,9 +13,11 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
   return (
     <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden selection:bg-primary-100 selection:text-primary-700">
       
-      {/* Background Gradients - Lightweight replacement for 3D Scene */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/30"></div>
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-blue-100/40 to-indigo-100/40 rounded-full blur-[100px] -z-10 translate-x-1/3 -translate-y-1/4 animate-pulse pointer-events-none"></div>
+      {/* 3D Background Scene */}
+      <HeroScene />
+      
+      {/* Gradient Fallbacks */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 -z-10"></div>
       
       <div className="container mx-auto px-4 md:px-6 relative z-10">
         <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-24">
