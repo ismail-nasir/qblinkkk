@@ -92,7 +92,7 @@ export const queueService = {
   createQueue: async (userId: string, name: string, estimatedWaitTime?: number, type: BusinessType = 'general', features?: Partial<QueueFeatures>): Promise<QueueInfo> => {
       // Merge default features for type with any custom overrides
       const defaultFeatures = queueService.getDefaultFeatures(type);
-      const featuresToUse = { ...defaultFeatures, ...features };
+      const finalFeatures = { ...defaultFeatures, ...features };
 
       if (firebaseService.isAvailable) {
           const queuesRef = firebaseService.ref(firebaseService.db, 'queues');
@@ -106,7 +106,7 @@ export const queueService = {
               createdAt: new Date().toISOString(),
               estimatedWaitTime: estimatedWaitTime || 5,
               businessType: type,
-              features: featuresToUse,
+              features: finalFeatures,
               settings: { 
                   soundEnabled: true, 
                   soundVolume: 1, 
@@ -120,7 +120,7 @@ export const queueService = {
           await firebaseService.set(newQueueRef, newQueue);
           return newQueue;
       }
-      return await api.post('/queue', { name, estimatedWaitTime, businessType: type, features: featuresToUse });
+      return await api.post('/queue', { name, estimatedWaitTime, businessType: type, features: finalFeatures });
   },
 
   updateQueue: async (userId: string, queueId: string, updates: Partial<QueueInfo>): Promise<QueueInfo | null> => {

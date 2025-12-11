@@ -1,14 +1,14 @@
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, RefreshCw, GripVertical, Settings, Volume2, Play, Save, PauseCircle, PlayCircle, Megaphone, Star, Clock, TrendingUp, UserCheck, AlertTriangle, Zap, Store, Palette, Sliders, BarChart2, AlarmClock, ToggleLeft, ToggleRight, MessageSquare, Pipette } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
 // @ts-ignore
-import { AreaChart, Area, ResponsiveContainer, BarChart, Bar, Tooltip, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts';
 
 interface QueueManagerProps {
   user: User;
@@ -32,11 +32,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
   
-  // New: Visitor Detail Modal
+  // Visitor Detail Modal
   const [selectedVisitor, setSelectedVisitor] = useState<Visitor | null>(null);
   
   // UI States
-  const [showBroadcast, setShowBroadcast] = useState(false);
   const [newVisitorName, setNewVisitorName] = useState('');
   const [callNumberInput, setCallNumberInput] = useState('');
   const [announcementInput, setAnnouncementInput] = useState(queue.announcement || '');
@@ -111,14 +110,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       const autoSkip = settings.autoSkipMinutes || 0;
 
       const interval = setInterval(() => {
-          // 1. Check Grace Period (Called -> Late/Wait)
           queueService.handleGracePeriodExpiry(queue.id, gracePeriod);
-          
-          // 2. Check Long Serving (Serving -> Skipped)
           if (autoSkip > 0) {
               queueService.autoSkipInactive(queue.id, autoSkip);
           }
-      }, 5000); // Check every 5 seconds
+      }, 5000); 
 
       return () => clearInterval(interval);
   }, [settings.gracePeriodMinutes, settings.autoSkipMinutes, queue.id]);
@@ -214,14 +210,12 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const handleAddVisitor = async (e: React.FormEvent) => { e.preventDefault(); await queueService.joinQueue(queue.id, newVisitorName, undefined, 'manual'); fetchData(); setNewVisitorName(''); setShowAddModal(false); };
   const handleRemoveVisitors = async () => { if (confirm("Clear the entire waiting list?")) { await queueService.clearQueue(queue.id); fetchData(); } };
   const handleTakeBack = async () => { await queueService.takeBack(queue.id, counterName); fetchData(); };
-  const handleRecall = async (visitorId: string) => { await queueService.recallVisitor(queue.id, visitorId, counterName); fetchData(); };
   const handleNotifyCurrent = async () => { const v = queueData?.visitors.find(v => v.status === 'serving' && v.servedBy === counterName); if (v) { await queueService.triggerAlert(queue.id, v.id); fetchData(); } };
-  const handleTogglePause = async () => { const newStatus = !currentQueue.isPaused; const updated = await queueService.updateQueue(user.id, queue.id, { isPaused: newStatus }); if (updated) setCurrentQueue(updated); };
   
   const handleBroadcast = async (e: React.FormEvent) => {
       e.preventDefault();
       const updated = await queueService.updateQueue(user.id, queue.id, { announcement: announcementInput });
-      if (updated) { setCurrentQueue(updated); setShowBroadcast(false); }
+      if (updated) { setCurrentQueue(updated); }
   };
 
   const handleTogglePriority = async (visitorId: string, isPriority: boolean) => {
@@ -231,7 +225,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   // Local Reorder (optimistic update)
   const handleReorder = (newOrder: Visitor[]) => {
-      // Create new list with updated order property
       const fullNewList = newOrder.map((v, idx) => ({ ...v, order: idx + 1 }));
       if (queueData) {
           const other = queueData.visitors.filter(v => v.status !== 'waiting');
@@ -243,7 +236,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const handleDragEnd = async () => {
       const currentData = queueDataRef.current;
       if (currentData) {
-          // Extract just the waiting visitors from current state, ensuring we send the latest order
           const waiting = currentData.visitors
               .filter(v => v.status === 'waiting')
               .sort((a, b) => (a.order || 999999) - (b.order || 999999));
@@ -262,24 +254,17 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   if (!queueData) return <div className="p-12 text-center text-gray-500">Loading Queue Data...</div>;
 
   const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting').sort((a, b) => { 
-      // 1. Manual Order (Primary)
       const orderA = a.order ?? 999999;
       const orderB = b.order ?? 999999;
       if (orderA !== orderB) return orderA - orderB;
-
-      // 2. VIP (Secondary - only if orders missing)
       if (a.isPriority && !b.isPriority) return -1;
       if (!a.isPriority && b.isPriority) return 1;
-      
-      // 3. Ticket Number (Tertiary)
       return a.ticketNumber - b.ticketNumber; 
   });
 
   const displayWaitingVisitors = searchQuery ? waitingVisitors.filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.ticketNumber.toString().includes(searchQuery)) : waitingVisitors;
-  const servedVisitors = queueData.visitors.filter(v => v.status === 'served').sort((a, b) => new Date(b.servedTime || 0).getTime() - new Date(a.servedTime || 0).getTime()).slice(0, 10);
   const myCurrentVisitor = queueData.visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
 
-  // Terminology helper
   const getCounterLabel = () => {
       if (currentQueue.businessType === 'restaurant') return 'Table / Station';
       if (currentQueue.businessType === 'clinic') return 'Room / Doctor';
@@ -449,6 +434,50 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                       ) : (
                         <div className="p-12 text-center text-gray-400">{searchQuery ? "No visitors found matching your search." : "No visitors in the queue."}</div>
                       )}
+                  </div>
+              </div>
+          </motion.div>
+      )}
+
+      {activeTab === 'analytics' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+              <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
+                  <div className="flex justify-between items-center mb-8">
+                      <div>
+                          <h3 className="text-xl font-bold text-gray-900">Performance Metrics</h3>
+                          <p className="text-gray-500">Real-time statistics for this queue.</p>
+                      </div>
+                      <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-colors">
+                          <Download size={16} /> Export CSV
+                      </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                      <div className="p-6 bg-blue-50 rounded-2xl">
+                          <p className="text-sm font-bold text-blue-600 uppercase tracking-wider mb-2">Total Served</p>
+                          <p className="text-4xl font-black text-gray-900">{queueData.metrics.served}</p>
+                      </div>
+                      <div className="p-6 bg-purple-50 rounded-2xl">
+                          <p className="text-sm font-bold text-purple-600 uppercase tracking-wider mb-2">Avg Wait Time</p>
+                          <p className="text-4xl font-black text-gray-900">{queueData.metrics.avgWaitTime}m</p>
+                      </div>
+                      <div className="p-6 bg-orange-50 rounded-2xl">
+                          <p className="text-sm font-bold text-orange-600 uppercase tracking-wider mb-2">Waiting Now</p>
+                          <p className="text-4xl font-black text-gray-900">{queueData.metrics.waiting}</p>
+                      </div>
+                  </div>
+
+                  <div className="h-[300px] w-full">
+                      <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Traffic Overview (Simulated)</h4>
+                      <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartData}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                              <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                              <YAxis axisLine={false} tickLine={false} />
+                              <Tooltip />
+                              <Area type="monotone" dataKey="visitors" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} />
+                          </AreaChart>
+                      </ResponsiveContainer>
                   </div>
               </div>
           </motion.div>
