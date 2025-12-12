@@ -77,6 +77,7 @@ export interface QueueInfo {
   isPaused?: boolean;
   announcement?: string;
   currentTicketSequence?: number; // Internal counter
+  location?: string; // Legacy display string, kept for compatibility
 }
 
 export interface QueueData {

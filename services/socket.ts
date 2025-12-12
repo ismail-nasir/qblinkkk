@@ -7,9 +7,6 @@ class SocketService {
   private listeners: Map<string, Function[]> = new Map();
   private joinedRooms: Set<string> = new Set();
   
-  // Firebase unsubscribe handles
-  private firebaseUnsubscribes: Record<string, Function[]> = {};
-
   constructor() {
     this.channel = new BroadcastChannel('qblink_realtime');
     
@@ -40,9 +37,7 @@ class SocketService {
   }
 
   disconnect() {
-    // Clean up Firebase listeners
-    Object.values(this.firebaseUnsubscribes).forEach(unsubs => unsubs.forEach(u => u()));
-    this.firebaseUnsubscribes = {};
+      // No-op for Firebase mode
   }
 
   joinQueue(queueId: string) {
@@ -59,13 +54,6 @@ class SocketService {
   emit(event: string, data: any) {
     if (firebaseService.isAvailable) {
         // For writes, we usually go through the Service/API methods (create/update/delete).
-        // However, for ephemeral "I'm coming" acknowledgements that might not need DB persistence
-        // but typically DO in this architecture (updating isAlerting=false),
-        // we handle them via queueService updates which then trigger onValue listeners.
-        // So explicit emits are rare in Firebase-only mode unless using Cloud Functions.
-        
-        // If we strictly need to emit a transient event:
-        // We could push to a 'events/{queueId}' list.
     } else {
         // Fallback Logic
         if (event === 'customer_ack') {

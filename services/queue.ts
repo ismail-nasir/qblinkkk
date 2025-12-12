@@ -4,7 +4,7 @@ import { firebaseService } from './firebase';
 import { 
     collection, doc, addDoc, setDoc, updateDoc, deleteDoc, 
     getDocs, getDoc, query, where, orderBy, limit, onSnapshot,
-    serverTimestamp, increment, runTransaction, collectionGroup
+    runTransaction, collectionGroup, writeBatch
 } from 'firebase/firestore';
 
 const { db } = firebaseService;
@@ -15,7 +15,7 @@ export const queueService = {
 
   getLocations: (businessId: string, callback: (locs: LocationInfo[]) => void) => {
       if (!db) return () => {};
-      const q = query(collection(db, `businesses/${businessId}/locations`));
+      const q = query(collection(db, `businesses/${businessId}/locations`), orderBy('createdAt', 'asc'));
       return onSnapshot(q, (snapshot) => {
           const locs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LocationInfo));
           callback(locs);
@@ -25,13 +25,13 @@ export const queueService = {
   createLocation: async (businessId: string, name: string) => {
       if (!db) throw new Error("No DB");
       const ref = doc(collection(db, `businesses/${businessId}/locations`));
-      await setDoc(ref, { id: ref.id, name, createdAt: serverTimestamp() });
+      await setDoc(ref, { id: ref.id, name, createdAt: firebaseService.serverTimestamp() });
       return { id: ref.id, name };
   },
 
   // --- QUEUES ---
 
-  // Real-time listener for queues in a location
+  // Real-time listener for queues in a specific location
   getLocationQueues: (businessId: string, locationId: string, callback: (queues: QueueInfo[]) => void) => {
       if (!db) return () => {};
       const q = query(
@@ -44,13 +44,21 @@ export const queueService = {
       });
   },
 
+  // Helper: Get all queues for a user across all locations
+  getUserQueues: async (businessId: string): Promise<QueueInfo[]> => {
+      if (!db) return [];
+      const q = query(collectionGroup(db, 'queues'), where('businessId', '==', businessId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as QueueInfo));
+  },
+
   createQueue: async (
       businessId: string, 
       name: string, 
       wait: number, 
       type: BusinessType, 
       features: QueueFeatures, 
-      locationId: string
+      locationId: string 
   ) => {
       if (!db) throw new Error("No DB");
       
@@ -83,10 +91,9 @@ export const queueService = {
       return newQueue;
   },
 
-  // Resolves the full path of a queue from its ID using Collection Group Query
+  // Find queue hierarchy path using ID
   findQueuePath: async (queueId: string): Promise<{ businessId: string, locationId: string, queue: QueueInfo } | null> => {
       if (!db) return null;
-      // Find the queue document anywhere in the database
       const q = query(collectionGroup(db, 'queues'), where('id', '==', queueId), limit(1));
       const snapshot = await getDocs(q);
       
@@ -94,8 +101,7 @@ export const queueService = {
       
       const doc = snapshot.docs[0];
       const data = doc.data() as QueueInfo;
-      
-      // Parse hierarchy from path: businesses/{bid}/locations/{lid}/queues/{qid}
+      // Path: businesses/{bid}/locations/{lid}/queues/{qid}
       const pathSegments = doc.ref.path.split('/');
       return {
           businessId: pathSegments[1],
@@ -109,22 +115,21 @@ export const queueService = {
       return result ? result.queue : null;
   },
 
-  // --- REAL-TIME QUEUE DATA STREAM ---
+  // --- REAL-TIME QUEUE DATA ---
 
   streamQueueData: (queueId: string, callback: (data: QueueData) => void) => {
       if (!db) return () => {};
 
       let unsubVisitors: () => void;
       let unsubLogs: () => void;
-      
-      // Async setup wrapped in promise handling handled internally or by component
+
       queueService.findQueuePath(queueId).then((path) => {
           if (!path) return;
           const { businessId, locationId } = path;
           const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
 
           const qVisitors = query(collection(db, `${basePath}/visitors`));
-          const qLogs = query(collection(db, `${basePath}/logs`), orderBy('timestamp', 'desc'), limit(50));
+          const qLogs = query(collection(db, `${basePath}/logs`), orderBy('timestamp', 'desc'), limit(20));
 
           unsubVisitors = onSnapshot(qVisitors, (vSnap) => {
               const visitors = vSnap.docs.map(d => ({ id: d.id, ...d.data() } as Visitor));
@@ -145,11 +150,10 @@ export const queueService = {
                   .filter(v => v.status === 'serving' || v.status === 'served')
                   .sort((a,b) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
 
-              // Nested listener for logs to ensure sync
-              onSnapshot(qLogs, (lSnap) => {
+              unsubLogs = onSnapshot(qLogs, (lSnap) => {
                   const logs = lSnap.docs.map(d => ({ 
                       id: d.id, ...d.data(), 
-                      time: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString() 
+                      time: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '' 
                   } as ActivityLog));
 
                   callback({
@@ -203,7 +207,6 @@ export const queueService = {
   joinQueue: async (queueId: string, name: string, phoneNumber?: string, source: 'manual'|'qr' = 'qr') => {
       const path = await queueService.findQueuePath(queueId);
       if (!path) throw new Error("Queue not found");
-      
       const { businessId, locationId } = path;
       const queueRef = doc(db, `businesses/${businessId}/locations/${locationId}/queues/${queueId}`);
       
@@ -219,7 +222,7 @@ export const queueService = {
           
           transaction.update(queueRef, { currentTicketSequence: ticketNumber });
           
-          const newVisitorRef = doc(collection(db, `${queueRef.path}/visitors`));
+          const newVisitorRef = doc(collection(queueRef, 'visitors'));
           newVisitorId = newVisitorRef.id;
 
           const visitorData: Visitor = {
@@ -237,9 +240,9 @@ export const queueService = {
 
           transaction.set(newVisitorRef, visitorData);
           
-          const logRef = doc(collection(db, `${queueRef.path}/logs`));
+          const logRef = doc(collection(queueRef, 'logs'));
           transaction.set(logRef, {
-              timestamp: serverTimestamp(),
+              timestamp: firebaseService.serverTimestamp(),
               action: 'join',
               ticket: ticketNumber,
               user: 'System'
@@ -261,7 +264,7 @@ export const queueService = {
           const vSnap = await getDoc(vRef);
           const ticket = vSnap.data()?.ticketNumber || 0;
           await addDoc(collection(db, `${basePath}/logs`), {
-              timestamp: serverTimestamp(),
+              timestamp: firebaseService.serverTimestamp(),
               action: logAction,
               ticket,
               user: user || 'Staff'
@@ -299,15 +302,16 @@ export const queueService = {
       }
   },
 
-  // Helpers
   leaveQueue: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { status: 'cancelled' }, 'leave'),
   confirmPresence: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { isAlerting: false, calledAt: '' }),
   triggerAlert: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { isAlerting: true, calledAt: new Date().toISOString() }),
+  
   takeBack: async (qid: string, counter: string) => {
       const data = await queueService.getQueueData(qid);
       const current = data.visitors.find(v => v.status === 'serving' && v.servedBy === counter);
       if (current) queueService.updateVisitorStatus(qid, current.id, { status: 'waiting', isAlerting: false, servedBy: undefined });
   },
+  
   submitFeedback: (qid: string, vid: string, rating: number) => queueService.updateVisitorStatus(qid, vid, { rating }),
   
   deleteQueue: async (uid: string, qid: string) => {
@@ -316,17 +320,11 @@ export const queueService = {
           await deleteDoc(doc(db, `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`));
       }
   },
-  
-  getUserQueues: async (uid: string) => {
-      // Helper to fetch all queues across all locations for a user (Expensive read, better to use location-specific)
-      // For dashboard summary
-      const q = query(collectionGroup(db, 'queues'), where('businessId', '==', uid));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({id: d.id, ...d.data()} as QueueInfo));
-  },
 
+  hydrateQueue: async (qid: string, name: string, location?: string) => {}, // No-op for Firebase mode
+  
   getDefaultFeatures: (t: any) => ({ vip: false, multiCounter: false, anonymousMode: false, sms: false }),
-  hydrateQueue: async () => null,
+  
   updateQueue: async (uid: string, qid: string, data: any) => {
       const path = await queueService.findQueuePath(qid);
       if(path) {
@@ -334,11 +332,13 @@ export const queueService = {
       }
       return null;
   },
+  
   handleGracePeriodExpiry: async (qid: string, mins: number) => {}, 
   autoSkipInactive: async () => {},
   exportStatsCSV: async () => {},
   exportUserData: () => {},
   importUserData: async () => true,
+  
   callByNumber: async (qid: string, num: number, counter: string) => {
       const data = await queueService.getQueueData(qid);
       const target = data.visitors.find(v => v.ticketNumber === num);
@@ -348,18 +348,32 @@ export const queueService = {
            }, 'call', counter);
       }
   },
+  
   togglePriority: (qid: string, vid: string, isPriority: boolean) => queueService.updateVisitorStatus(qid, vid, { isPriority }),
+  
   clearQueue: async (qid: string) => {
       const path = await queueService.findQueuePath(qid);
       if(!path) return;
       const q = query(collection(db, `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}/visitors`), where('status', '==', 'waiting'));
-      const snap = await getDocs(q);
-      snap.forEach(d => updateDoc(d.ref, { status: 'cancelled' }));
-  },
-  reorderQueue: async (qid: string, visitors: Visitor[]) => {
-      visitors.forEach((v, idx) => {
-          queueService.updateVisitorStatus(qid, v.id, { order: idx + 1 });
+      const snapshot = await getDocs(q);
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((doc) => {
+          batch.update(doc.ref, { status: 'cancelled' });
       });
+      await batch.commit();
   },
+  
+  reorderQueue: async (qid: string, visitors: Visitor[]) => {
+      const path = await queueService.findQueuePath(qid);
+      if(!path) return;
+      const batch = writeBatch(db);
+      const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`;
+      visitors.forEach((v, idx) => {
+          const ref = doc(db, `${basePath}/visitors/${v.id}`);
+          batch.update(ref, { order: idx + 1 });
+      });
+      await batch.commit();
+  },
+  
   getSystemLogs: async () => []
 };

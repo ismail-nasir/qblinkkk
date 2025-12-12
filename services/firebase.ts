@@ -1,6 +1,6 @@
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, serverTimestamp, increment } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // Helper to safely access env vars
@@ -33,7 +33,7 @@ try {
         db = getFirestore(app);
         auth = getAuth(app);
         isAvailable = true;
-        console.log('🔥 Firebase Initialized: Firestore & Auth Active');
+        console.log('🔥 Firebase Initialized: Firestore & Auth Active (Modular)');
     } else {
         console.warn('⚠️ Firebase Config Missing: Please add VITE_FIREBASE_* variables.');
     }
@@ -44,5 +44,8 @@ try {
 export const firebaseService = {
     isAvailable,
     db,
-    auth
+    auth,
+    // Export helper functions to be used by other services
+    serverTimestamp,
+    increment
 };

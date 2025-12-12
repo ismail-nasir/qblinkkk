@@ -7,7 +7,7 @@ import {
     signOut, 
     onAuthStateChanged 
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const USER_KEY = 'qblink_user';
 
@@ -24,7 +24,8 @@ export const authService = {
       onAuthStateChanged(firebaseService.auth, async (firebaseUser) => {
           if (firebaseUser) {
               // Fetch extra user details from Firestore
-              const userDoc = await getDoc(doc(firebaseService.db, 'businesses', firebaseUser.uid));
+              const userRef = doc(firebaseService.db, 'businesses', firebaseUser.uid);
+              const userDoc = await getDoc(userRef);
               if (userDoc.exists()) {
                   const userData = userDoc.data() as User;
                   localStorage.setItem(USER_KEY, JSON.stringify(userData));
@@ -43,7 +44,8 @@ export const authService = {
     if (!firebaseService.auth) throw new Error("Firebase not configured");
     
     const credential = await signInWithEmailAndPassword(firebaseService.auth, email, password);
-    const userDoc = await getDoc(doc(firebaseService.db, 'businesses', credential.user.uid));
+    const userRef = doc(firebaseService.db, 'businesses', credential.user.uid);
+    const userDoc = await getDoc(userRef);
     
     if (!userDoc.exists()) throw new Error("User profile not found.");
     
