@@ -4,7 +4,7 @@ import { User, QueueData, QueueInfo, Visitor, QueueSettings, BusinessType } from
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
 import { getQueueInsights, optimizeQueueOrder, analyzeCustomerFeedback } from '../services/geminiService';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus, Quote, Zap, PieChart as PieChartIcon, TrendingUp } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus, Quote, Zap, PieChart as PieChartIcon, TrendingUp, MapPin } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -479,6 +479,14 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                 </h1>
                 <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-bold">{currentQueue.code}</span>
+                    {currentQueue.location && (
+                        <>
+                            <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                            <span className="text-sm font-bold text-gray-600 flex items-center gap-1">
+                                <MapPin size={12} /> {currentQueue.location}
+                            </span>
+                        </>
+                    )}
                     <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
                     
                     {currentQueue.features.multiCounter && (
@@ -694,7 +702,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                       <div className="relative z-10">
                           <div className="flex items-center gap-2 mb-2">
                               <Zap size={20} className="text-yellow-300 fill-yellow-300" />
-                              <h4 className="text-sm font-bold uppercase tracking-widest text-blue-100">Smart Prediction</h4>
+                              <h4 className="text-sm font-bold uppercase tracking-widest text-blue-100">
+                                Smart Prediction
+                                {currentQueue.location && <span className="opacity-70 ml-1">for {currentQueue.location}</span>}
+                              </h4>
                           </div>
                           <p className="text-blue-100 text-sm opacity-90">
                               Estimated based on {prediction.activeStaff} active staff member{prediction.activeStaff > 1 ? 's' : ''} and recent service duration.

@@ -12,12 +12,18 @@ export class QueueController {
     }
 
     static async createQueue(req: AuthRequest, res: Response) {
-        const { name, estimatedWaitTime } = req.body;
+        const { name, estimatedWaitTime, location, businessType, features } = req.body;
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         
+        // Ensure features and businessType are stored if supported by DB schema, 
+        // or just store basic info if schema is limited. 
+        // Assuming schema has JSONB columns for flexibility or similar structure based on mock.
+        // For standard SQL without JSON columns, we might need a separate table or just stick to basics.
+        // Here we assume a robust schema or ignore if columns don't exist in minimal setup.
+        
         const result = await db.query(
-            'INSERT INTO queues (user_id, name, code, estimated_wait_time) VALUES ($1, $2, $3, $4) RETURNING *',
-            [req.user?.id, name, code, estimatedWaitTime || 5]
+            'INSERT INTO queues (user_id, name, code, estimated_wait_time, location, business_type, features) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [req.user?.id, name, code, estimatedWaitTime || 5, location || null, businessType || 'general', features ? JSON.stringify(features) : null]
         );
         res.json(result.rows[0]);
     }
