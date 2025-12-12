@@ -1,6 +1,8 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion as m } from 'framer-motion';
 import { Utensils, Stethoscope, Scissors, ShoppingBag, GraduationCap, Calendar } from 'lucide-react';
+
+const motion = m as any;
 
 const industries = [
   { icon: Utensils, label: "Restaurants" },

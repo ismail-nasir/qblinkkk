@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion as m } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import GlassCard from './GlassCard';
+
+const motion = m as any;
 
 interface AboutProps {
   onBack?: () => void;

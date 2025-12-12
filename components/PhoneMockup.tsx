@@ -1,5 +1,7 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
+
+const motion = m as any;
 
 interface PhoneMockupProps {
   children: React.ReactNode;

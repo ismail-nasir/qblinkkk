@@ -1,5 +1,7 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion as m } from 'framer-motion';
+
+const motion = m as any;
 
 const HowItWorks: React.FC = () => {
   return (

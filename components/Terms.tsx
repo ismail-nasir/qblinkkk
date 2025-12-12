@@ -1,8 +1,10 @@
 
 import React, { useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion as m } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import GlassCard from './GlassCard';
+
+const motion = m as any;
 
 interface TermsProps {
   onBack: () => void;
@@ -16,9 +18,24 @@ const Terms: React.FC<TermsProps> = ({ onBack }) => {
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 pt-8 px-4 md:px-6">
       <div className="max-w-4xl mx-auto">
-        {/* Header (spacing only, no logo/button because it overlaps with navbar) */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12" />
-
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+            <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-bold">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">Qblink</span>
+            </div>
+            
+            <button 
+                onClick={onBack}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-gray-600 font-medium shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors w-fit"
+            >
+                <ArrowLeft size={18} /> Back to Home
+            </button>
+        </div>
 
         <motion.div 
             initial={{ opacity: 0, y: 20 }}

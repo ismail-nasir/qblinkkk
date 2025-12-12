@@ -1,5 +1,6 @@
 
 import { User, QueueInfo, QueueData, Visitor, ActivityLog } from '../types';
+import { firebaseService } from './firebase';
 
 // Storage Keys
 const KEYS = {
@@ -9,10 +10,9 @@ const KEYS = {
   LOGS: 'qblink_db_logs'
 };
 
-// Broadcast Channel for Real-time events
+// Broadcast Channel for Real-time events (Local fallback)
 const channel = new BroadcastChannel('qblink_realtime');
 
-// Helper to simulate network delay (Reduced for speed)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 class MockBackendService {
@@ -20,118 +20,187 @@ class MockBackendService {
   private queues: QueueInfo[] = [];
   private visitors: Visitor[] = [];
   private logs: any[] = [];
+  private adminAuditLogs: any[] = []; // Fixed: Added missing property
+  private initialized = false;
 
   constructor() {
-    this.load();
-    // Listen for cross-tab updates to sync state if needed, though LocalStorage is shared
-    channel.onmessage = (event) => {
-       if (event.data.type === 'SYNC_DB') {
-           this.load();
-       }
-    };
+    this.init();
   }
 
-  private load() {
+  private async init() {
+      // If Firebase is available, we rely on on-demand fetching for Auth to ensure fresh data
+      // Local arrays are kept for fallback
+      if (!firebaseService.isAvailable) {
+          this.loadLocal();
+          channel.onmessage = (event) => {
+             if (event.data.type === 'SYNC_DB') this.loadLocal();
+          };
+      }
+      this.initialized = true;
+  }
+
+  private loadLocal() {
     try {
       this.users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
       this.queues = JSON.parse(localStorage.getItem(KEYS.QUEUES) || '[]');
       this.visitors = JSON.parse(localStorage.getItem(KEYS.VISITORS) || '[]');
       this.logs = JSON.parse(localStorage.getItem(KEYS.LOGS) || '[]');
-
-      // --- CRITICAL FIX: Enforce Superadmin Role ---
-      const specificAdminEmail = 'ismailnsm75@gmail.com';
-      const adminUser = this.users.find(u => u.email === specificAdminEmail);
-      if (adminUser && adminUser.role !== 'superadmin') {
-          adminUser.role = 'superadmin';
-          // Save immediately back to storage to persist the fix
-          localStorage.setItem(KEYS.USERS, JSON.stringify(this.users));
-      }
-      // ---------------------------------------------
-
+      this.adminAuditLogs = JSON.parse(localStorage.getItem('qblink_admin_audit') || '[]');
+      this.ensureSuperAdmin();
     } catch (e) {
       console.error("Failed to load mock DB", e);
     }
   }
 
-  private save() {
+  private ensureSuperAdmin() {
+      const specificAdminEmail = 'ismailnsm75@gmail.com';
+      const adminUser = this.users.find(u => u.email === specificAdminEmail);
+      if (adminUser && adminUser.role !== 'superadmin') {
+          adminUser.role = 'superadmin';
+          this.save();
+      }
+  }
+
+  private async save() {
+    if (firebaseService.isAvailable) {
+        // In Cloud Mode, we write directly via handlers
+        return; 
+    }
+    
+    // Local Mode
     localStorage.setItem(KEYS.USERS, JSON.stringify(this.users));
     localStorage.setItem(KEYS.QUEUES, JSON.stringify(this.queues));
     localStorage.setItem(KEYS.VISITORS, JSON.stringify(this.visitors));
     localStorage.setItem(KEYS.LOGS, JSON.stringify(this.logs));
-  }
-
-  private emit(event: string, queueId?: string, payload?: any) {
-    // 1. Send to other tabs
-    channel.postMessage({ type: 'SOCKET_EVENT', event, queueId, payload });
-    // 2. Dispatch locally for the current tab
-    window.dispatchEvent(new CustomEvent('qblink_socket_event', { detail: { event, queueId, payload } }));
-  }
-
-  // Helper to generate queue data object
-  private _getQueueData(queueId: string): QueueData {
-      const qVisitors = this.visitors.filter(v => v.id.startsWith(queueId + '_') || (v as any).queueId === queueId).map(v => ({
-          ...v,
-          queueId: queueId 
-      }));
-      
-      const relevantVisitors = this.visitors.filter(v => (v as any).queueId === queueId);
-      
-      const waiting = relevantVisitors.filter(v => v.status === 'waiting').length;
-      const served = relevantVisitors.filter(v => v.status === 'served').length;
-      
-      // Rating Calc
-      const rated = relevantVisitors.filter(v => v.rating && v.rating > 0);
-      const avgRating = rated.length > 0 ? rated.reduce((a,b) => a + (b.rating||0), 0) / rated.length : 0;
-
-      const lastCalled = relevantVisitors
-          .filter(v => v.status === 'serving' || v.status === 'served')
-          .sort((a,b) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
-          
-      const queueInfo = this.queues.find(q => q.id === queueId);
-      const avgWait = queueInfo?.estimatedWaitTime || 5;
-
-      const qLogs = this.logs
-          .filter(l => l.queueId === queueId)
-          .sort((a,b) => new Date(b.rawTime).getTime() - new Date(a.rawTime).getTime())
-          .slice(0, 50);
-
-      return {
-          queueId,
-          currentTicket: lastCalled,
-          lastCalledNumber: lastCalled,
-          metrics: { waiting, served, avgWaitTime: avgWait, averageRating: Number(avgRating.toFixed(1)) },
-          visitors: relevantVisitors.sort((a,b) => {
-              if (a.isPriority && !b.isPriority) return -1;
-              if (!a.isPriority && b.isPriority) return 1;
-              if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
-              return a.ticketNumber - b.ticketNumber;
-          }),
-          recentActivity: qLogs
-      };
+    localStorage.setItem('qblink_admin_audit', JSON.stringify(this.adminAuditLogs));
   }
 
   // --- HANDLERS ---
 
   async handleRequest(method: string, endpoint: string, body?: any, user?: User): Promise<any> {
-    await delay(50); // Minimal latency for "feeling" of async but fast
+    
+    // --- CLOUD AUTH & ADMIN HANDLERS (Firebase) ---
+    if (firebaseService.isAvailable) {
+        if (endpoint === '/auth/signup') {
+            const { email, password, businessName } = body;
+            
+            // Check for existing user
+            const usersRef = firebaseService.ref(firebaseService.db, 'users');
+            const snapshot = await firebaseService.get(usersRef);
+            const users = snapshot.val() ? Object.values(snapshot.val()) : [];
+            
+            if (users.find((u: any) => u.email === email)) {
+                throw new Error("Email already exists");
+            }
 
-    this.load(); // Refresh state from storage
+            // FORCE ADMIN ROLE FOR SPECIFIC EMAIL
+            const role = email.toLowerCase() === 'ismailnsm75@gmail.com' ? 'superadmin' : 'owner';
+            
+            const newUser: User = {
+                id: Math.random().toString(36).substr(2, 9),
+                email,
+                businessName,
+                role: role,
+                isVerified: true, 
+                joinedAt: new Date().toISOString()
+            };
 
-    // --- AUTH ---
+            await firebaseService.set(firebaseService.ref(firebaseService.db, `users/${newUser.id}`), newUser);
+            return { user: newUser, token: 'cloud_token_' + newUser.id };
+        }
+
+        if (endpoint === '/auth/login') {
+            const { email, password } = body;
+            
+            const usersRef = firebaseService.ref(firebaseService.db, 'users');
+            const snapshot = await firebaseService.get(usersRef);
+            const usersMap = snapshot.val() || {};
+            const userFound: any = Object.values(usersMap).find((u: any) => u.email === email);
+
+            if (!userFound) throw new Error("Invalid credentials");
+            
+            // Auto-promote superadmin in cloud if missing
+            if (userFound.email.toLowerCase() === 'ismailnsm75@gmail.com' && userFound.role !== 'superadmin') {
+                userFound.role = 'superadmin';
+                await firebaseService.update(firebaseService.ref(firebaseService.db, `users/${userFound.id}`), { role: 'superadmin' });
+            }
+
+            return { user: userFound, token: 'cloud_token_' + userFound.id };
+        }
+
+        if (endpoint === '/admin/users') {
+            const snapshot = await firebaseService.get(firebaseService.ref(firebaseService.db, 'users'));
+            const val = snapshot.val();
+            return val ? Object.values(val) : [];
+        }
+
+        if (endpoint === '/admin/list') {
+            const snapshot = await firebaseService.get(firebaseService.ref(firebaseService.db, 'users'));
+            const users = snapshot.val() ? Object.values(snapshot.val()) : [];
+            return users.filter((u: any) => u.role === 'admin' || u.role === 'superadmin').map((u: any) => u.email);
+        }
+
+        if (endpoint === '/admin/add') {
+            const snapshot = await firebaseService.get(firebaseService.ref(firebaseService.db, 'users'));
+            const users = snapshot.val() ? Object.values(snapshot.val()) : [];
+            const target: any = users.find((u: any) => u.email === body.email);
+            if (target) {
+                await firebaseService.update(firebaseService.ref(firebaseService.db, `users/${target.id}`), { role: 'admin' });
+            }
+            return { success: true };
+        }
+
+        if (endpoint === '/admin/remove') {
+            const snapshot = await firebaseService.get(firebaseService.ref(firebaseService.db, 'users'));
+            const users = snapshot.val() ? Object.values(snapshot.val()) : [];
+            const target: any = users.find((u: any) => u.email === body.email);
+            if (target && target.role !== 'superadmin') {
+                await firebaseService.update(firebaseService.ref(firebaseService.db, `users/${target.id}`), { role: 'owner' });
+            }
+            return { success: true };
+        }
+        
+        if (endpoint === '/admin/logs') {
+             const snapshot = await firebaseService.get(firebaseService.ref(firebaseService.db, 'audit_logs'));
+             const val = snapshot.val();
+             return val ? Object.values(val).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()) : [];
+        }
+
+        if (endpoint === '/admin/log') {
+             const logRef = firebaseService.push(firebaseService.ref(firebaseService.db, 'audit_logs'));
+             await firebaseService.set(logRef, {
+                 id: logRef.key,
+                 adminEmail: body.adminEmail,
+                 action: body.action,
+                 target: body.target,
+                 timestamp: new Date().toISOString()
+             });
+             return { success: true };
+        }
+        
+        if (endpoint === '/admin/system-logs') {
+             return [];
+        }
+    }
+
+    // --- LOCAL FALLBACK LOGIC (Original) ---
+    await delay(50); 
+    this.loadLocal(); 
+
     if (endpoint === '/auth/signup') {
       const { email, password, businessName } = body;
       if (this.users.find(u => u.email === email)) throw new Error("Email already exists");
       
-      const role = email === 'ismailnsm75@gmail.com' ? 'superadmin' : 'owner';
-
+      const role = email.toLowerCase() === 'ismailnsm75@gmail.com' ? 'superadmin' : 'owner';
       const newUser: User = {
         id: Math.random().toString(36).substr(2, 9),
         email,
         businessName,
         role: role,
-        isVerified: true, // Auto verify for demo
+        isVerified: true, 
         joinedAt: new Date().toISOString()
       };
+
       this.users.push(newUser);
       this.save();
       return { user: newUser, token: 'mock_token_' + newUser.id };
@@ -142,374 +211,93 @@ class MockBackendService {
       const user = this.users.find(u => u.email === email);
       if (!user) throw new Error("Invalid credentials");
 
-      // FIX: Ensure correct role for specific email even if already created
-      if (user.email === 'ismailnsm75@gmail.com' && user.role !== 'superadmin') {
+      if (user.email.toLowerCase() === 'ismailnsm75@gmail.com' && user.role !== 'superadmin') {
           user.role = 'superadmin';
           this.save();
       }
-
       return { user, token: 'mock_token_' + user.id };
     }
 
-    if (endpoint === '/auth/verify') {
-        const { email } = body;
-        const user = this.users.find(u => u.email === email);
-        if (user) {
-            user.isVerified = true;
-            this.save();
-            return { user, token: 'mock_token_' + user.id };
-        }
-        throw new Error("User not found");
-    }
-
-    // --- QUEUES ---
+    // --- QUEUES (Local only - Cloud uses queueService direct) ---
     if (endpoint === '/queue' && method === 'GET') {
       return this.queues.filter(q => q.userId === user?.id).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
 
     if (endpoint === '/queue' && method === 'POST') {
-      // Allow passing 'id' to support demo hydration on other devices
       const { name, estimatedWaitTime, businessType, features, location, id } = body;
       
-      // If hydrating, check if it already exists to prevent dupes (though ID prevents dupes mostly)
       if (id && this.queues.find(q => q.id === id)) {
-          return this.queues.find(q => q.id === id);
+          // If queue exists (hydration), update/return it
+          const existing = this.queues.find(q => q.id === id)!;
+          if (name) existing.name = name; // Update name if provided during hydration
+          if (location) existing.location = location;
+          this.save();
+          return existing;
       }
 
       const newQueue: QueueInfo = {
         id: id || Math.random().toString(36).substr(2, 9),
-        userId: user?.id || 'demo-user', // Fallback for hydration
+        userId: user?.id || 'demo-user', 
         name,
         location,
         code: Math.floor(100000 + Math.random() * 900000).toString(),
         status: 'active',
         createdAt: new Date().toISOString(),
         estimatedWaitTime: estimatedWaitTime || 5,
-        settings: { 
-            soundEnabled: true, 
-            soundVolume: 1, 
-            soundType: 'beep', 
-            themeColor: '#3b82f6', 
-            gracePeriodMinutes: 2 
-        },
+        settings: { soundEnabled: true, soundVolume: 1, soundType: 'beep', themeColor: '#3b82f6', gracePeriodMinutes: 2 },
         isPaused: false,
         announcement: '',
         businessType: businessType || 'general',
         features: features || { vip: true, multiCounter: true, anonymousMode: false, sms: false }
       };
+
       this.queues.push(newQueue);
       this.save();
       return newQueue;
     }
 
-    if (endpoint.match(/\/queue\/.*\/info/)) {
-        const queueId = endpoint.split('/')[2];
-        const queue = this.queues.find(q => q.id === queueId);
-        if (!queue) throw new Error("Queue not found");
-        return queue;
-    }
-
-    if (endpoint.match(/\/queue\/.*\/data/)) {
-        const queueId = endpoint.split('/')[2];
-        // Ensure queue exists before returning data, or mock data logic handles it
-        // If queue doesn't exist in queues list but we have visitors (rare edge case), we might still want data
-        // But strictly for correct logic:
-        const queue = this.queues.find(q => q.id === queueId);
-        if (!queue) throw new Error("Queue not found");
-        return this._getQueueData(queueId);
-    }
-
-    // --- ACTIONS ---
-    if (endpoint === '/queue/join') {
-        const { queueId, name, phoneNumber, source } = body;
-        
-        const queue = this.queues.find(q => q.id === queueId);
-        if (!queue) throw new Error("Queue not found");
-        if (queue.isPaused) throw new Error("Queue is currently paused");
-
-        // Duplicate Check
-        if (phoneNumber) {
-            const existing = this.visitors.find(v => 
-                (v as any).queueId === queueId && 
-                v.phoneNumber === phoneNumber && 
-                (v.status === 'waiting' || v.status === 'serving')
-            );
-            if (existing) throw new Error("You are already in this queue.");
-        }
-
-        const qVisitors = this.visitors.filter(v => (v as any).queueId === queueId);
-        const maxTicket = qVisitors.reduce((max, v) => Math.max(max, v.ticketNumber), 0);
-        
-        const newVisitor: Visitor & { queueId: string } = {
-            id: Math.random().toString(36).substr(2, 9),
-            ticketNumber: maxTicket + 1,
-            name: name || `Guest ${maxTicket + 1}`,
-            phoneNumber: phoneNumber || '',
-            joinTime: new Date().toISOString(),
-            status: 'waiting',
-            queueId,
-            source: source || 'qr',
-            isPriority: false,
-            order: maxTicket + 1
-        };
-        
-        this.visitors.push(newVisitor);
-        this.log(queueId, newVisitor.ticketNumber, 'join');
-        this.save();
-        this.emit('queue:update', queueId);
-        
-        // Return Updated Queue Data immediately
-        return { visitor: newVisitor, queueData: this._getQueueData(queueId) };
-    }
-
-    if (endpoint.endsWith('/call')) {
-        const queueId = endpoint.split('/')[2];
-        const { servedBy } = body;
-        
-        // Mark current serving as served
-        const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving' && (!servedBy || !v.servedBy || v.servedBy === servedBy));
-        if (serving) {
-            serving.status = 'served';
-            serving.servedTime = new Date().toISOString();
-            serving.isAlerting = false;
-        }
-
-        // Find next waiting
-        const next = this.visitors
-            .filter(v => (v as any).queueId === queueId && v.status === 'waiting')
-            .sort((a,b) => {
-                if (a.isPriority && !b.isPriority) return -1;
-                if (!a.isPriority && b.isPriority) return 1;
-                if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
-                return a.ticketNumber - b.ticketNumber;
-            })[0];
-
-        if (next) {
-            next.status = 'serving';
-            next.isAlerting = true;
-            next.servedBy = servedBy || 'Staff';
-            next.servingStartTime = new Date().toISOString();
-            this.log(queueId, next.ticketNumber, 'call', servedBy);
-        }
-
-        this.save();
-        this.emit('queue:update', queueId, { type: 'call', visitor: next });
-        return next || {};
-    }
-
-    if (endpoint.endsWith('/reorder')) {
-        const queueId = endpoint.split('/')[2];
-        const { visitors: reorderedVisitors } = body;
-        
-        // Remove existing visitors for this queue that are waiting
-        this.visitors = this.visitors.filter(v => !((v as any).queueId === queueId && v.status === 'waiting'));
-        
-        // Add them back with updated order fields
-        const newVisitorsWithId = reorderedVisitors.map((v: Visitor, index: number) => ({
-            ...v,
-            queueId,
-            order: index + 1
-        }));
-        
-        this.visitors.push(...newVisitorsWithId);
-        
-        this.save();
-        this.emit('queue:update', queueId);
-        return { success: true };
-    }
-
-    if (endpoint.endsWith('/alert')) {
-        const queueId = endpoint.split('/')[2];
-        const { visitorId, type } = body;
-        const visitor = this.visitors.find(v => v.id === visitorId);
-        if (visitor) {
-            visitor.isAlerting = type === 'trigger';
-            this.save();
-            this.emit('queue:update', queueId);
-        }
-        return { success: true };
-    }
-    
-    if (endpoint.endsWith('/priority')) {
-        const queueId = endpoint.split('/')[2];
-        const { visitorId, isPriority } = body;
-        const visitor = this.visitors.find(v => v.id === visitorId);
-        if (visitor) {
-            visitor.isPriority = isPriority;
-            this.save();
-            this.emit('queue:update', queueId);
-        }
-        return { success: true };
-    }
-
-    if (endpoint.endsWith('/leave')) {
-        const queueId = endpoint.split('/')[2];
-        const { visitorId } = body;
-        const visitor = this.visitors.find(v => v.id === visitorId);
-        if (visitor) {
-            visitor.status = 'cancelled';
-            this.log(queueId, visitor.ticketNumber, 'leave');
-            this.save();
-            this.emit('queue:update', queueId);
-        }
-        return { success: true };
-    }
-    
-    if (endpoint.endsWith('/feedback')) {
-        const queueId = endpoint.split('/')[2];
-        const { visitorId, rating, feedback } = body;
-        const visitor = this.visitors.find(v => v.id === visitorId);
-        if (visitor) {
-            visitor.rating = rating;
-            visitor.feedback = feedback;
-            this.save();
-            this.emit('queue:update', queueId);
-        }
-        return { success: true };
-    }
-    
-    if (endpoint.endsWith('/clear')) {
-        const queueId = endpoint.split('/')[2];
-        this.visitors.forEach(v => {
-            if((v as any).queueId === queueId && v.status === 'waiting') {
-                v.status = 'cancelled';
-            }
-        });
-        this.save();
-        this.emit('queue:update', queueId);
-        return { success: true };
-    }
-    
-    // Call by number
-    if (endpoint.endsWith('/call-number')) {
-         const queueId = endpoint.split('/')[2];
-         const { ticketNumber, servedBy } = body;
-         
-         // 1. Mark current serving as served
-         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving' && (!servedBy || !v.servedBy || v.servedBy === servedBy));
-         if (serving) {
-             serving.status = 'served';
-             serving.servedTime = new Date().toISOString();
-             serving.isAlerting = false;
-         }
-         
-         // 2. Find target
-         const target = this.visitors.find(v => (v as any).queueId === queueId && v.ticketNumber === ticketNumber);
-         if (target) {
-             target.status = 'serving';
-             target.isAlerting = true;
-             target.servedBy = servedBy || 'Staff';
-             target.servingStartTime = new Date().toISOString();
-             this.log(queueId, target.ticketNumber, 'call', servedBy);
-         }
-         
-         this.save();
-         this.emit('queue:update', queueId);
-         return { success: true };
-    }
-
-    if (endpoint.endsWith('/recall')) {
-         const queueId = endpoint.split('/')[2];
-         const { visitorId, servedBy } = body;
-         
-         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving' && (!servedBy || !v.servedBy || v.servedBy === servedBy));
-         if (serving) {
-             serving.status = 'served';
-             serving.servedTime = new Date().toISOString();
-             serving.isAlerting = false;
-         }
-         
-         const target = this.visitors.find(v => v.id === visitorId);
-         if (target) {
-             target.status = 'serving';
-             target.isAlerting = true;
-             target.servedBy = servedBy || 'Staff';
-         }
-         
-         this.save();
-         this.emit('queue:update', queueId);
-         return { success: true };
-    }
-    
-    if (endpoint.endsWith('/take-back')) {
-         const queueId = endpoint.split('/')[2];
-         const { servedBy } = body;
-         
-         const serving = this.visitors.find(v => (v as any).queueId === queueId && v.status === 'serving' && (!servedBy || !v.servedBy || v.servedBy === servedBy));
-         if (serving) {
-             serving.status = 'waiting';
-             serving.isAlerting = false;
-             serving.servedBy = undefined;
-             this.save();
-             this.emit('queue:update', queueId);
-         }
-         return { success: true };
-    }
-
-    if (method === 'PUT' && endpoint.startsWith('/queue/')) {
-        const queueId = endpoint.split('/')[2];
-        const queue = this.queues.find(q => q.id === queueId);
-        if (queue) {
-            Object.assign(queue, body);
-            this.save();
-            this.emit('queue:update', queueId);
-            return queue;
-        }
-    }
-
-    if (method === 'DELETE' && endpoint.startsWith('/queue/')) {
-         const queueId = endpoint.split('/')[2];
-         this.queues = this.queues.filter(q => q.id !== queueId);
-         this.save();
-         return { success: true };
-    }
-
-    if (endpoint === '/admin/system-logs') {
-        return this.logs.slice(0, 50);
-    }
-    
-    // --- ADMIN MOCK ---
+    // --- ADMIN (Local) ---
     if (endpoint === '/admin/users') {
-        return this.users.map(u => ({ id: u.id, email: u.email, businessName: u.businessName, role: u.role, isVerified: u.isVerified, joinedAt: u.joinedAt }));
+        return this.users;
     }
     
     if (endpoint === '/admin/list') {
         return this.users.filter(u => u.role === 'admin' || u.role === 'superadmin').map(u => u.email);
     }
-    
+
     if (endpoint === '/admin/add') {
-        const { email } = body;
-        const u = this.users.find(u => u.email === email);
+        const u = this.users.find(u => u.email === body.email);
         if (u) { u.role = 'admin'; this.save(); }
         return { success: true };
     }
-    
+
     if (endpoint === '/admin/remove') {
-        const { email } = body;
-        const u = this.users.find(u => u.email === email);
+        const u = this.users.find(u => u.email === body.email);
         if (u && u.role !== 'superadmin') { u.role = 'owner'; this.save(); }
         return { success: true };
     }
-    
-    if (endpoint === '/admin/logs') {
-        // Mock audit logs
-        return [{ id: '1', adminEmail: 'ismailnsm75@gmail.com', action: 'System Init', timestamp: new Date().toISOString() }];
-    }
-    
-    console.warn("Mock endpoint not found:", method, endpoint);
-    return {};
-  }
 
-  private log(queueId: string, ticket: number, action: string, user?: string) {
-      this.logs.unshift({
-          queueId,
-          ticket,
-          action,
-          time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
-          rawTime: new Date().toISOString(),
-          user: user || 'System', 
-          email: 'system@qblink.com' 
-      });
+    if (endpoint === '/admin/log') {
+        this.adminAuditLogs.unshift({
+            id: Math.random().toString(36).substr(2,9),
+            adminEmail: body.adminEmail,
+            action: body.action,
+            target: body.target,
+            timestamp: new Date().toISOString()
+        });
+        this.save();
+        return { success: true };
+    }
+
+    if (endpoint === '/admin/logs') {
+        return this.adminAuditLogs;
+    }
+
+    if (endpoint === '/admin/system-logs') {
+        return this.logs;
+    }
+
+    return {};
   }
 }
 

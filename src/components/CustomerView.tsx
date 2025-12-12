@@ -66,16 +66,15 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 const qName = params.get('qName');
                 const qLoc = params.get('qLoc') || undefined;
                 
-                if (qName) {
-                    console.log("Hydrating local demo queue:", qName);
-                    await queueService.hydrateQueue(queueId, qName, qLoc);
-                    // Retry fetch immediately
-                    data = await queueService.getQueueData(queueId);
-                    info = await queueService.getQueueInfo(queueId);
-                    setIsDemoMode(true);
-                } else {
-                    throw e; // Re-throw if we can't recover
-                }
+                // If explicit params exist, use them. If NOT, default to a generic demo queue to prevent 404
+                const effectiveName = qName || "Demo Queue";
+                
+                console.log("Hydrating local demo queue:", effectiveName);
+                await queueService.hydrateQueue(queueId, effectiveName, qLoc);
+                // Retry fetch immediately
+                data = await queueService.getQueueData(queueId);
+                info = await queueService.getQueueInfo(queueId);
+                setIsDemoMode(true);
             }
             
             if (!info) {
@@ -457,10 +456,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                   <p className="text-gray-500 text-sm mb-6">
                       We couldn't find this queue. It may have been deleted or the link is invalid.
                   </p>
-                  <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-xs text-orange-700 text-left mb-6">
-                      <strong>Troubleshooting:</strong><br/>
-                      If you scanned a QR code from another device while in demo mode, data will not sync. This is normal for the frontend-only preview.
-                  </div>
                   <a href="/" className="block w-full py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors">
                       Go Home
                   </a>

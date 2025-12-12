@@ -1,7 +1,9 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion as m } from 'framer-motion';
 import { ArrowRight, Zap, LogOut, CheckCircle2 } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
+
+const motion = m as any;
 
 interface HeroProps {
   onGetStarted?: () => void;

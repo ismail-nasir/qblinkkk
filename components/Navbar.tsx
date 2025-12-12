@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import { AppView } from '../types';
+
+const motion = m as any;
 
 interface NavbarProps {
   onGetStarted?: () => void;

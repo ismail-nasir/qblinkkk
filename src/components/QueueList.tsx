@@ -80,7 +80,7 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
 
   // Chart Data State
   const [trafficData, setTrafficData] = useState<any[]>([]);
-  const [volumeData, setVolumeData] = useState<{name: string; visitors: number}[]>([]);
+  const [volumeData, setVolumeData] = useState<any[]>([]);
 
   const loadQueues = useCallback(async () => {
     try {
@@ -508,7 +508,7 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
                           dataKey="visitors"
                           nameKey="name"
                         >
-                          {volumeData.map((entry, index) => (
+                          {volumeData.map((entry: any, index: number) => (
                             <Cell
                               key={`cell-${index}`}
                               fill={PIE_COLORS[index % PIE_COLORS.length]}
@@ -592,7 +592,7 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
           </div>
         ) : (
           // Grouped Layout
-          Object.entries(groupedQueues).map(([location, locQueues]) => (
+          Object.entries(groupedQueues).map(([location, locQueues]: [string, QueueInfo[]]) => (
               <div key={location}>
                   <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2 ml-1">
                       {location === 'Main Location' ? <LayoutGrid size={18} className="text-gray-400" /> : <MapPin size={18} className="text-primary-600" />}

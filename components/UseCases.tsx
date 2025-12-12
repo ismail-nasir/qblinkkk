@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
 import { Utensils, Stethoscope, Scissors, Wrench, GraduationCap, Calendar, MapPin, Clock, Star } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
+
+const motion = m as any;
 
 const cases = [
   { 

@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, ActivityLog, QueueData, AdminAuditLog } from '../types';
 import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Shield, ClipboardList, CheckCircle, Plus } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
 import { authService } from '../services/auth';
 import { queueService } from '../services/queue';
+
+const motion = m as any;
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -26,6 +28,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState('');
+
+  const adminInputRef = useRef<HTMLInputElement>(null);
 
   // Get current admin user
   const currentUser = authService.getCurrentUser();
@@ -65,7 +69,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
 
   const handleUserClick = async (user: User) => {
       try {
-        const data = await queueService.getQueueData(user.id); // Assuming getQueueData can accept userId if user is admin, or we need a specific endpoint
         // NOTE: In the new API structure, getQueueData usually takes a queueId. 
         // We might need to fetch the user's queues first, then get data for the first one.
         const userQueues = await queueService.getUserQueues(user.id);
@@ -544,6 +547,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                          <div className="p-6">
                              <div className="flex gap-2 mb-6">
                                  <input 
+                                     ref={adminInputRef}
                                      type="email" 
                                      placeholder="Enter admin email" 
                                      value={newAdminEmail}

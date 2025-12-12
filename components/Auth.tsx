@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
 import { Zap, Users, Clock, Shield, Check, X, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Mail, ChevronLeft } from 'lucide-react';
 import { authService } from '../services/auth';
 import { User, AppView } from '../types';
+
+const motion = m as any;
 
 interface AuthProps {
   initialMode?: 'login' | 'signup';

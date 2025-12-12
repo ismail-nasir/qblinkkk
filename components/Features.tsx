@@ -1,6 +1,8 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion as m } from 'framer-motion';
 import { QrCode, Zap, Bell, Clock, Users, ShieldCheck } from 'lucide-react';
+
+const motion = m as any;
 
 const features = [
   {

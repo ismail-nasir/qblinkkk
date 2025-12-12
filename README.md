@@ -1,70 +1,59 @@
 
-# Qblink Queue Management System - Cloud Ready
+# Qblink - Queue Management System
 
-A fully operational, full-stack queue management system designed for cloud deployment.
+A frictionless, glass-morphic queue management system using modern aesthetics and AI insights.
 
-## Tech Stack
-- **Frontend:** React, TypeScript, TailwindCSS, Vite
-- **Backend:** Node.js, Express, TypeScript
-- **Database:** PostgreSQL
-- **Real-time:** Socket.io
+## 🚀 How to Make It Work on Vercel (Cross-Device)
 
----
+By default, Qblink runs in "Mock Mode" using LocalStorage. This means data stays on one device. To make it work across devices (Laptop ↔ Phone), you must connect it to a free **Firebase** database.
 
-## 🚀 Deployment Guide
+### Step 1: Create a Free Firebase Project
+1. Go to [console.firebase.google.com](https://console.firebase.google.com/).
+2. Click **"Add project"** and name it `qblink-app` (or anything you want).
+3. Disable Google Analytics (optional) and create the project.
 
-### 1. Backend & Database (Render.com)
+### Step 2: Enable Realtime Database
+1. In the Firebase console, go to **Build** > **Realtime Database**.
+2. Click **Create Database**.
+3. Select a location (e.g., United States).
+4. **Crucial:** Select **Start in Test Mode**. This allows anyone with your app to read/write data without complex auth setup initially.
+   * *Note: For production, you should set up rules, but Test Mode is perfect for this demo.*
 
-1. **Create Database:**
-   - Sign up at [Render.com](https://render.com).
-   - Create a new **PostgreSQL** database.
-   - Copy the `Internal Database URL` (for internal communication) or `External Database URL`.
+### Step 3: Get API Keys
+1. Go to Project Settings (Gear icon > Project settings).
+2. Scroll down to "Your apps". Click the web icon (`</>`) to create a web app.
+3. Register the app (no need for hosting).
+4. You will see a `firebaseConfig` object. Keep this tab open.
 
-2. **Deploy Backend Service:**
-   - Create a new **Web Service** on Render connected to this repository.
-   - **Build Command:** `npm install && npx tsc` (Ensure `tsconfig.json` compiles backend files)
-   - **Start Command:** `node backend/server.js` (or output location from tsc)
-   - **Environment Variables:**
-     - `DATABASE_URL`: Your Render Postgres URL.
-     - `JWT_SECRET`: A secure random string.
-     - `PORT`: `3000` (Render sets this automatically, but good to have).
+### Step 4: Add Environment Variables to Vercel
+1. Go to your project dashboard on [Vercel.com](https://vercel.com).
+2. Go to **Settings** > **Environment Variables**.
+3. Copy the values from your Firebase config and add them as follows:
 
-3. **Initialize Database:**
-   - Once the database is running, connect to it using a tool like DBeaver or TablePlus.
-   - Run the contents of `backend/schema.sql` to create the tables.
+| Vercel Key | Firebase Value |
+|------------|----------------|
+| `VITE_FIREBASE_API_KEY` | `apiKey` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | `authDomain` |
+| `VITE_FIREBASE_DATABASE_URL` | `databaseURL` |
+| `VITE_FIREBASE_PROJECT_ID` | `projectId` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `storageBucket` |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `messagingSenderId` |
+| `VITE_FIREBASE_APP_ID` | `appId` |
 
-### 2. Frontend (Vercel)
+4. **Redeploy** your app on Vercel (Go to Deployments > Redeploy).
 
-1. **Deploy Frontend:**
-   - Sign up at [Vercel.com](https://vercel.com).
-   - Import this repository.
-   - **Build Command:** `npm run build`
-   - **Output Directory:** `dist`
-   - **Environment Variables:**
-     - `VITE_API_URL`: The URL of your deployed backend + `/api` (e.g., `https://qblink-backend.onrender.com/api`)
-     - `VITE_SOCKET_URL`: The URL of your deployed backend (e.g., `https://qblink-backend.onrender.com`)
-
----
-
-## 🛠 Local Development
-
-1. **Setup Backend:**
-   - Create a `.env` file in the root:
-     ```
-     DATABASE_URL=postgres://user:pass@localhost:5432/qblink_db
-     JWT_SECRET=local_secret
-     PORT=3000
-     ```
-   - Run: `npx ts-node backend/server.ts`
-
-2. **Setup Frontend:**
-   - Run: `npm start` (or `npm run dev`)
-   - It will connect to `localhost:3000` by default.
+### 🎉 Done!
+Once redeployed, the app will automatically detect the Firebase keys and switch to "Cloud Mode". 
+- Create an account on your laptop.
+- Open the site on your phone and **Login** with the same credentials.
+- You will see the synced dashboard and queues!
 
 ---
 
-## ✅ Features
-- **Real-time:** Updates across Dashboard, Customer View, and Display Screen instantly.
-- **Secure:** JWT Authentication & Password Hashing.
-- **Mobile First:** Optimized for all devices.
-- **Persistent:** PostgreSQL storage (No LocalStorage limitations).
+## Local Development
+To run locally with Firebase, create a `.env` file in the root directory with the same keys above.
+
+```bash
+npm install
+npm run dev
+```

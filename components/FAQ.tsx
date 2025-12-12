@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
+
+const motion = m as any;
 
 const faqs = [
   {
