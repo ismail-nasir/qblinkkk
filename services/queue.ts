@@ -101,7 +101,7 @@ export const queueService = {
       }
   },
 
-  createQueue: async (userId: string, name: string, estimatedWaitTime?: number, type: BusinessType = 'general', features?: Partial<QueueFeatures>): Promise<QueueInfo> => {
+  createQueue: async (userId: string, name: string, estimatedWaitTime?: number, type: BusinessType = 'general', features?: Partial<QueueFeatures>, location?: string): Promise<QueueInfo> => {
       // Merge default features for type with any custom overrides
       const defaultFeatures = queueService.getDefaultFeatures(type);
       const finalFeatures = { ...defaultFeatures, ...features };
@@ -113,6 +113,7 @@ export const queueService = {
               id: newQueueRef.key!,
               userId,
               name,
+              location,
               code: Math.floor(100000 + Math.random() * 900000).toString(),
               status: 'active',
               createdAt: new Date().toISOString(),
@@ -132,7 +133,7 @@ export const queueService = {
           await firebaseService.set(newQueueRef, newQueue);
           return newQueue;
       }
-      return await api.post('/queue', { name, estimatedWaitTime, businessType: type, features: finalFeatures });
+      return await api.post('/queue', { name, estimatedWaitTime, businessType: type, features: finalFeatures, location });
   },
 
   updateQueue: async (userId: string, queueId: string, updates: Partial<QueueInfo>): Promise<QueueInfo | null> => {
@@ -541,7 +542,6 @@ export const queueService = {
   },
 
   exportStatsCSV: async (queueId: string, name: string) => {
-      // ... existing code ...
       const data = await queueService.getQueueData(queueId);
       const headers = ['Ticket Number', 'Name', 'Phone', 'Status', 'Join Time', 'Served Time', 'Served By', 'Priority', 'Late', 'Rating', 'Feedback'];
       const rows = data.visitors.map(v => [
@@ -557,7 +557,7 @@ export const queueService = {
           v.rating || '',
           v.feedback || ''
       ]);
-      // ... (rest of export logic remains same)
+      
       const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');

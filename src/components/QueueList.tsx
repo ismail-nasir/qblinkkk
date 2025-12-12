@@ -23,7 +23,8 @@ import {
   Scissors,
   Building2,
   ShoppingBag,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 // @ts-ignore
@@ -57,6 +58,7 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
   // Create Wizard State
   const [step, setStep] = useState(1);
   const [newQueueName, setNewQueueName] = useState('');
+  const [queueLocation, setQueueLocation] = useState('');
   const [estimatedTime, setEstimatedTime] = useState('');
   const [selectedType, setSelectedType] = useState<BusinessType>('general');
   const [featureOverrides, setFeatureOverrides] =
@@ -208,6 +210,7 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
       waitTime,
       selectedType,
       featureOverrides,
+      queueLocation
     );
 
     resetCreateModal();
@@ -224,6 +227,7 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
   const resetCreateModal = () => {
     setNewQueueName('');
     setEstimatedTime('');
+    setQueueLocation('');
     setStep(1);
     setSelectedType('general');
     setFeatureOverrides({ vip: false, multiCounter: false, anonymousMode: false, sms: false });
@@ -265,6 +269,17 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
     { type: 'bank', icon: Building2, label: 'Bank' },
     { type: 'retail', icon: ShoppingBag, label: 'Retail' },
   ];
+
+  // Group Queues by Location
+  const groupedQueues = React.useMemo(() => {
+      const groups: Record<string, QueueInfo[]> = {};
+      queues.forEach(q => {
+          const loc = q.location || 'Main Location';
+          if (!groups[loc]) groups[loc] = [];
+          groups[loc].push(q);
+      });
+      return groups;
+  }, [queues]);
 
   // Custom Tooltip for charts
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -556,12 +571,8 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
         </button>
       </div>
 
-      {/* Queues List Section ... (Rest remains same) */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-          <LayoutGrid size={24} className="text-primary-600" /> Your Queues
-        </h2>
-
+      {/* Queues List Section */}
+      <div className="mb-6 space-y-8">
         {queues.length === 0 ? (
           <div className="bg-white rounded-[32px] p-12 text-center border-2 border-dashed border-gray-200">
             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
@@ -581,161 +592,170 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {queues.map((queue, index) => {
-              const qStats = queueStats[queue.id];
-              const isExpanded = expandedQueues.has(queue.id);
-              const TypeIcon =
-                businessTypes.find(
-                  (t) => t.type === (queue.businessType || 'general'),
-                )?.icon || LayoutGrid;
+          // Grouped Layout
+          Object.entries(groupedQueues).map(([location, locQueues]) => (
+              <div key={location}>
+                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2 ml-1">
+                      {location === 'Main Location' ? <LayoutGrid size={18} className="text-gray-400" /> : <MapPin size={18} className="text-primary-600" />}
+                      {location}
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {locQueues.map((queue, index) => {
+                      const qStats = queueStats[queue.id];
+                      const isExpanded = expandedQueues.has(queue.id);
+                      const TypeIcon =
+                        businessTypes.find(
+                          (t) => t.type === (queue.businessType || 'general'),
+                        )?.icon || LayoutGrid;
 
-              return (
-                <motion.div
-                  key={queue.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300 relative group flex flex-col"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-600">
-                        <TypeIcon size={20} />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-1">
-                          {queue.name}
-                        </h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-500 font-mono">
-                          Code:{' '}
-                          <span className="text-gray-900 font-bold bg-gray-100 px-1.5 py-0.5 rounded">
-                            {queue.code}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
-                        queue.status === 'active'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      {queue.status}
-                    </span>
-                  </div>
-
-                  {/* Stats Toggle Button */}
-                  <div className="flex justify-end mb-4">
-                    <button
-                      onClick={(e) => toggleStats(e, queue.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                        isExpanded
-                          ? 'bg-primary-50 text-primary-700'
-                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      <BarChart3 size={14} />
-                      {isExpanded ? 'Hide Statistics' : 'Show Statistics'}
-                      {isExpanded ? (
-                        <ChevronUp size={14} />
-                      ) : (
-                        <ChevronDown size={14} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Collapsible Stats Grid */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3, ease: 'easeInOut' }}
-                        className="overflow-hidden"
-                      >
-                        <div className="grid grid-cols-3 gap-3 mb-6">
-                          <div className="bg-orange-50/50 rounded-2xl p-3 flex flex-col items-center justify-center border border-orange-100">
-                            <Hourglass
-                              size={16}
-                              className="text-orange-500 mb-1.5"
-                            />
-                            <span className="text-xl font-bold text-gray-900">
-                              {qStats?.metrics.waiting || 0}
-                            </span>
-                            <span className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">
-                              Waiting
+                      return (
+                        <motion.div
+                          key={queue.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300 relative group flex flex-col"
+                        >
+                          <div className="flex justify-between items-start mb-4">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-600">
+                                <TypeIcon size={20} />
+                              </div>
+                              <div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-1">
+                                  {queue.name}
+                                </h3>
+                                <div className="flex items-center gap-2 text-sm text-gray-500 font-mono">
+                                  Code:{' '}
+                                  <span className="text-gray-900 font-bold bg-gray-100 px-1.5 py-0.5 rounded">
+                                    {queue.code}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
+                                queue.status === 'active'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-500'
+                              }`}
+                            >
+                              {queue.status}
                             </span>
                           </div>
-                          <div className="bg-green-50/50 rounded-2xl p-3 flex flex-col items-center justify-center border border-green-100">
-                            <Users
-                              size={16}
-                              className="text-green-500 mb-1.5"
-                            />
-                            <span className="text-xl font-bold text-gray-900">
-                              {qStats?.metrics.served || 0}
-                            </span>
-                            <span className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">
-                              Served
-                            </span>
+
+                          {/* Stats Toggle Button */}
+                          <div className="flex justify-end mb-4">
+                            <button
+                              onClick={(e) => toggleStats(e, queue.id)}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                isExpanded
+                                  ? 'bg-primary-50 text-primary-700'
+                                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              <BarChart3 size={14} />
+                              {isExpanded ? 'Hide Statistics' : 'Show Statistics'}
+                              {isExpanded ? (
+                                <ChevronUp size={14} />
+                              ) : (
+                                <ChevronDown size={14} />
+                              )}
+                            </button>
                           </div>
-                          <div className="bg-blue-50/50 rounded-2xl p-3 flex flex-col items-center justify-center border border-blue-100">
-                            <Clock
-                              size={16}
-                              className="text-blue-500 mb-1.5"
-                            />
-                            <span className="text-xl font-bold text-gray-900">
-                              {qStats?.metrics.avgWaitTime || 0}
-                            </span>
-                            <span className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">
-                              min/avg
-                            </span>
+
+                          {/* Collapsible Stats Grid */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                className="overflow-hidden"
+                              >
+                                <div className="grid grid-cols-3 gap-3 mb-6">
+                                  <div className="bg-orange-50/50 rounded-2xl p-3 flex flex-col items-center justify-center border border-orange-100">
+                                    <Hourglass
+                                      size={16}
+                                      className="text-orange-500 mb-1.5"
+                                    />
+                                    <span className="text-xl font-bold text-gray-900">
+                                      {qStats?.metrics.waiting || 0}
+                                    </span>
+                                    <span className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">
+                                      Waiting
+                                    </span>
+                                  </div>
+                                  <div className="bg-green-50/50 rounded-2xl p-3 flex flex-col items-center justify-center border border-green-100">
+                                    <Users
+                                      size={16}
+                                      className="text-green-500 mb-1.5"
+                                    />
+                                    <span className="text-xl font-bold text-gray-900">
+                                      {qStats?.metrics.served || 0}
+                                    </span>
+                                    <span className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">
+                                      Served
+                                    </span>
+                                  </div>
+                                  <div className="bg-blue-50/50 rounded-2xl p-3 flex flex-col items-center justify-center border border-blue-100">
+                                    <Clock
+                                      size={16}
+                                      className="text-blue-500 mb-1.5"
+                                    />
+                                    <span className="text-xl font-bold text-gray-900">
+                                      {qStats?.metrics.avgWaitTime || 0}
+                                    </span>
+                                    <span className="text-[9px] uppercase font-bold text-gray-400 mt-0.5">
+                                      min/avg
+                                    </span>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          {/* Actions row */}
+                          <div className="flex gap-3 mt-auto relative">
+                            <button
+                              onClick={() => onSelectQueue(queue)}
+                              className="flex-1 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all"
+                            >
+                              <Activity size={18} /> Manage
+                            </button>
+                            <button
+                              onClick={() =>
+                                window.open(
+                                  `${window.location.origin}?view=display&queueId=${queue.id}`,
+                                  '_blank',
+                                )
+                              }
+                              className="w-12 flex items-center justify-center bg-white border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-all"
+                              title="Open Public Display"
+                            >
+                              <ExternalLink size={20} />
+                            </button>
+
+                            <button
+                                onClick={(e) => handleDeleteClick(e, queue.id)}
+                                className="absolute -top-24 right-0 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all"
+                                title="Delete Queue"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+
                           </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Actions row */}
-                  <div className="flex gap-3 mt-auto relative">
-                    <button
-                      onClick={() => onSelectQueue(queue)}
-                      className="flex-1 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all"
-                    >
-                      <Activity size={18} /> Manage
-                    </button>
-                    <button
-                      onClick={() =>
-                        window.open(
-                          `${window.location.origin}?view=display&queueId=${queue.id}`,
-                          '_blank',
-                        )
-                      }
-                      className="w-12 flex items-center justify-center bg-white border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-all"
-                      title="Open Public Display"
-                    >
-                      <ExternalLink size={20} />
-                    </button>
-
-                    <button
-                        onClick={(e) => handleDeleteClick(e, queue.id)}
-                        className="absolute -top-24 right-0 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all"
-                        title="Delete Queue"
-                    >
-                        <Trash2 size={18} />
-                    </button>
-
+                        </motion.div>
+                      );
+                    })}
                   </div>
-                </motion.div>
-              );
-            })}
-          </div>
+              </div>
+          ))
         )}
       </div>
 
-      {/* Create Queue Wizard Modal - (Content unchanged but included for completeness) */}
+      {/* Create Queue Wizard Modal */}
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
@@ -815,6 +835,18 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
                         min="1"
                         value={estimatedTime}
                         onChange={(e) => setEstimatedTime(e.target.value)}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-medium"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">
+                        Location / Branch Name (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Downtown, Westside, Floor 2"
+                        value={queueLocation}
+                        onChange={(e) => setQueueLocation(e.target.value)}
                         className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-medium"
                       />
                     </div>

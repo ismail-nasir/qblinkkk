@@ -157,11 +157,12 @@ class MockBackendService {
     }
 
     if (endpoint === '/queue' && method === 'POST') {
-      const { name, estimatedWaitTime, businessType, features } = body;
+      const { name, estimatedWaitTime, businessType, features, location } = body;
       const newQueue: QueueInfo = {
         id: Math.random().toString(36).substr(2, 9),
         userId: user!.id,
         name,
+        location,
         code: Math.floor(100000 + Math.random() * 900000).toString(),
         status: 'active',
         createdAt: new Date().toISOString(),

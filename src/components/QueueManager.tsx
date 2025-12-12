@@ -165,38 +165,58 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   // --- PREDICTIVE ANALYTICS LOGIC ---
   const calculatePredictedWait = () => {
-      if (!queueData) return 0;
+      if (!queueData) return { time: 0, activeStaff: 1 };
       
       const servedVisitors = queueData.visitors.filter(v => v.status === 'served' && v.servedTime && v.servingStartTime);
       
       // If no history, use estimated default
       if (servedVisitors.length < 3) {
-          return (currentQueue.estimatedWaitTime || 5) * queueData.metrics.waiting;
+          return { 
+              time: (currentQueue.estimatedWaitTime || 5) * queueData.metrics.waiting, 
+              activeStaff: 1 
+          };
       }
 
       // Sort by most recent
       servedVisitors.sort((a,b) => new Date(b.servedTime!).getTime() - new Date(a.servedTime!).getTime());
-      const recent = servedVisitors.slice(0, 8); // Use last 8 for better smoothing
+      
+      // Look at last 10 served for average time
+      const recent = servedVisitors.slice(0, 10);
 
       // Calculate actual duration for each
       const totalDuration = recent.reduce((acc, v) => {
-          return acc + (new Date(v.servedTime!).getTime() - new Date(v.servingStartTime!).getTime());
+          const start = new Date(v.servingStartTime!).getTime();
+          const end = new Date(v.servedTime!).getTime();
+          return acc + (end - start);
       }, 0);
       
       const avgServiceTimeMs = totalDuration / recent.length;
       const avgServiceTimeMins = avgServiceTimeMs / 60000;
       
-      // Determine number of active counters/staff based on unique 'servedBy' in recent history
-      const uniqueStaff = new Set(recent.map(v => v.servedBy)).size;
-      const activeCounters = Math.max(1, uniqueStaff);
+      // Determine number of active counters/staff based on unique 'servedBy' in recent history (last hour)
+      // Only consider staff who have served someone in the last hour to be "active"
+      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+      const activeStaffSet = new Set(
+          servedVisitors
+            .filter(v => new Date(v.servedTime!).getTime() > oneHourAgo)
+            .map(v => v.servedBy)
+            .filter(name => name && name !== 'System' && name !== 'Staff') // Filter out generics if possible, or count them as 1
+      );
+      
+      // Fallback: If no activity in last hour, use the slice of recent 10, or default to 1
+      const activeCounters = activeStaffSet.size > 0 ? activeStaffSet.size : (new Set(recent.map(v => v.servedBy)).size || 1);
 
       // Formula: (Waiting Count * Avg Service Time) / Active Counters
+      // We add 1 to waiting count to include "current user" perspective if needed, but for general stat, just waiting count.
       const predicted = Math.ceil((avgServiceTimeMins * queueData.metrics.waiting) / activeCounters);
       
-      return Math.max(predicted, 1); // Minimum 1 min
+      return { 
+          time: Math.max(predicted, 1), 
+          activeStaff: activeCounters 
+      };
   };
 
-  const predictedWaitTime = calculatePredictedWait();
+  const prediction = calculatePredictedWait();
 
   const handleCounterNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setCounterName(e.target.value);
@@ -691,11 +711,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                   <h4 className="text-sm font-bold uppercase tracking-widest text-blue-100">Smart Prediction</h4>
                               </div>
                               <p className="text-blue-100 text-sm max-w-sm">
-                                  Real-time estimate based on active counters and service speed.
+                                  Estimated based on {prediction.activeStaff} active staff member{prediction.activeStaff > 1 ? 's' : ''} and recent service duration.
                               </p>
                           </div>
                           <div className="text-center md:text-right">
-                              <div className="text-5xl font-black tracking-tight">{predictedWaitTime}<span className="text-2xl font-bold text-blue-200 ml-1">min</span></div>
+                              <div className="text-5xl font-black tracking-tight">{prediction.time}<span className="text-2xl font-bold text-blue-200 ml-1">min</span></div>
                               <p className="text-xs font-bold text-blue-200 uppercase mt-1">Current Wait</p>
                           </div>
                       </div>
@@ -769,48 +789,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                               <p>Run analysis to get AI-powered insights from customer feedback.</p>
                           </div>
                       )}
-                  </div>
-
-                  {/* Detailed Customer Feedback List */}
-                  <div className="mb-12">
-                      <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                          <Quote size={18} className="text-gray-500" /> Recent Reviews
-                      </h4>
-                      <div className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden max-h-[400px] overflow-y-auto">
-                          {reviews.length > 0 ? (
-                              <div className="divide-y divide-gray-100">
-                                  {reviews.map((v) => (
-                                      <div key={v.id} className="p-4 hover:bg-white transition-colors">
-                                          <div className="flex justify-between items-start mb-1">
-                                              <div className="flex items-center gap-2">
-                                                  <span className="font-bold text-gray-900 text-sm">{v.name}</span>
-                                                  <span className="text-xs text-gray-400">•</span>
-                                                  <span className="text-xs text-gray-400">{v.servedTime ? new Date(v.servedTime).toLocaleDateString() : 'Recently'}</span>
-                                              </div>
-                                              <div className="flex gap-0.5">
-                                                  {[1,2,3,4,5].map(star => (
-                                                      <Star 
-                                                          key={star} 
-                                                          size={12} 
-                                                          className={star <= (v.rating || 0) ? "fill-yellow-400 text-yellow-400" : "fill-gray-200 text-gray-200"} 
-                                                      />
-                                                  ))}
-                                              </div>
-                                          </div>
-                                          {v.feedback ? (
-                                              <p className="text-sm text-gray-600 leading-relaxed">"{v.feedback}"</p>
-                                          ) : (
-                                              <p className="text-xs text-gray-400 italic">No written comment</p>
-                                          )}
-                                      </div>
-                                  ))}
-                              </div>
-                          ) : (
-                              <div className="p-8 text-center text-gray-400 text-sm">
-                                  No reviews received yet.
-                              </div>
-                          )}
-                      </div>
                   </div>
 
                   <div className="h-[300px] w-full">
@@ -997,7 +975,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           </motion.div>
       )}
 
-      {/* ... (Modals remain unchanged) */}
+      {/* --- MODALS --- */}
       <AnimatePresence>
           {selectedVisitor && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">

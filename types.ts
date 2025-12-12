@@ -66,6 +66,7 @@ export interface QueueInfo {
   id: string;
   userId: string;
   name: string;
+  location?: string; // Added: Multi-location support
   code: string;
   status: 'active' | 'inactive';
   createdAt: string;
