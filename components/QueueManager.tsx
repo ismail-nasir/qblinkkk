@@ -536,10 +536,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                           <button 
                               onClick={handleSmartSort}
                               disabled={isSmartSorting || queueData.metrics.waiting < 2}
-                              className="p-2 bg-purple-50 text-purple-600 rounded-xl border border-purple-100 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                              className="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 rounded-xl border border-purple-100 hover:bg-purple-100 transition-colors disabled:opacity-50 text-sm font-bold"
                               title="Smart Sort with AI"
                           >
-                              {isSmartSorting ? <Sparkles size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                              {isSmartSorting ? <Sparkles size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                              <span className="hidden sm:inline">Smart Sort</span>
                           </button>
                       </div>
                   </div>
