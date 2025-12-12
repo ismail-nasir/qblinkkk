@@ -4,7 +4,7 @@ import { User, QueueData, QueueInfo, Visitor, QueueSettings, BusinessType } from
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
 import { getQueueInsights, optimizeQueueOrder, analyzeCustomerFeedback } from '../services/geminiService';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus, Quote } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus, Quote, Zap } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -99,8 +99,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           }
 
           data.recentActivity.forEach(log => {
-              // Properly parse timestamps from backend or logs
-              // If rawTime exists use it, otherwise parsing fallback for mock data
               let date;
               if ((log as any).rawTime) {
                   date = new Date((log as any).rawTime);
@@ -153,7 +151,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       const autoSkip = settings.autoSkipMinutes || 0;
 
       const interval = setInterval(() => {
+          // This handles the "Auto-Skip Timeout" for presence
           queueService.handleGracePeriodExpiry(queue.id, gracePeriod);
+          
+          // This handles "Service Timeout" for long running services
           if (autoSkip > 0) {
               queueService.autoSkipInactive(queue.id, autoSkip);
           }
@@ -161,6 +162,41 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
       return () => clearInterval(interval);
   }, [settings.gracePeriodMinutes, settings.autoSkipMinutes, queue.id]);
+
+  // --- PREDICTIVE ANALYTICS LOGIC ---
+  const calculatePredictedWait = () => {
+      if (!queueData) return 0;
+      
+      const servedVisitors = queueData.visitors.filter(v => v.status === 'served' && v.servedTime && v.servingStartTime);
+      
+      // If no history, use estimated default
+      if (servedVisitors.length < 3) {
+          return (currentQueue.estimatedWaitTime || 5) * queueData.metrics.waiting;
+      }
+
+      // Sort by most recent
+      servedVisitors.sort((a,b) => new Date(b.servedTime!).getTime() - new Date(a.servedTime!).getTime());
+      const recent = servedVisitors.slice(0, 8); // Use last 8 for better smoothing
+
+      // Calculate actual duration for each
+      const totalDuration = recent.reduce((acc, v) => {
+          return acc + (new Date(v.servedTime!).getTime() - new Date(v.servingStartTime!).getTime());
+      }, 0);
+      
+      const avgServiceTimeMs = totalDuration / recent.length;
+      const avgServiceTimeMins = avgServiceTimeMs / 60000;
+      
+      // Determine number of active counters/staff based on unique 'servedBy' in recent history
+      const uniqueStaff = new Set(recent.map(v => v.servedBy)).size;
+      const activeCounters = Math.max(1, uniqueStaff);
+
+      // Formula: (Waiting Count * Avg Service Time) / Active Counters
+      const predicted = Math.ceil((avgServiceTimeMins * queueData.metrics.waiting) / activeCounters);
+      
+      return Math.max(predicted, 1); // Minimum 1 min
+  };
+
+  const predictedWaitTime = calculatePredictedWait();
 
   const handleCounterNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setCounterName(e.target.value);
@@ -645,6 +681,26 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                       <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
                   </div>
 
+                  {/* Predictive Wait Time Card */}
+                  <div className="mb-8 p-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl text-white shadow-lg shadow-blue-500/20 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl transform translate-x-10 -translate-y-10"></div>
+                      <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-4">
+                          <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                  <Zap size={20} className="text-yellow-300 fill-yellow-300" />
+                                  <h4 className="text-sm font-bold uppercase tracking-widest text-blue-100">Smart Prediction</h4>
+                              </div>
+                              <p className="text-blue-100 text-sm max-w-sm">
+                                  Real-time estimate based on active counters and service speed.
+                              </p>
+                          </div>
+                          <div className="text-center md:text-right">
+                              <div className="text-5xl font-black tracking-tight">{predictedWaitTime}<span className="text-2xl font-bold text-blue-200 ml-1">min</span></div>
+                              <p className="text-xs font-bold text-blue-200 uppercase mt-1">Current Wait</p>
+                          </div>
+                      </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
                       <div className="p-6 bg-blue-50 rounded-2xl">
                           <p className="text-sm font-bold text-blue-600 uppercase tracking-wider mb-2">Total Served</p>
@@ -846,9 +902,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                   <div className="space-y-4">
                       <h4 className="font-bold text-gray-700 flex items-center gap-2"><Sliders size={18} /> Automation & Features</h4>
                       
-                      {/* Grace Period */}
+                      {/* Grace Period - Renamed to Auto-Skip as requested */}
                       <div className="bg-gray-50 p-4 rounded-2xl">
-                          <label className="block text-sm font-bold text-gray-700 mb-2">Grace Period (Call to Presence)</label>
+                          <label className="block text-sm font-bold text-gray-700 mb-2">Auto-Skip Timeout (Presence Check)</label>
                           <select 
                             value={settings.gracePeriodMinutes || 2}
                             onChange={(e) => setSettings({...settings, gracePeriodMinutes: parseInt(e.target.value)})}
@@ -859,7 +915,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                               <option value={3}>3 Minutes</option>
                               <option value={5}>5 Minutes</option>
                           </select>
-                          <p className="text-xs text-gray-500 mt-2">Time for customer to confirm they are here before moving to back of queue.</p>
+                          <p className="text-xs text-gray-500 mt-2">Automatically moves visitor to the end of the queue if they don't confirm presence after being called.</p>
                       </div>
 
                       {/* Auto Skip */}
