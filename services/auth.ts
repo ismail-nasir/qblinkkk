@@ -1,13 +1,6 @@
 
 import { User, AdminAuditLog } from '../types';
 import { firebaseService } from './firebase';
-import { 
-    signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, 
-    signOut, 
-    onAuthStateChanged 
-} from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const USER_KEY = 'qblink_user';
 
@@ -21,12 +14,11 @@ export const authService = {
   initAuthListener: (callback: (user: User | null) => void) => {
       if (!firebaseService.auth) return;
       
-      onAuthStateChanged(firebaseService.auth, async (firebaseUser) => {
+      firebaseService.auth.onAuthStateChanged(async (firebaseUser: any) => {
           if (firebaseUser) {
               // Fetch extra user details from Firestore
-              const userRef = doc(firebaseService.db, 'businesses', firebaseUser.uid);
-              const userDoc = await getDoc(userRef);
-              if (userDoc.exists()) {
+              const userDoc = await firebaseService.db.collection('businesses').doc(firebaseUser.uid).get();
+              if (userDoc.exists) {
                   const userData = userDoc.data() as User;
                   localStorage.setItem(USER_KEY, JSON.stringify(userData));
                   callback(userData);
@@ -43,11 +35,10 @@ export const authService = {
   login: async (email: string, password: string): Promise<User> => {
     if (!firebaseService.auth) throw new Error("Firebase not configured");
     
-    const credential = await signInWithEmailAndPassword(firebaseService.auth, email, password);
-    const userRef = doc(firebaseService.db, 'businesses', credential.user.uid);
-    const userDoc = await getDoc(userRef);
+    const credential = await firebaseService.auth.signInWithEmailAndPassword(email, password);
+    const userDoc = await firebaseService.db.collection('businesses').doc(credential.user.uid).get();
     
-    if (!userDoc.exists()) throw new Error("User profile not found.");
+    if (!userDoc.exists) throw new Error("User profile not found.");
     
     const userData = userDoc.data() as User;
     localStorage.setItem(USER_KEY, JSON.stringify(userData));
@@ -57,7 +48,7 @@ export const authService = {
   signup: async (email: string, password: string, businessName: string): Promise<User> => {
     if (!firebaseService.auth) throw new Error("Firebase not configured");
 
-    const credential = await createUserWithEmailAndPassword(firebaseService.auth, email, password);
+    const credential = await firebaseService.auth.createUserWithEmailAndPassword(email, password);
     const uid = credential.user.uid;
 
     const newUser: User = {
@@ -70,7 +61,7 @@ export const authService = {
     };
 
     // Save business profile to Firestore
-    await setDoc(doc(firebaseService.db, 'businesses', uid), newUser);
+    await firebaseService.db.collection('businesses').doc(uid).set(newUser);
     
     localStorage.setItem(USER_KEY, JSON.stringify(newUser));
     return newUser;
@@ -78,7 +69,7 @@ export const authService = {
 
   logout: async () => {
     if (firebaseService.auth) {
-        await signOut(firebaseService.auth);
+        await firebaseService.auth.signOut();
     }
     localStorage.removeItem(USER_KEY);
     window.location.href = '/';

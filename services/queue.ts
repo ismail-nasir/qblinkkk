@@ -1,11 +1,6 @@
 
 import { QueueData, QueueInfo, Visitor, QueueFeatures, BusinessType, LocationInfo, ActivityLog } from '../types';
 import { firebaseService } from './firebase';
-import { 
-    collection, doc, addDoc, setDoc, updateDoc, deleteDoc, 
-    getDocs, getDoc, query, where, orderBy, limit, onSnapshot,
-    runTransaction, collectionGroup, writeBatch
-} from 'firebase/firestore';
 
 const { db } = firebaseService;
 
@@ -15,41 +10,41 @@ export const queueService = {
 
   getLocations: (businessId: string, callback: (locs: LocationInfo[]) => void) => {
       if (!db) return () => {};
-      const q = query(collection(db, `businesses/${businessId}/locations`), orderBy('createdAt', 'asc'));
-      return onSnapshot(q, (snapshot) => {
-          const locs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LocationInfo));
-          callback(locs);
-      });
+      return db.collection(`businesses/${businessId}/locations`)
+          .orderBy('createdAt', 'asc')
+          .onSnapshot((snapshot: any) => {
+              const locs = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as LocationInfo));
+              callback(locs);
+          });
   },
 
   createLocation: async (businessId: string, name: string) => {
       if (!db) throw new Error("No DB");
-      const ref = doc(collection(db, `businesses/${businessId}/locations`));
-      await setDoc(ref, { id: ref.id, name, createdAt: firebaseService.serverTimestamp() });
+      const ref = db.collection(`businesses/${businessId}/locations`).doc();
+      await ref.set({ 
+          id: ref.id, 
+          name, 
+          createdAt: firebaseService.serverTimestamp() 
+      });
       return { id: ref.id, name };
   },
 
   // --- QUEUES ---
 
-  // Real-time listener for queues in a specific location
   getLocationQueues: (businessId: string, locationId: string, callback: (queues: QueueInfo[]) => void) => {
       if (!db) return () => {};
-      const q = query(
-          collection(db, `businesses/${businessId}/locations/${locationId}/queues`),
-          orderBy('createdAt', 'desc')
-      );
-      return onSnapshot(q, (snapshot) => {
-          const queues = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QueueInfo));
-          callback(queues);
-      });
+      return db.collection(`businesses/${businessId}/locations/${locationId}/queues`)
+          .orderBy('createdAt', 'desc')
+          .onSnapshot((snapshot: any) => {
+              const queues = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as QueueInfo));
+              callback(queues);
+          });
   },
 
-  // Helper: Get all queues for a user across all locations
   getUserQueues: async (businessId: string): Promise<QueueInfo[]> => {
       if (!db) return [];
-      const q = query(collectionGroup(db, 'queues'), where('businessId', '==', businessId));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as QueueInfo));
+      const snapshot = await db.collectionGroup('queues').where('businessId', '==', businessId).get();
+      return snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() } as QueueInfo));
   },
 
   createQueue: async (
@@ -62,7 +57,7 @@ export const queueService = {
   ) => {
       if (!db) throw new Error("No DB");
       
-      const newQueueRef = doc(collection(db, `businesses/${businessId}/locations/${locationId}/queues`));
+      const newQueueRef = db.collection(`businesses/${businessId}/locations/${locationId}/queues`).doc();
       
       const newQueue: QueueInfo = {
           id: newQueueRef.id,
@@ -87,22 +82,20 @@ export const queueService = {
           currentTicketSequence: 0
       };
 
-      await setDoc(newQueueRef, newQueue);
+      await newQueueRef.set(newQueue);
       return newQueue;
   },
 
-  // Find queue hierarchy path using ID
   findQueuePath: async (queueId: string): Promise<{ businessId: string, locationId: string, queue: QueueInfo } | null> => {
       if (!db) return null;
-      const q = query(collectionGroup(db, 'queues'), where('id', '==', queueId), limit(1));
-      const snapshot = await getDocs(q);
+      const snapshot = await db.collectionGroup('queues').where('id', '==', queueId).limit(1).get();
       
       if (snapshot.empty) return null;
       
       const doc = snapshot.docs[0];
       const data = doc.data() as QueueInfo;
-      // Path: businesses/{bid}/locations/{lid}/queues/{qid}
       const pathSegments = doc.ref.path.split('/');
+      // Path: businesses/{bid}/locations/{lid}/queues/{qid}
       return {
           businessId: pathSegments[1],
           locationId: pathSegments[3],
@@ -128,30 +121,27 @@ export const queueService = {
           const { businessId, locationId } = path;
           const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
 
-          const qVisitors = query(collection(db, `${basePath}/visitors`));
-          const qLogs = query(collection(db, `${basePath}/logs`), orderBy('timestamp', 'desc'), limit(20));
-
-          unsubVisitors = onSnapshot(qVisitors, (vSnap) => {
-              const visitors = vSnap.docs.map(d => ({ id: d.id, ...d.data() } as Visitor));
+          unsubVisitors = db.collection(`${basePath}/visitors`).onSnapshot((vSnap: any) => {
+              const visitors = vSnap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Visitor));
               
-              const sorted = visitors.sort((a,b) => {
+              const sorted = visitors.sort((a: Visitor, b: Visitor) => {
                   if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
                   if (a.isPriority && !b.isPriority) return -1;
                   if (!a.isPriority && b.isPriority) return 1;
                   return a.ticketNumber - b.ticketNumber;
               });
 
-              const waiting = sorted.filter(v => v.status === 'waiting').length;
-              const served = sorted.filter(v => v.status === 'served').length;
-              const rated = sorted.filter(v => v.rating && v.rating > 0);
-              const avgRating = rated.length ? (rated.reduce((a, b) => a + (b.rating || 0), 0) / rated.length) : 0;
+              const waiting = sorted.filter((v: Visitor) => v.status === 'waiting').length;
+              const served = sorted.filter((v: Visitor) => v.status === 'served').length;
+              const rated = sorted.filter((v: Visitor) => v.rating && v.rating > 0);
+              const avgRating = rated.length ? (rated.reduce((a: number, b: Visitor) => a + (b.rating || 0), 0) / rated.length) : 0;
               
               const lastCalled = sorted
-                  .filter(v => v.status === 'serving' || v.status === 'served')
-                  .sort((a,b) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
+                  .filter((v: Visitor) => v.status === 'serving' || v.status === 'served')
+                  .sort((a: Visitor, b: Visitor) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
 
-              unsubLogs = onSnapshot(qLogs, (lSnap) => {
-                  const logs = lSnap.docs.map(d => ({ 
+              unsubLogs = db.collection(`${basePath}/logs`).orderBy('timestamp', 'desc').limit(20).onSnapshot((lSnap: any) => {
+                  const logs = lSnap.docs.map((d: any) => ({ 
                       id: d.id, ...d.data(), 
                       time: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '' 
                   } as ActivityLog));
@@ -184,13 +174,13 @@ export const queueService = {
       if (!path) throw new Error("Queue not found");
       const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}`;
       
-      const vSnap = await getDocs(collection(db, `${basePath}/visitors`));
-      const visitors = vSnap.docs.map(d => ({ id: d.id, ...d.data() } as Visitor));
+      const vSnap = await db.collection(`${basePath}/visitors`).get();
+      const visitors = vSnap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Visitor));
       
-      const waiting = visitors.filter(v => v.status === 'waiting').length;
-      const served = visitors.filter(v => v.status === 'served').length;
-      const lastCalled = visitors.filter(v => ['serving','served'].includes(v.status))
-          .sort((a,b) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
+      const waiting = visitors.filter((v: Visitor) => v.status === 'waiting').length;
+      const served = visitors.filter((v: Visitor) => v.status === 'served').length;
+      const lastCalled = visitors.filter((v: Visitor) => ['serving','served'].includes(v.status))
+          .sort((a: Visitor, b: Visitor) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
 
       return {
           queueId,
@@ -208,21 +198,21 @@ export const queueService = {
       const path = await queueService.findQueuePath(queueId);
       if (!path) throw new Error("Queue not found");
       const { businessId, locationId } = path;
-      const queueRef = doc(db, `businesses/${businessId}/locations/${locationId}/queues/${queueId}`);
+      const queueRef = db.doc(`businesses/${businessId}/locations/${locationId}/queues/${queueId}`);
       
       let ticketNumber = 1;
       let newVisitorId = '';
 
-      await runTransaction(db, async (transaction) => {
+      await db.runTransaction(async (transaction: any) => {
           const qDoc = await transaction.get(queueRef);
-          if (!qDoc.exists()) throw new Error("Queue missing");
+          if (!qDoc.exists) throw new Error("Queue missing");
           
           const currentSeq = qDoc.data().currentTicketSequence || 0;
           ticketNumber = currentSeq + 1;
           
           transaction.update(queueRef, { currentTicketSequence: ticketNumber });
           
-          const newVisitorRef = doc(collection(queueRef, 'visitors'));
+          const newVisitorRef = queueRef.collection('visitors').doc();
           newVisitorId = newVisitorRef.id;
 
           const visitorData: Visitor = {
@@ -240,7 +230,7 @@ export const queueService = {
 
           transaction.set(newVisitorRef, visitorData);
           
-          const logRef = doc(collection(queueRef, 'logs'));
+          const logRef = queueRef.collection('logs').doc();
           transaction.set(logRef, {
               timestamp: firebaseService.serverTimestamp(),
               action: 'join',
@@ -257,13 +247,13 @@ export const queueService = {
       if (!path) return;
       const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}`;
       
-      const vRef = doc(db, `${basePath}/visitors/${visitorId}`);
-      await updateDoc(vRef, updates);
+      const vRef = db.doc(`${basePath}/visitors/${visitorId}`);
+      await vRef.update(updates);
 
       if (logAction) {
-          const vSnap = await getDoc(vRef);
+          const vSnap = await vRef.get();
           const ticket = vSnap.data()?.ticketNumber || 0;
-          await addDoc(collection(db, `${basePath}/logs`), {
+          await db.collection(`${basePath}/logs`).add({
               timestamp: firebaseService.serverTimestamp(),
               action: logAction,
               ticket,
@@ -274,8 +264,6 @@ export const queueService = {
 
   callNext: async (queueId: string, counterName: string) => {
       const data = await queueService.getQueueData(queueId);
-      
-      // 1. Finish current
       const current = data.visitors.find(v => v.status === 'serving' && (!v.servedBy || v.servedBy === counterName));
       if (current) {
           await queueService.updateVisitorStatus(queueId, current.id, {
@@ -285,8 +273,6 @@ export const queueService = {
               calledAt: ''
           });
       }
-
-      // 2. Call Next
       const next = data.visitors
           .filter(v => v.status === 'waiting')
           .sort((a,b) => (a.order || 0) - (b.order || 0))[0];
@@ -317,18 +303,18 @@ export const queueService = {
   deleteQueue: async (uid: string, qid: string) => {
       const path = await queueService.findQueuePath(qid);
       if(path) {
-          await deleteDoc(doc(db, `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`));
+          await db.doc(`businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`).delete();
       }
   },
 
-  hydrateQueue: async (qid: string, name: string, location?: string) => {}, // No-op for Firebase mode
+  hydrateQueue: async (qid: string, name: string, location?: string) => {},
   
   getDefaultFeatures: (t: any) => ({ vip: false, multiCounter: false, anonymousMode: false, sms: false }),
   
   updateQueue: async (uid: string, qid: string, data: any) => {
       const path = await queueService.findQueuePath(qid);
       if(path) {
-          await updateDoc(doc(db, `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`), data);
+          await db.doc(`businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`).update(data);
       }
       return null;
   },
@@ -354,10 +340,9 @@ export const queueService = {
   clearQueue: async (qid: string) => {
       const path = await queueService.findQueuePath(qid);
       if(!path) return;
-      const q = query(collection(db, `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}/visitors`), where('status', '==', 'waiting'));
-      const snapshot = await getDocs(q);
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((doc) => {
+      const snapshot = await db.collection(`businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}/visitors`).where('status', '==', 'waiting').get();
+      const batch = db.batch();
+      snapshot.docs.forEach((doc: any) => {
           batch.update(doc.ref, { status: 'cancelled' });
       });
       await batch.commit();
@@ -366,10 +351,10 @@ export const queueService = {
   reorderQueue: async (qid: string, visitors: Visitor[]) => {
       const path = await queueService.findQueuePath(qid);
       if(!path) return;
-      const batch = writeBatch(db);
+      const batch = db.batch();
       const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`;
       visitors.forEach((v, idx) => {
-          const ref = doc(db, `${basePath}/visitors/${v.id}`);
+          const ref = db.doc(`${basePath}/visitors/${v.id}`);
           batch.update(ref, { order: idx + 1 });
       });
       await batch.commit();

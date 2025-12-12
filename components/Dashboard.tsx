@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Settings, ChevronDown, Trash2, X, Plus, MapPin, Store } from 'lucide-react';
+import { LogOut, Settings, ChevronDown, Trash2, X, Plus, MapPin, Store, LayoutGrid } from 'lucide-react';
 import { motion as m, AnimatePresence } from 'framer-motion';
 import { User, QueueInfo, LocationInfo } from '../types';
 import { authService } from '../services/auth';
@@ -25,22 +25,41 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [selectedLocation, setSelectedLocation] = useState<LocationInfo | null>(null);
   const [showAddLocation, setShowAddLocation] = useState(false);
   const [newLocName, setNewLocName] = useState('');
+  const creatingLocationRef = useRef(false);
 
   // Queue State
   const [selectedQueue, setSelectedQueue] = useState<QueueInfo | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Locations Listener
+  // Initialize Locations Listener & Auto-Create Logic
   useEffect(() => {
       const unsub = queueService.getLocations(user.id, (locs) => {
           setLocations(locs);
-          if (locs.length > 0 && !selectedLocation) {
-              setSelectedLocation(locs[0]);
+          
+          if (locs.length > 0) {
+              // If we have locations but none selected, select the first one automatically
+              // This ensures the dashboard is never empty
+              if (!selectedLocation) {
+                  setSelectedLocation(locs[0]);
+              }
+          } else {
+              // SAFETY NET: If no locations exist (fresh account or migration), 
+              // automatically create 'Main Location' to bypass empty state.
+              if (!creatingLocationRef.current) {
+                  creatingLocationRef.current = true;
+                  console.log("Auto-initializing Main Location...");
+                  queueService.createLocation(user.id, 'Main Location')
+                      .then(() => { creatingLocationRef.current = false; })
+                      .catch(e => {
+                          console.error("Auto-creation failed", e);
+                          creatingLocationRef.current = false;
+                      });
+              }
           }
       });
       return () => unsub();
-  }, [user.id]);
+  }, [user.id, selectedLocation]); // Depend on selectedLocation to re-eval if it becomes null
 
   const handleAddLocation = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -88,6 +107,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                         <p className="text-sm font-bold text-gray-900 truncate">{user.businessName}</p>
                         <p className="text-xs text-gray-500 truncate">{user.email}</p>
                     </div>
+                    {user.role === 'admin' || user.role === 'superadmin' ? (
+                        <button onClick={() => setIsAdminOpen(true)} className="w-full text-left px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3">
+                            <Settings size={18} /> Admin Console
+                        </button>
+                    ) : null}
                     <button onClick={onLogout} className="w-full text-left px-5 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3">
                         <LogOut size={18} /> Logout
                     </button>
@@ -101,54 +125,57 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {/* Main Content */}
       <main className="container mx-auto pt-6 md:pt-10 relative z-0 px-4">
           
-          {/* Location Selector (Only show if not in manager mode) */}
-          {!selectedQueue && (
-              <div className="mb-8">
-                  <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                          <MapPin size={16} /> Locations
-                      </h2>
-                      <button onClick={() => setShowAddLocation(true)} className="text-primary-600 text-sm font-bold flex items-center gap-1 hover:underline bg-primary-50 px-3 py-1.5 rounded-lg border border-primary-100">
-                          <Plus size={16} /> Add Location
-                      </button>
-                  </div>
-                  
-                  {locations.length > 0 ? (
-                      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                          {locations.map(loc => (
-                              <button
-                                key={loc.id}
-                                onClick={() => setSelectedLocation(loc)}
-                                className={`px-5 py-3 rounded-xl border font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${selectedLocation?.id === loc.id ? 'bg-gray-900 text-white border-gray-900 shadow-lg' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
-                              >
-                                  {loc.name}
-                              </button>
-                          ))}
-                      </div>
-                  ) : (
-                      <div className="p-8 text-center bg-white rounded-3xl border-2 border-dashed border-gray-200">
-                          <p className="text-gray-500 mb-4">You haven't added any business locations yet.</p>
-                          <button onClick={() => setShowAddLocation(true)} className="px-6 py-2 bg-primary-600 text-white rounded-xl font-bold">Add First Location</button>
-                      </div>
-                  )}
-              </div>
-          )}
-
           <AnimatePresence mode="wait">
               {selectedQueue ? (
                   <motion.div key="manager" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                       <QueueManager queue={selectedQueue} user={user} onBack={() => setSelectedQueue(null)} />
                   </motion.div>
               ) : (
-                  selectedLocation && (
-                      <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                      {/* Location Tabs - Only show if > 1 location to keep it simple */}
+                      {locations.length > 1 && (
+                          <div className="mb-8 overflow-x-auto pb-2 scrollbar-hide">
+                              <div className="flex gap-3">
+                                  {locations.map(loc => (
+                                      <button
+                                        key={loc.id}
+                                        onClick={() => setSelectedLocation(loc)}
+                                        className={`px-5 py-3 rounded-xl border font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${selectedLocation?.id === loc.id ? 'bg-gray-900 text-white border-gray-900 shadow-lg' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
+                                      >
+                                          <MapPin size={16} /> {loc.name}
+                                      </button>
+                                  ))}
+                                  <button onClick={() => setShowAddLocation(true)} className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-200 transition-colors">
+                                      <Plus size={16} /> New Location
+                                  </button>
+                              </div>
+                          </div>
+                      )}
+
+                      {/* Header Area for Single Location (Hidden if using tabs above) */}
+                      {locations.length <= 1 && (
+                          <div className="flex justify-between items-center mb-6">
+                              <div className="flex items-center gap-2 text-gray-400 font-medium text-sm">
+                                  <LayoutGrid size={16} /> Dashboard
+                              </div>
+                              <button onClick={() => setShowAddLocation(true)} className="text-xs font-bold text-primary-600 hover:underline">
+                                  Add Location
+                              </button>
+                          </div>
+                      )}
+
+                      {selectedLocation ? (
                           <LocationQueueList 
                               user={user} 
                               location={selectedLocation} 
                               onSelectQueue={setSelectedQueue} 
                           />
-                      </motion.div>
-                  )
+                      ) : (
+                          <div className="p-12 text-center text-gray-400">
+                              <p className="animate-pulse">Loading workspace...</p>
+                          </div>
+                      )}
+                  </motion.div>
               )}
           </AnimatePresence>
       </main>
@@ -157,13 +184,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       <AnimatePresence>
           {showAddLocation && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-                  <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-3xl p-8 max-w-sm w-full">
-                      <h3 className="text-xl font-bold mb-4">Add Location</h3>
+                  <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+                      <h3 className="text-xl font-bold mb-4">Add New Location</h3>
                       <form onSubmit={handleAddLocation}>
-                          <input autoFocus type="text" placeholder="e.g. Main Branch" value={newLocName} onChange={(e) => setNewLocName(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl mb-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Location Name</label>
+                          <input autoFocus type="text" placeholder="e.g. Downtown Branch" value={newLocName} onChange={(e) => setNewLocName(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl mb-6 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500" />
                           <div className="flex gap-3">
-                              <button type="button" onClick={() => setShowAddLocation(false)} className="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-sm">Cancel</button>
-                              <button type="submit" className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-bold text-sm">Create</button>
+                              <button type="button" onClick={() => setShowAddLocation(false)} className="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
+                              <button type="submit" className="flex-1 py-3 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-black">Create</button>
                           </div>
                       </form>
                   </motion.div>
@@ -174,6 +202,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   );
 };
 
+// Wrapper to isolate queue fetching per location
 const LocationQueueList: React.FC<{ user: User, location: LocationInfo, onSelectQueue: (q: QueueInfo) => void }> = ({ user, location, onSelectQueue }) => {
     return <QueueList user={user} onSelectQueue={onSelectQueue} locationId={location.id} businessId={user.id} />;
 };

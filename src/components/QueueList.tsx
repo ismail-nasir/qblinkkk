@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, QueueInfo, QueueData, BusinessType, QueueFeatures } from '../types';
 import { queueService } from '../services/queue';
@@ -25,7 +26,7 @@ import {
   PieChart as PieChartIcon,
   MapPin
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
 // @ts-ignore
 import {
   AreaChart,
@@ -42,6 +43,8 @@ import {
   Pie,
   Legend
 } from 'recharts';
+
+const motion = m as any;
 
 interface QueueListProps {
   user: User;

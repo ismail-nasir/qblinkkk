@@ -5,11 +5,14 @@ import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
 import { getQueueInsights, optimizeQueueOrder, analyzeCustomerFeedback } from '../services/geminiService';
 import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus, Quote, Zap, PieChart as PieChartIcon, TrendingUp, MapPin } from 'lucide-react';
-import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import { motion as m, AnimatePresence, Reorder as ReorderM, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
 // @ts-ignore
 import { BarChart, Bar, ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
+
+const motion = m as any;
+const Reorder = ReorderM as any;
 
 interface QueueManagerProps {
   user: User;

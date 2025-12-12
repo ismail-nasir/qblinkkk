@@ -2,9 +2,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, ActivityLog, QueueData, AdminAuditLog } from '../types';
 import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Shield, ClipboardList, CheckCircle, Plus, Star, MessageSquare, UserPlus } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
 import { authService } from '../services/auth';
 import { queueService } from '../services/queue';
+
+const motion = m as any;
 
 interface AdminPanelProps {
   onClose: () => void;
