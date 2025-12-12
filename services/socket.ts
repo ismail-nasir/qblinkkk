@@ -48,34 +48,8 @@ class SocketService {
   joinQueue(queueId: string) {
     // 1. Setup Firebase Listener
     if (firebaseService.isAvailable) {
-        // If already listening, don't duplicate
-        if (this.firebaseUnsubscribes[queueId]) return;
-
-        console.log(`📡 Syncing Queue: ${queueId}`);
-
-        // Listen for ANY change in visitors for this queue
-        const visitorsRef = firebaseService.ref(firebaseService.db, `visitors/${queueId}`);
-        const unsubVisitors = firebaseService.onValue(visitorsRef, (snapshot) => {
-            // Determine if this is an ALERT acknowledgement
-            // (In a full implementation, we'd diff the snapshot, but simply triggering update works for React)
-            this.trigger('queue:update', { source: 'firebase' });
-            
-            // Check for customer ack specifically (isAlerting went false or status change?)
-            // For simple "I'm coming", the frontend usually polls or reacts to data change.
-            // If we need specific events:
-            if (snapshot.exists()) {
-                 const vals = snapshot.val();
-                 // Logic to detect specific events could go here if bandwidth allows
-            }
-        });
-
-        // Listen for Queue Settings changes
-        const queueRef = firebaseService.ref(firebaseService.db, `queues/${queueId}`);
-        const unsubQueue = firebaseService.onValue(queueRef, () => {
-             this.trigger('queue:update', { source: 'firebase' });
-        });
-
-        this.firebaseUnsubscribes[queueId] = [unsubVisitors, unsubQueue];
+        // App uses Firestore listeners (onSnapshot) via queueService.ts.
+        // No need to set up Realtime Database listeners here.
     } else {
         // 2. Fallback to Local Simulation
         this.joinedRooms.add(queueId);

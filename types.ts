@@ -7,80 +7,80 @@ export interface QueueMetric {
 }
 
 export interface ActivityLog {
+  id: string;
   ticket: number;
-  time: string;
+  time: string; // Display time
+  timestamp: any; // Firestore Timestamp
   action: 'call' | 'skip' | 'complete' | 'join' | 'leave' | 'late';
   details?: string;
+  user: string;
 }
-
-export interface AdminAuditLog {
-  id: string;
-  adminEmail: string;
-  action: string;
-  target?: string;
-  timestamp: string;
-}
-
-export type UserSource = 'manual' | 'qr';
 
 export interface Visitor {
   id: string;
   ticketNumber: number;
   name: string;
-  phoneNumber?: string; // Added for duplicate check
+  phoneNumber?: string;
   joinTime: string; // ISO string
   status: 'waiting' | 'serving' | 'served' | 'cancelled' | 'skipped';
-  isAlerting?: boolean; // New flag for sound control
-  servedTime?: string; // Time when status changed to served
-  servingStartTime?: string; // Time when status changed to serving
-  calledAt?: string; // Timestamp when call started (grace period start)
-  isLate?: boolean; // Flag if they missed the grace period
-  source?: UserSource; // Track how visitor was added
-  isPriority?: boolean; // New: VIP Status
-  servedBy?: string; // Staff member/Counter name
-  order?: number; // Added: Order for drag and drop
-  rating?: number; // 1-5
-  feedback?: string; // Optional text
+  isAlerting?: boolean;
+  servedTime?: string;
+  servingStartTime?: string;
+  calledAt?: string;
+  isLate?: boolean;
+  source?: 'manual' | 'qr';
+  isPriority?: boolean;
+  servedBy?: string;
+  order?: number;
+  rating?: number;
+  feedback?: string;
 }
 
 export interface QueueSettings {
   soundEnabled: boolean;
-  soundVolume: number; // 0.1 to 1.0
+  soundVolume: number;
   soundType: 'beep' | 'chime' | 'alarm' | 'ding' | 'success'; 
   autoSkipMinutes?: number; 
-  gracePeriodMinutes?: number; // Time to confirm presence
-  themeColor?: string; // Custom Branding Color (Hex)
-  enableSMS?: boolean; // Placeholder for future SMS
+  gracePeriodMinutes?: number;
+  themeColor?: string;
+  enableSMS?: boolean;
 }
 
 export type BusinessType = 'general' | 'restaurant' | 'clinic' | 'salon' | 'bank' | 'retail';
 
 export interface QueueFeatures {
   vip: boolean;
-  multiCounter: boolean; // aka Tables for restaurants, Stylists for salons
-  anonymousMode: boolean; // Hide names on public display
+  multiCounter: boolean;
+  anonymousMode: boolean;
   sms: boolean;
+}
+
+export interface LocationInfo {
+    id: string;
+    name: string;
+    address?: string;
 }
 
 export interface QueueInfo {
   id: string;
-  userId: string;
+  locationId: string; // Added link to location
+  businessId: string; // Added link to business
   name: string;
-  location?: string; // Added: Multi-location support
   code: string;
   status: 'active' | 'inactive';
   createdAt: string;
-  estimatedWaitTime?: number; // Manual override for wait time
-  logo?: string; // Base64 or URL of the queue logo
+  estimatedWaitTime?: number;
+  logo?: string;
   settings: QueueSettings;
-  businessType: BusinessType; // Added
-  features: QueueFeatures; // Added
-  isPaused?: boolean; // New: Pause new joins
-  announcement?: string; // New: Global message
+  businessType: BusinessType;
+  features: QueueFeatures;
+  isPaused?: boolean;
+  announcement?: string;
+  currentTicketSequence?: number; // Internal counter
 }
 
 export interface QueueData {
-  queueId: string; // Added queueId
+  queueId: string;
   currentTicket: number;
   metrics: QueueMetric;
   recentActivity: ActivityLog[];
@@ -92,16 +92,17 @@ export interface User {
   id: string;
   email: string;
   businessName: string;
-  joinedAt: string; // API returns ISO string
+  joinedAt: string;
   isVerified: boolean;
   role: 'owner' | 'staff' | 'admin' | 'superadmin';
 }
 
-export interface Customer {
-  id: string;
-  ticketNumber: string;
-  joinTime: Date;
-  status: 'waiting' | 'serving' | 'completed' | 'cancelled';
+export interface AdminAuditLog {
+    id: string;
+    adminEmail: string;
+    action: string;
+    target: string;
+    timestamp: string;
 }
 
 export enum AppView {

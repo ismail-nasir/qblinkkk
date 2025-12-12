@@ -1,58 +1,102 @@
 
 import { User, AdminAuditLog } from '../types';
-import { api } from './api';
+import { firebaseService } from './firebase';
+import { 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    signOut, 
+    onAuthStateChanged 
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
-const TOKEN_KEY = 'qblink_token';
 const USER_KEY = 'qblink_user';
 
 export const authService = {
-  getToken: () => localStorage.getItem(TOKEN_KEY),
-
   getCurrentUser: (): User | null => {
     const userStr = localStorage.getItem(USER_KEY);
     return userStr ? JSON.parse(userStr) : null;
   },
 
+  // Listen for auth state changes
+  initAuthListener: (callback: (user: User | null) => void) => {
+      if (!firebaseService.auth) return;
+      
+      onAuthStateChanged(firebaseService.auth, async (firebaseUser) => {
+          if (firebaseUser) {
+              // Fetch extra user details from Firestore
+              const userDoc = await getDoc(doc(firebaseService.db, 'businesses', firebaseUser.uid));
+              if (userDoc.exists()) {
+                  const userData = userDoc.data() as User;
+                  localStorage.setItem(USER_KEY, JSON.stringify(userData));
+                  callback(userData);
+              } else {
+                  callback(null);
+              }
+          } else {
+              localStorage.removeItem(USER_KEY);
+              callback(null);
+          }
+      });
+  },
+
   login: async (email: string, password: string): Promise<User> => {
-    const { user, token } = await api.post('/auth/login', { email, password });
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-    return user;
+    if (!firebaseService.auth) throw new Error("Firebase not configured");
+    
+    const credential = await signInWithEmailAndPassword(firebaseService.auth, email, password);
+    const userDoc = await getDoc(doc(firebaseService.db, 'businesses', credential.user.uid));
+    
+    if (!userDoc.exists()) throw new Error("User profile not found.");
+    
+    const userData = userDoc.data() as User;
+    localStorage.setItem(USER_KEY, JSON.stringify(userData));
+    return userData;
   },
 
   signup: async (email: string, password: string, businessName: string): Promise<User> => {
-    const { user, token } = await api.post('/auth/signup', { email, password, businessName });
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-    return user;
+    if (!firebaseService.auth) throw new Error("Firebase not configured");
+
+    const credential = await createUserWithEmailAndPassword(firebaseService.auth, email, password);
+    const uid = credential.user.uid;
+
+    const newUser: User = {
+        id: uid,
+        email,
+        businessName,
+        role: 'owner',
+        isVerified: true,
+        joinedAt: new Date().toISOString()
+    };
+
+    // Save business profile to Firestore
+    await setDoc(doc(firebaseService.db, 'businesses', uid), newUser);
+    
+    localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+    return newUser;
   },
 
   logout: async () => {
-    try { await api.post('/auth/logout', {}); } catch(e) {}
-    localStorage.removeItem(TOKEN_KEY);
+    if (firebaseService.auth) {
+        await signOut(firebaseService.auth);
+    }
     localStorage.removeItem(USER_KEY);
     window.location.href = '/';
   },
 
   deleteAccount: async (email: string) => {
-      await api.delete('/auth/me');
-      authService.logout();
+      console.warn("Account deletion requires Firebase Admin SDK or Cloud Function.");
+      await authService.logout();
   },
 
-  verifyEmail: async (email: string, code: string) => { return authService.getCurrentUser()!; },
+  // Mock-compatible method stubs
+  verifyEmail: async (email: string, code: string): Promise<User> => { return authService.getCurrentUser()!; },
   resendVerification: async (email: string) => {},
   requestPasswordReset: async (email: string) => {},
-  resetPassword: async (email: string, code: string, psw: string) => {},
-
-  // Admin Methods
-  getAllUsers: async (): Promise<User[]> => await api.get('/admin/users'),
-  getAdmins: async (): Promise<string[]> => await api.get('/admin/list'),
-  addAdmin: async (email: string) => await api.post('/admin/add', { email }),
-  removeAdmin: async (email: string) => await api.post('/admin/remove', { email }),
-  logAdminAction: async (adminEmail: string, action: string, target?: string) => await api.post('/admin/log', { adminEmail, action, target }),
-  getAdminLogs: async (): Promise<AdminAuditLog[]> => await api.get('/admin/logs'),
-  isAdmin: (email: string): boolean => {
-      const user = authService.getCurrentUser();
-      return user?.role === 'admin' || user?.role === 'superadmin';
-  }
+  resetPassword: async (email: string, code: string, pass: string) => {},
+  getAllUsers: async (): Promise<User[]> => [],
+  getAdmins: async (): Promise<string[]> => [],
+  addAdmin: async (email: string) => {},
+  removeAdmin: async (email: string) => {},
+  logAdminAction: async (adminEmail: string, action: string, target: string) => {},
+  getAdminLogs: async (): Promise<AdminAuditLog[]> => [],
+  isAdmin: () => false
 };
