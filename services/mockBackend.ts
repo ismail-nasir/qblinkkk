@@ -168,10 +168,17 @@ class MockBackendService {
     }
 
     if (endpoint === '/queue' && method === 'POST') {
-      const { name, estimatedWaitTime, businessType, features, location } = body;
+      // Allow passing 'id' to support demo hydration on other devices
+      const { name, estimatedWaitTime, businessType, features, location, id } = body;
+      
+      // If hydrating, check if it already exists to prevent dupes (though ID prevents dupes mostly)
+      if (id && this.queues.find(q => q.id === id)) {
+          return this.queues.find(q => q.id === id);
+      }
+
       const newQueue: QueueInfo = {
-        id: Math.random().toString(36).substr(2, 9),
-        userId: user!.id,
+        id: id || Math.random().toString(36).substr(2, 9),
+        userId: user?.id || 'demo-user', // Fallback for hydration
         name,
         location,
         code: Math.floor(100000 + Math.random() * 900000).toString(),
@@ -204,6 +211,11 @@ class MockBackendService {
 
     if (endpoint.match(/\/queue\/.*\/data/)) {
         const queueId = endpoint.split('/')[2];
+        // Ensure queue exists before returning data, or mock data logic handles it
+        // If queue doesn't exist in queues list but we have visitors (rare edge case), we might still want data
+        // But strictly for correct logic:
+        const queue = this.queues.find(q => q.id === queueId);
+        if (!queue) throw new Error("Queue not found");
         return this._getQueueData(queueId);
     }
 

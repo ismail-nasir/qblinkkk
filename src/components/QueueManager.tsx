@@ -261,7 +261,16 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
     canvasRef.current.height = height;
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
-    const joinUrl = `${window.location.origin}?view=customer&queueId=${queue.id}`;
+    
+    // Embed name and location for offline/cross-device demo capability
+    const params = new URLSearchParams();
+    params.set('view', 'customer');
+    params.set('queueId', queue.id);
+    params.set('qName', currentQueue.name);
+    if (currentQueue.location) params.set('qLoc', currentQueue.location);
+    
+    const joinUrl = `${window.location.origin}?${params.toString()}`;
+    
     try {
         const tempCanvas = document.createElement('canvas');
         await QRCode.toCanvas(tempCanvas, joinUrl, { width: qrSize, margin: 1, color: { dark: '#000000', light: '#FFFFFF' }, errorCorrectionLevel: 'H' });
@@ -1098,6 +1107,12 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                       <div className="flex justify-center mb-6">
                         <canvas ref={canvasRef} className="w-full h-auto rounded-lg shadow-sm border border-gray-100" />
                       </div>
+                      
+                      <div className="mb-6 p-3 bg-yellow-50 text-yellow-800 text-xs font-bold rounded-xl border border-yellow-100 flex items-center justify-center gap-2">
+                          <Zap size={14} className="text-yellow-600" />
+                          <span>Demo Mode: Works offline on same device.</span>
+                      </div>
+
                       <div className="flex gap-3">
                           <button onClick={downloadQRCode} className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-700 shadow-lg shadow-primary-600/20">
                               <Download size={18} /> Download

@@ -136,6 +136,15 @@ export const queueService = {
       return await api.post('/queue', { name, estimatedWaitTime, businessType: type, features: finalFeatures, location });
   },
 
+  // NEW METHOD: Used to 'hydrate' or clone a queue on a different device for demo purposes
+  hydrateQueue: async (queueId: string, name: string, location?: string): Promise<QueueInfo> => {
+      if (!firebaseService.isAvailable) {
+          // This calls createQueue indirectly via API, but passes the specific ID to force creation of a matching queue record in LocalStorage
+          return await api.post('/queue', { id: queueId, name, location, estimatedWaitTime: 5 });
+      }
+      return null as any; // Should not happen in connected mode
+  },
+
   updateQueue: async (userId: string, queueId: string, updates: Partial<QueueInfo>): Promise<QueueInfo | null> => {
       if (firebaseService.isAvailable) {
           await firebaseService.update(firebaseService.ref(firebaseService.db, `queues/${queueId}`), updates);

@@ -18,6 +18,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   // Loading & Error States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   // Join Form State
   const [joinName, setJoinName] = useState('');
@@ -52,8 +53,30 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const fetchData = useCallback(async () => {
         try {
             setError(null);
-            const data = await queueService.getQueueData(queueId);
-            const info = await queueService.getQueueInfo(queueId);
+            
+            // Try fetching normally first
+            let data, info;
+            try {
+                data = await queueService.getQueueData(queueId);
+                info = await queueService.getQueueInfo(queueId);
+            } catch (e: any) {
+                // FALLBACK: HYDRATION LOGIC FOR DEMO
+                // If queue not found, check URL params to see if we can create a local mock
+                const params = new URLSearchParams(window.location.search);
+                const qName = params.get('qName');
+                const qLoc = params.get('qLoc') || undefined;
+                
+                if (qName) {
+                    console.log("Hydrating local demo queue:", qName);
+                    await queueService.hydrateQueue(queueId, qName, qLoc);
+                    // Retry fetch immediately
+                    data = await queueService.getQueueData(queueId);
+                    info = await queueService.getQueueInfo(queueId);
+                    setIsDemoMode(true);
+                } else {
+                    throw e; // Re-throw if we can't recover
+                }
+            }
             
             if (!info) {
                 throw new Error("Queue not found");
@@ -434,6 +457,10 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                   <p className="text-gray-500 text-sm mb-6">
                       We couldn't find this queue. It may have been deleted or the link is invalid.
                   </p>
+                  <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-xs text-orange-700 text-left mb-6">
+                      <strong>Troubleshooting:</strong><br/>
+                      If you scanned a QR code from another device while in demo mode, data will not sync. This is normal for the frontend-only preview.
+                  </div>
                   <a href="/" className="block w-full py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors">
                       Go Home
                   </a>
@@ -615,6 +642,20 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 {isRefreshing ? 'Updating...' : 'Pull to Refresh'}
             </div>
         </motion.div>
+
+        {/* Demo Mode Banner */}
+        <AnimatePresence>
+            {isDemoMode && (
+                <motion.div 
+                    initial={{ y: -50, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="bg-yellow-100 text-yellow-800 px-4 py-2 text-center text-xs font-bold flex items-center justify-center gap-2 shadow-sm relative z-50 shrink-0 border-b border-yellow-200"
+                >
+                    <Zap size={14} />
+                    Demo Mode: Running locally. Actions will not sync to owner.
+                </motion.div>
+            )}
+        </AnimatePresence>
 
         {/* Announcement Banner */}
         <AnimatePresence>

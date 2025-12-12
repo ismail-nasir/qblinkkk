@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, QueueInfo, QueueData, BusinessType, QueueFeatures } from '../types';
 import { queueService } from '../services/queue';
@@ -81,7 +80,7 @@ export const QueueList: React.FC<QueueListProps> = ({ user, onSelectQueue }) => 
 
   // Chart Data State
   const [trafficData, setTrafficData] = useState<any[]>([]);
-  const [volumeData, setVolumeData] = useState<any[]>([]);
+  const [volumeData, setVolumeData] = useState<{name: string; visitors: number}[]>([]);
 
   const loadQueues = useCallback(async () => {
     try {
