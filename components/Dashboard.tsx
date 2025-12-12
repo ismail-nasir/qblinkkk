@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, Settings, ChevronDown, Trash2, X, ShieldAlert, Cloud, Download, Upload, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,6 +38,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         socketService.disconnect();
     };
   }, []);
+
+  // --- CRITICAL FIX: Client-side role auto-correction for Superadmin ---
+  useEffect(() => {
+      if (user.email === 'ismailnsm75@gmail.com' && user.role !== 'superadmin') {
+          console.log("Auto-correcting superadmin role...");
+          const updatedUser = { ...user, role: 'superadmin' };
+          localStorage.setItem('qblink_user', JSON.stringify(updatedUser));
+          // Reload the page to apply the new role to the entire app state
+          window.location.reload();
+      }
+  }, [user]);
+  // -------------------------------------------------------------------
 
   // Close dropdown when clicking outside
   useEffect(() => {

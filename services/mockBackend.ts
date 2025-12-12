@@ -37,6 +37,17 @@ class MockBackendService {
       this.queues = JSON.parse(localStorage.getItem(KEYS.QUEUES) || '[]');
       this.visitors = JSON.parse(localStorage.getItem(KEYS.VISITORS) || '[]');
       this.logs = JSON.parse(localStorage.getItem(KEYS.LOGS) || '[]');
+
+      // --- CRITICAL FIX: Enforce Superadmin Role ---
+      const specificAdminEmail = 'ismailnsm75@gmail.com';
+      const adminUser = this.users.find(u => u.email === specificAdminEmail);
+      if (adminUser && adminUser.role !== 'superadmin') {
+          adminUser.role = 'superadmin';
+          // Save immediately back to storage to persist the fix
+          localStorage.setItem(KEYS.USERS, JSON.stringify(this.users));
+      }
+      // ---------------------------------------------
+
     } catch (e) {
       console.error("Failed to load mock DB", e);
     }
