@@ -4,7 +4,7 @@ import { User, QueueData, QueueInfo, Visitor, QueueSettings, BusinessType } from
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
 import { getQueueInsights, optimizeQueueOrder, analyzeCustomerFeedback } from '../services/geminiService';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus, Quote } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -378,6 +378,15 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const displayWaitingVisitors = searchQuery ? waitingVisitors.filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.ticketNumber.toString().includes(searchQuery)) : waitingVisitors;
   const myCurrentVisitor = queueData.visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
 
+  // Filter for reviews
+  const reviews = queueData.visitors
+      .filter(v => v.rating && v.rating > 0)
+      .sort((a, b) => {
+          const dateA = a.servedTime ? new Date(a.servedTime).getTime() : 0;
+          const dateB = b.servedTime ? new Date(b.servedTime).getTime() : 0;
+          return dateB - dateA;
+      });
+
   const getCounterLabel = () => {
       if (currentQueue.businessType === 'restaurant') return 'Table / Station';
       if (currentQueue.businessType === 'clinic') return 'Room / Doctor';
@@ -704,6 +713,48 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                               <p>Run analysis to get AI-powered insights from customer feedback.</p>
                           </div>
                       )}
+                  </div>
+
+                  {/* Detailed Customer Feedback List */}
+                  <div className="mb-12">
+                      <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                          <Quote size={18} className="text-gray-500" /> Recent Reviews
+                      </h4>
+                      <div className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden max-h-[400px] overflow-y-auto">
+                          {reviews.length > 0 ? (
+                              <div className="divide-y divide-gray-100">
+                                  {reviews.map((v) => (
+                                      <div key={v.id} className="p-4 hover:bg-white transition-colors">
+                                          <div className="flex justify-between items-start mb-1">
+                                              <div className="flex items-center gap-2">
+                                                  <span className="font-bold text-gray-900 text-sm">{v.name}</span>
+                                                  <span className="text-xs text-gray-400">•</span>
+                                                  <span className="text-xs text-gray-400">{v.servedTime ? new Date(v.servedTime).toLocaleDateString() : 'Recently'}</span>
+                                              </div>
+                                              <div className="flex gap-0.5">
+                                                  {[1,2,3,4,5].map(star => (
+                                                      <Star 
+                                                          key={star} 
+                                                          size={12} 
+                                                          className={star <= (v.rating || 0) ? "fill-yellow-400 text-yellow-400" : "fill-gray-200 text-gray-200"} 
+                                                      />
+                                                  ))}
+                                              </div>
+                                          </div>
+                                          {v.feedback ? (
+                                              <p className="text-sm text-gray-600 leading-relaxed">"{v.feedback}"</p>
+                                          ) : (
+                                              <p className="text-xs text-gray-400 italic">No written comment</p>
+                                          )}
+                                      </div>
+                                  ))}
+                              </div>
+                          ) : (
+                              <div className="p-8 text-center text-gray-400 text-sm">
+                                  No reviews received yet.
+                              </div>
+                          )}
+                      </div>
                   </div>
 
                   <div className="h-[300px] w-full">
