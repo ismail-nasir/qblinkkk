@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import TrustedBy from './components/TrustedBy';
@@ -9,18 +9,17 @@ import UseCases from './components/UseCases';
 import Pricing from './components/Pricing';
 import FAQ from './components/FAQ';
 import Footer from './components/Footer';
+import Dashboard from './components/Dashboard';
 import PainPoints from './components/PainPoints';
+import About from './components/About';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import Terms from './components/Terms';
+import Auth from './components/Auth';
+import CustomerView from './components/CustomerView';
+import DisplayView from './components/DisplayView';
 import { AppView, User } from './types';
 import { authService } from './services/auth';
-
-// Lazy load pages to split code
-const About = lazy(() => import('./components/About'));
-const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
-const Terms = lazy(() => import('./components/Terms'));
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const Auth = lazy(() => import('./components/Auth'));
-const CustomerView = lazy(() => import('./components/CustomerView'));
-const DisplayView = lazy(() => import('./components/DisplayView'));
+import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.LANDING);
@@ -100,59 +99,41 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  // Native SVG Loader
-  const LoadingScreen = () => (
-    <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-      <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-    </div>
-  );
-
   if (isInitializing) {
-    return <LoadingScreen />;
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+            <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+        </div>
+    );
   }
 
   // Handle Standalone Views first
   if (view === AppView.CUSTOMER && urlParams.queueId) {
-      return (
-        <Suspense fallback={<LoadingScreen />}>
-          <CustomerView queueId={urlParams.queueId} />
-        </Suspense>
-      );
+      return <CustomerView queueId={urlParams.queueId} />;
   }
 
   if (view === AppView.DISPLAY && urlParams.queueId) {
-      return (
-        <Suspense fallback={<LoadingScreen />}>
-          <DisplayView queueId={urlParams.queueId} />
-        </Suspense>
-      );
+      return <DisplayView queueId={urlParams.queueId} />;
   }
 
   // Render Full Page Auth
   if (view === AppView.AUTH) {
     return (
-      <Suspense fallback={<LoadingScreen />}>
-        <Auth 
-          initialMode={authMode} 
-          onLogin={handleAuthSuccess} 
-          onBack={handleBackToHome}
-          onNavigate={handleNavigate}
-        />
-      </Suspense>
+      <Auth 
+        initialMode={authMode} 
+        onLogin={handleAuthSuccess} 
+        onBack={handleBackToHome}
+        onNavigate={handleNavigate}
+      />
     );
   }
 
   if (view === AppView.DASHBOARD && user) {
     return (
-      <Suspense fallback={<LoadingScreen />}>
-        <Dashboard 
-          user={user} 
-          onLogout={handleLogout} 
-        />
-      </Suspense>
+      <Dashboard 
+        user={user} 
+        onLogout={handleLogout} 
+      />
     );
   }
 
@@ -166,9 +147,7 @@ const App: React.FC = () => {
       </div>
       <Navbar onGetStarted={handleGetStarted} onSignIn={handleSignIn} onNavigate={handleNavigate} currentView={view} />
       <main className="relative z-10 min-h-screen">
-        <Suspense fallback={<LoadingScreen />}>
-          {content}
-        </Suspense>
+        {content}
       </main>
       <Footer onNavigate={handleNavigate} />
     </div>

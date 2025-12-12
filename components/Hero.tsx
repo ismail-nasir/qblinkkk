@@ -1,10 +1,7 @@
-
-import React, { Suspense, lazy } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, Zap, LogOut } from 'lucide-react';
+import { ArrowRight, Zap, LogOut, CheckCircle2 } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
-
-const HeroScene = lazy(() => import('./HeroScene'));
 
 interface HeroProps {
   onGetStarted?: () => void;
@@ -12,34 +9,23 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
   return (
-    <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden w-full min-h-[90vh] flex items-center bg-[#F8FAFC]">
-      
-      {/* 1. Background Base (Fallback) */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 z-0"></div>
+    <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden selection:bg-primary-100 selection:text-primary-700">
+      {/* Enhanced Background Gradients */}
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-blue-100/40 to-indigo-100/40 rounded-full blur-[100px] -z-10 translate-x-1/3 -translate-y-1/4 animate-pulse"></div>
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-fuchsia-100/40 to-purple-100/40 rounded-full blur-[100px] -z-10 -translate-x-1/4 translate-y-1/4"></div>
 
-      {/* 2. 3D Animation Layer */}
-      <div className="absolute inset-0 z-0 opacity-60 pointer-events-none">
-        <Suspense fallback={null}>
-            <HeroScene />
-        </Suspense>
-      </div>
-
-      {/* 3. Gradient Overlay */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent via-white/20 to-white/80 pointer-events-none"></div>
-      
-      {/* 4. Main Content */}
-      <div className="container mx-auto px-4 md:px-6 relative z-10">
+      <div className="container mx-auto px-4 md:px-6">
         <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-24">
           
           {/* Left Content */}
-          <div className="lg:w-1/2 text-center lg:text-left">
+          <div className="lg:w-1/2 text-center lg:text-left z-10">
             
             {/* Badge */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-white shadow-glass mb-8"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-gray-100 shadow-sm mb-8"
             >
                <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -56,7 +42,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
               className="text-5xl sm:text-6xl md:text-8xl font-black text-gray-900 leading-[0.95] mb-8 tracking-tighter"
             >
               Queue <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 via-blue-600 to-indigo-600 drop-shadow-sm">Smarter.</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 via-blue-600 to-indigo-600">Smarter.</span>
             </motion.h1>
 
             {/* Description */}
@@ -64,7 +50,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-lg md:text-2xl text-gray-600 mb-10 max-w-lg mx-auto lg:mx-0 leading-relaxed font-medium bg-white/30 backdrop-blur-sm p-4 rounded-2xl border border-white/20"
+              className="text-lg md:text-2xl text-gray-500 mb-10 max-w-lg mx-auto lg:mx-0 leading-relaxed font-medium"
             >
               Transform waiting into a seamless experience. <br className="hidden md:block"/>
               Zero friction. No apps required.
@@ -81,7 +67,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                 onClick={onGetStarted}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="group relative w-full sm:w-auto h-16 px-10 rounded-2xl bg-gray-900/90 backdrop-blur-xl text-white font-bold text-lg shadow-2xl shadow-gray-900/20 hover:bg-black transition-all flex items-center justify-center gap-3 overflow-hidden border border-gray-700 cursor-pointer"
+                className="group relative w-full sm:w-auto h-16 px-10 rounded-2xl bg-gray-900 text-white font-bold text-lg shadow-2xl shadow-gray-900/20 hover:bg-black transition-all flex items-center justify-center gap-3 overflow-hidden"
               >
                 <span className="relative z-10 flex items-center gap-2">Start for Free <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform"/></span>
                 
@@ -95,15 +81,15 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="mt-12 flex flex-wrap justify-center lg:justify-start gap-x-8 gap-y-3 text-sm font-bold text-gray-500"
+              className="mt-12 flex flex-wrap justify-center lg:justify-start gap-x-8 gap-y-3 text-sm font-bold text-gray-400"
             >
-               <div className="flex items-center gap-2 bg-white/50 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-white">
+               <div className="flex items-center gap-2">
                   <CheckCircle2 size={18} className="text-green-500" /> No credit card
               </div>
-              <div className="flex items-center gap-2 bg-white/50 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-white">
+              <div className="flex items-center gap-2">
                   <CheckCircle2 size={18} className="text-green-500" /> 30-second setup
               </div>
-              <div className="flex items-center gap-2 bg-white/50 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-white">
+              <div className="flex items-center gap-2">
                   <CheckCircle2 size={18} className="text-green-500" /> Forever free
               </div>
             </motion.div>
@@ -111,6 +97,9 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
 
           {/* Right Visual - Phone Mockup */}
           <div className="lg:w-1/2 w-full flex justify-center lg:justify-end perspective-1000 mt-12 lg:mt-0 relative z-10 px-4 md:px-0">
+             {/* Decorative blob behind phone */}
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[600px] bg-gradient-to-tr from-primary-400/20 to-purple-400/20 rounded-[50px] blur-3xl -z-10 animate-pulse"></div>
+
             <motion.div 
               initial={{ opacity: 0, rotateY: -10, x: 50 }}
               animate={{ opacity: 1, rotateY: 0, x: 0 }}

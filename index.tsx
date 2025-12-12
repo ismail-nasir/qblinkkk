@@ -1,16 +1,15 @@
-
 import React from 'react';
-import { createRoot } from 'react-dom/client';
+import ReactDOM from 'react-dom/client';
 import App from './App';
-import './index.css';
 
-const container = document.getElementById('root');
-
-if (container) {
-  const root = createRoot(container);
-  // StrictMode removed to prevent double-invocation of refs in HeroScene
-  // and minimize context conflicts in the ESM environment.
-  root.render(<App />);
-} else {
-  console.error("Failed to find the root element.");
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error("Could not find root element to mount to");
 }
+
+const root = ReactDOM.createRoot(rootElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

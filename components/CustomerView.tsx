@@ -47,7 +47,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   // Feedback State
   const [rating, setRating] = useState(0);
-  const [feedbackNotes, setFeedbackNotes] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -382,7 +381,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
               setIsAlerting(false);
               setFeedbackSubmitted(false);
               setRating(0);
-              setFeedbackNotes('');
           }
       }
   };
@@ -398,7 +396,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       setIsAlerting(false);
       setFeedbackSubmitted(false);
       setRating(0);
-      setFeedbackNotes('');
   };
 
   const handleImComing = () => {
@@ -411,11 +408,11 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       }
   };
 
-  const handleSubmitFeedback = async () => {
-      if (rating === 0) return;
+  const submitFeedback = async (score: number) => {
+      setRating(score);
       setFeedbackSubmitted(true);
       if (myVisitorId) {
-          await queueService.submitFeedback(queueId, myVisitorId, rating, feedbackNotes);
+          await queueService.submitFeedback(queueId, myVisitorId, score);
       }
   };
 
@@ -558,50 +555,33 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                       {myVisitor.status === 'served' ? 'Thanks for visiting. How was your experience?' : 'We hope to see you again soon.'}
                   </p>
                   
-                  {myVisitor.status === 'served' && !feedbackSubmitted && (
-                      <div className="mb-8 w-full bg-gray-50/50 p-6 rounded-3xl border border-gray-100">
-                          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Rate your experience</p>
-                          <div className="flex justify-between px-2 mb-4">
-                              {[1, 2, 3, 4, 5].map((score) => (
+                  {myVisitor.status === 'served' && (
+                      <div className="mb-8">
+                          <div className="flex justify-center gap-2 mb-4">
+                              {[1, 2, 3, 4, 5].map((star) => (
                                   <motion.button
-                                    key={score}
+                                    key={star}
                                     whileHover={{ scale: 1.2 }}
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => setRating(score)}
-                                    className={`text-3xl transition-all ${rating === score ? 'scale-125 grayscale-0' : 'grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}
+                                    onClick={() => !feedbackSubmitted && submitFeedback(star)}
+                                    className={`p-2 transition-colors ${star <= rating ? 'text-yellow-400' : 'text-gray-200'}`}
+                                    disabled={feedbackSubmitted}
                                   >
-                                      {['😡', '🙁', '😐', '🙂', '🤩'][score-1]}
+                                      <Star size={32} fill="currentColor" />
                                   </motion.button>
                               ))}
                           </div>
-                          
-                          <textarea 
-                            value={feedbackNotes}
-                            onChange={(e) => setFeedbackNotes(e.target.value)}
-                            placeholder="Any optional notes?"
-                            className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary-500 mb-4 resize-none placeholder:text-gray-400"
-                            rows={2}
-                          />
-
-                          <button 
-                            onClick={handleSubmitFeedback}
-                            disabled={rating === 0}
-                            className="w-full py-2.5 bg-gray-900 text-white rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-black transition-colors shadow-lg"
-                          >
-                              Send Feedback
-                          </button>
-                      </div>
-                  )}
-                  {feedbackSubmitted && (
-                      <div className="mb-8 p-6 bg-green-50 text-green-700 rounded-3xl border border-green-100">
-                          <p className="font-bold mb-1">Thank you!</p>
-                          <p className="text-sm opacity-80">Your feedback helps us improve.</p>
+                          {feedbackSubmitted && (
+                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-600 font-bold text-sm">
+                                  Thank you for your feedback!
+                              </motion.div>
+                          )}
                       </div>
                   )}
                   
                   <button 
                       onClick={handleRejoin}
-                      className="w-full py-4 bg-white text-gray-900 border border-gray-200 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-gray-50 active:scale-95 transition-all"
+                      className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-transform"
                   >
                       <RotateCcw size={20} /> Join Again
                   </button>
