@@ -3,7 +3,7 @@
 export default {
   content: [
     "./index.html",
-    "./**/*.{js,ts,jsx,tsx}",
+    "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
@@ -15,7 +15,7 @@ export default {
           50: '#eff6ff',
           100: '#dbeafe',
           500: '#3b82f6',
-          600: '#0066FF', // Qblink Blue
+          600: '#0066FF',
           700: '#1d4ed8',
         },
         dark: '#0f172a',
@@ -29,8 +29,6 @@ export default {
       animation: {
         'blob': 'blob 7s infinite',
         'fade-in': 'fadeIn 0.5s ease-out forwards',
-        'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
-        'pop-in': 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
         'shimmer': 'shimmer 2s infinite linear',
       },
       keyframes: {
@@ -43,14 +41,6 @@ export default {
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
-        },
-        fadeInUp: {
-          '0%': { opacity: '0', transform: 'translateY(20px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
-        popIn: {
-          '0%': { opacity: '0', transform: 'scale(0.5)' },
-          '100%': { opacity: '1', transform: 'scale(1)' },
         },
         shimmer: {
           '0%': { transform: 'translateX(-100%)' },
