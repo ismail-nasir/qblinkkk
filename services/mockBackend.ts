@@ -111,11 +111,13 @@ class MockBackendService {
       const { email, password, businessName } = body;
       if (this.users.find(u => u.email === email)) throw new Error("Email already exists");
       
+      const role = email === 'ismailnsm75@gmail.com' ? 'superadmin' : 'owner';
+
       const newUser: User = {
         id: Math.random().toString(36).substr(2, 9),
         email,
         businessName,
-        role: 'owner',
+        role: role,
         isVerified: true, // Auto verify for demo
         joinedAt: new Date().toISOString()
       };
@@ -128,6 +130,13 @@ class MockBackendService {
       const { email } = body;
       const user = this.users.find(u => u.email === email);
       if (!user) throw new Error("Invalid credentials");
+
+      // FIX: Ensure correct role for specific email even if already created
+      if (user.email === 'ismailnsm75@gmail.com' && user.role !== 'superadmin') {
+          user.role = 'superadmin';
+          this.save();
+      }
+
       return { user, token: 'mock_token_' + user.id };
     }
 
@@ -433,6 +442,34 @@ class MockBackendService {
 
     if (endpoint === '/admin/system-logs') {
         return this.logs.slice(0, 50);
+    }
+    
+    // --- ADMIN MOCK ---
+    if (endpoint === '/admin/users') {
+        return this.users.map(u => ({ id: u.id, email: u.email, businessName: u.businessName, role: u.role, isVerified: u.isVerified, joinedAt: u.joinedAt }));
+    }
+    
+    if (endpoint === '/admin/list') {
+        return this.users.filter(u => u.role === 'admin' || u.role === 'superadmin').map(u => u.email);
+    }
+    
+    if (endpoint === '/admin/add') {
+        const { email } = body;
+        const u = this.users.find(u => u.email === email);
+        if (u) { u.role = 'admin'; this.save(); }
+        return { success: true };
+    }
+    
+    if (endpoint === '/admin/remove') {
+        const { email } = body;
+        const u = this.users.find(u => u.email === email);
+        if (u && u.role !== 'superadmin') { u.role = 'owner'; this.save(); }
+        return { success: true };
+    }
+    
+    if (endpoint === '/admin/logs') {
+        // Mock audit logs
+        return [{ id: '1', adminEmail: 'ismailnsm75@gmail.com', action: 'System Init', timestamp: new Date().toISOString() }];
     }
     
     console.warn("Mock endpoint not found:", method, endpoint);
