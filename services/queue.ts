@@ -16,7 +16,6 @@ import {
     runTransaction
 } from 'firebase/database';
 
-// Helper to convert object snapshot to array
 const snapshotToArray = (snapshot: any) => {
     const data = snapshot.val();
     if (!data) return [];
@@ -26,7 +25,6 @@ const snapshotToArray = (snapshot: any) => {
 export const queueService = {
 
   // --- LOCATIONS ---
-
   getLocations: (businessId: string, callback: (locs: LocationInfo[]) => void) => {
       if (!firebaseService.db) return () => {};
       const locationsRef = ref(firebaseService.db, `businesses/${businessId}/locations`);
@@ -46,7 +44,6 @@ export const queueService = {
   },
 
   // --- QUEUES ---
-
   getLocationQueues: (businessId: string, locationId: string, callback: (queues: QueueInfo[]) => void) => {
       if (!firebaseService.db) return () => {};
       const queuesRef = ref(firebaseService.db, `businesses/${businessId}/locations/${locationId}/queues`);
@@ -87,8 +84,8 @@ export const queueService = {
           features: features,
           settings: { 
               soundEnabled: true, soundVolume: 1, soundType: 'beep', 
-              themeColor: '#3b82f6', gracePeriodMinutes: 2, autoSkipMinutes: 0,
-              enableSMS: false, smsTemplate: "Hello {name}, it's your turn at {queueName}!"
+              themeColor: '#0066FF', gracePeriodMinutes: 2, autoSkipMinutes: 0,
+              enableSMS: false
           },
           isPaused: false, announcement: '', currentTicketSequence: 0
       };
@@ -121,7 +118,6 @@ export const queueService = {
   },
 
   // --- REAL-TIME DATA STREAM ---
-
   streamQueueData: (queueId: string, callback: (data: QueueData | null, error?: string) => void, includeLogs: boolean = true) => {
       if (!firebaseService.db) {
           callback(null, "Database unavailable");
@@ -138,7 +134,6 @@ export const queueService = {
           const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
           const metricsRef = ref(firebaseService.db!, `${basePath}/metrics_counter`);
 
-          // Combined listener for simpler syncing
           const unsubVisitors = onValue(visitorsRef, (snapshot: any) => {
               const visitors = snapshotToArray(snapshot) as Visitor[];
               
@@ -148,26 +143,22 @@ export const queueService = {
                   const waitingVisitors = visitors.filter(v => v.status === 'waiting');
                   const servingVisitors = visitors.filter(v => v.status === 'serving');
                   
-                  // Sorting Logic: Serving > Priority > Time > Ticket
+                  // ROBUST SORTING
                   const allActive = [...servingVisitors, ...waitingVisitors];
                   allActive.sort((a, b) => {
                       if (a.status === 'serving' && b.status !== 'serving') return -1;
                       if (a.status !== 'serving' && b.status === 'serving') return 1;
                       
-                      // Explicit Reorder
                       const orderA = a.order ?? 999999;
                       const orderB = b.order ?? 999999;
                       if (orderA !== orderB) return orderA - orderB;
 
-                      // VIP
                       if (a.isPriority && !b.isPriority) return -1;
                       if (!a.isPriority && b.isPriority) return 1;
 
-                      // Late
                       if (a.isLate && !b.isLate) return 1;
                       if (!a.isLate && b.isLate) return -1;
 
-                      // FCFS
                       return a.ticketNumber - b.ticketNumber;
                   });
 
@@ -212,7 +203,6 @@ export const queueService = {
   },
 
   getQueueData: async (queueId: string): Promise<QueueData> => {
-      // One-off fetch useful for actions, but UI should prefer stream
       const path = await queueService.findQueuePath(queueId);
       if (!path) throw new Error("Queue not found");
       const { businessId, locationId } = path;
@@ -253,14 +243,12 @@ export const queueService = {
   },
 
   // --- ACTIONS ---
-
   joinQueue: async (queueId: string, name: string, phoneNumber?: string, source: 'manual' | 'qr' = 'qr') => {
       const path = await queueService.findQueuePath(queueId);
       if (!path) throw new Error("Queue not found");
       const { businessId, locationId } = path;
       const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
       
-      // Duplicate Check
       if (phoneNumber) {
           try {
               const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
@@ -311,7 +299,6 @@ export const queueService = {
 
       await update(vRef, updates);
 
-      // Metric Updates
       if (logAction === 'complete' && current.status === 'serving') {
           await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter`), (m) => {
               if (!m) m = { served: 0, service_count: 0, total_service_time: 0 };
@@ -340,7 +327,7 @@ export const queueService = {
       const data = await queueService.getQueueData(queueId);
       const { visitors } = data;
 
-      // 1. Mark current 'serving' as 'served' (only if assigned to this counter OR unassigned)
+      // 1. Mark current 'serving' as 'served'
       const current = visitors.find(v => v.status === 'serving' && (!v.servedBy || v.servedBy === counterName));
       if (current) {
           await queueService.updateVisitorStatus(queueId, current.id, {
@@ -351,23 +338,16 @@ export const queueService = {
           }, 'complete', counterName);
       }
       
-      // 2. Find Next - Sort fresh data locally to guarantee correctness
+      // 2. Find Next
       const waitingVisitors = visitors.filter(v => v.status === 'waiting');
       waitingVisitors.sort((a, b) => {
-          // Explicit Reorder
           const orderA = a.order ?? 999999;
           const orderB = b.order ?? 999999;
           if (orderA !== orderB) return orderA - orderB;
-
-          // Priority
           if (a.isPriority && !b.isPriority) return -1;
           if (!a.isPriority && b.isPriority) return 1;
-
-          // Late
           if (a.isLate && !b.isLate) return 1;
           if (!a.isLate && b.isLate) return -1;
-
-          // FCFS
           return a.ticketNumber - b.ticketNumber;
       });
 
@@ -384,12 +364,9 @@ export const queueService = {
       }
   },
 
-  // --- AUTOMATION ---
-
   handleGracePeriodExpiry: async (queueId: string, minutes: number) => {
       const path = await queueService.findQueuePath(queueId);
       if(!path) return;
-      // Use fresh data for automated jobs
       const data = await queueService.getQueueData(queueId);
       const now = Date.now();
       const expiryMs = minutes * 60 * 1000;
@@ -415,8 +392,6 @@ export const queueService = {
       });
   },
 
-  // --- ACTIONS ---
-  
   leaveQueue: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { status: 'cancelled' }, 'leave'),
   confirmPresence: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { isAlerting: false }),
   triggerAlert: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { isAlerting: true, calledAt: new Date().toISOString() }),
