@@ -1,7 +1,17 @@
 
 import { QueueData, QueueInfo, Visitor, QueueFeatures, BusinessType, LocationInfo, ActivityLog } from '../types';
-import { firebaseService } from './firebase';
-import { ref, onValue, push, set, update, get, remove, query, orderByChild } from 'firebase/database';
+import { 
+    firebaseService,
+    ref,
+    onValue,
+    push,
+    set,
+    update,
+    get,
+    remove,
+    query,
+    orderByChild
+} from './firebase';
 
 const { db } = firebaseService;
 
@@ -102,7 +112,8 @@ export const queueService = {
               soundVolume: 1, 
               soundType: 'beep', 
               themeColor: '#3b82f6', 
-              gracePeriodMinutes: 2 
+              gracePeriodMinutes: 2,
+              autoSkipMinutes: 0
           },
           isPaused: false,
           announcement: '',
@@ -307,13 +318,20 @@ export const queueService = {
               servedTime: new Date().toISOString(),
               isAlerting: false,
               calledAt: ''
-          });
+          }, 'complete', counterName);
       }
       
       // 2. Serve next
       const next = data.visitors
           .filter(v => v.status === 'waiting')
-          .sort((a,b) => (a.order || 0) - (b.order || 0))[0];
+          .sort((a,b) => {
+              const orderA = a.order ?? 999999;
+              const orderB = b.order ?? 999999;
+              if (orderA !== orderB) return orderA - orderB;
+              if (a.isPriority && !b.isPriority) return -1;
+              if (!a.isPriority && b.isPriority) return 1;
+              return a.ticketNumber - b.ticketNumber;
+          })[0];
       
       if (next) {
           await queueService.updateVisitorStatus(queueId, next.id, {
@@ -347,8 +365,41 @@ export const queueService = {
   },
 
   hydrateQueue: async (qid: string, name: string, location?: string) => {
-      // Mock hydration for demo purposes
-      console.warn("Hydrating queue in demo mode not fully supported in RTDB strict mode.");
+      // Create a temporary mock queue in local DB so 'get' works
+      // This supports the offline/demo mode without 404
+      if (!db) return;
+      
+      // Auto-generate business/location/queue structure
+      const businessId = "demo_business";
+      const locationId = "demo_location";
+      
+      const lookupRef = ref(db, `queue_lookup/${qid}`);
+      await set(lookupRef, { businessId, locationId });
+      
+      const queueRef = ref(db, `businesses/${businessId}/locations/${locationId}/queues/${qid}`);
+      const mockQueue: QueueInfo = {
+          id: qid,
+          businessId,
+          locationId,
+          name: name || "Demo Queue",
+          code: "DEMO",
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          estimatedWaitTime: 5,
+          businessType: 'general',
+          features: { vip: true, multiCounter: false, anonymousMode: false, sms: false },
+          settings: { 
+              soundEnabled: true, 
+              soundVolume: 1, 
+              soundType: 'beep', 
+              themeColor: '#3b82f6', 
+              gracePeriodMinutes: 2,
+              autoSkipMinutes: 0
+          },
+          location: location || "Demo Location",
+          currentTicketSequence: 0
+      };
+      await set(queueRef, mockQueue);
   },
   
   getDefaultFeatures: (t: any) => ({ vip: false, multiCounter: false, anonymousMode: false, sms: false }),
@@ -362,8 +413,10 @@ export const queueService = {
       return null;
   },
   
-  handleGracePeriodExpiry: async () => {}, 
-  autoSkipInactive: async () => {},
+  handleGracePeriodExpiry: async (qid: string, minutes: number) => {
+      // Background check logic would go here
+  }, 
+  autoSkipInactive: async (qid: string, minutes: number) => {},
   exportStatsCSV: async () => {},
   exportUserData: () => {},
   importUserData: async () => true,
