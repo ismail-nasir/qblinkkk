@@ -56,6 +56,7 @@ export const queueService = {
 
   getUserQueues: async (businessId: string): Promise<QueueInfo[]> => {
       if (!firebaseService.db) return [];
+      // This is a heavy operation in real Firebase (fetching all locations), but okay for this scale.
       const locsRef = ref(firebaseService.db, `businesses/${businessId}/locations`);
       const snapshot = await get(locsRef);
       const locations = snapshot.val();
@@ -91,9 +92,11 @@ export const queueService = {
       };
 
       await set(newQueueRef, newQueue);
+      // Initialize counters
       await set(ref(firebaseService.db, `businesses/${businessId}/locations/${locationId}/queues/${id}/metrics_counter`), {
           waiting: 0, served: 0, cancelled: 0, total_service_time: 0, service_count: 0
       });
+      // Add to lookup table for fast access
       await set(ref(firebaseService.db, `queue_lookup/${id}`), { businessId, locationId });
       return newQueue;
   },
@@ -142,29 +145,39 @@ export const queueService = {
                   
                   const waitingVisitors = visitors.filter(v => v.status === 'waiting');
                   const servingVisitors = visitors.filter(v => v.status === 'serving');
+                  const servedVisitors = visitors.filter(v => v.status === 'served');
                   
-                  // ROBUST SORTING
+                  // --- ROBUST SORTING LOGIC ---
+                  // 1. Serving first
+                  // 2. VIPs
+                  // 3. Late (pushed back)
+                  // 4. Manual Order (Drag & Drop)
+                  // 5. Ticket Number (FCFS)
                   const allActive = [...servingVisitors, ...waitingVisitors];
                   allActive.sort((a, b) => {
                       if (a.status === 'serving' && b.status !== 'serving') return -1;
                       if (a.status !== 'serving' && b.status === 'serving') return 1;
                       
+                      // Explicit Order
                       const orderA = a.order ?? 999999;
                       const orderB = b.order ?? 999999;
                       if (orderA !== orderB) return orderA - orderB;
 
+                      // Priority
                       if (a.isPriority && !b.isPriority) return -1;
                       if (!a.isPriority && b.isPriority) return 1;
 
+                      // Late Penalty
                       if (a.isLate && !b.isLate) return 1;
                       if (!a.isLate && b.isLate) return -1;
 
+                      // Default FCFS
                       return a.ticketNumber - b.ticketNumber;
                   });
 
                   const lastCalled = servingVisitors.length > 0 
                       ? Math.max(...servingVisitors.map(v => v.ticketNumber))
-                      : 0;
+                      : (servedVisitors.length > 0 ? Math.max(...servedVisitors.map(v => v.ticketNumber)) : 0);
 
                   const data: QueueData = {
                       queueId,
@@ -203,6 +216,7 @@ export const queueService = {
   },
 
   getQueueData: async (queueId: string): Promise<QueueData> => {
+      // Direct fetch for actions needing immediate state (redundant with stream but safer for atomic checks)
       const path = await queueService.findQueuePath(queueId);
       if (!path) throw new Error("Queue not found");
       const { businessId, locationId } = path;
@@ -217,9 +231,13 @@ export const queueService = {
       const waitingVisitors = visitors.filter(v => v.status === 'waiting');
       const servingVisitors = visitors.filter(v => v.status === 'serving');
       
+      // Duplicate sorting logic from stream
       const allActive = [...servingVisitors, ...waitingVisitors].sort((a, b) => {
           if (a.status === 'serving' && b.status !== 'serving') return -1;
           if (a.status !== 'serving' && b.status === 'serving') return 1;
+          const orderA = a.order ?? 999999;
+          const orderB = b.order ?? 999999;
+          if (orderA !== orderB) return orderA - orderB;
           if (a.isPriority && !b.isPriority) return -1;
           if (!a.isPriority && b.isPriority) return 1;
           return a.ticketNumber - b.ticketNumber;
@@ -249,6 +267,7 @@ export const queueService = {
       const { businessId, locationId } = path;
       const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
       
+      // Duplicate Check (Simple)
       if (phoneNumber) {
           try {
               const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
@@ -261,6 +280,7 @@ export const queueService = {
           } catch (e) {}
       }
 
+      // Atomic Ticket Sequence Increment
       const seqResult = await runTransaction(ref(firebaseService.db!, `${basePath}/currentTicketSequence`), (currentSeq) => (currentSeq || 0) + 1);
       const currentSeq = seqResult.snapshot.val();
 
@@ -278,8 +298,11 @@ export const queueService = {
       };
 
       await set(newVisitorRef, visitorData);
+      
+      // Update Metrics
       await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter/waiting`), (c) => (c || 0) + 1);
       
+      // Log
       await push(ref(firebaseService.db!, `${basePath}/logs`), {
           timestamp: Date.now(), action: 'join', ticket: currentSeq, user: 'System'
       });
@@ -299,9 +322,10 @@ export const queueService = {
 
       await update(vRef, updates);
 
+      // Metric Updates
       if (logAction === 'complete' && current.status === 'serving') {
           await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter`), (m) => {
-              if (!m) m = { served: 0, service_count: 0, total_service_time: 0 };
+              if (!m) m = { served: 0, waiting: 0 };
               m.served = (m.served || 0) + 1;
               return m;
           });
@@ -323,11 +347,11 @@ export const queueService = {
       const path = await queueService.findQueuePath(queueId);
       if (!path) return;
       
-      // CRITICAL: Fetch fresh data to avoid stale state issues
+      // CRITICAL: Fetch fresh data to ensure atomic operation simulation
       const data = await queueService.getQueueData(queueId);
       const { visitors } = data;
 
-      // 1. Mark current 'serving' as 'served'
+      // 1. Mark current 'serving' as 'served' (for this counter)
       const current = visitors.find(v => v.status === 'serving' && (!v.servedBy || v.servedBy === counterName));
       if (current) {
           await queueService.updateVisitorStatus(queueId, current.id, {
@@ -338,7 +362,7 @@ export const queueService = {
           }, 'complete', counterName);
       }
       
-      // 2. Find Next
+      // 2. Find Next - Must use SAME sorting as stream/getQueueData
       const waitingVisitors = visitors.filter(v => v.status === 'waiting');
       waitingVisitors.sort((a, b) => {
           const orderA = a.order ?? 999999;
@@ -373,6 +397,7 @@ export const queueService = {
 
       data.visitors.filter(v => v.status === 'serving' && v.isAlerting && v.calledAt).forEach(async (v) => {
           if (now - new Date(v.calledAt!).getTime() > expiryMs) {
+              // Move to back (Late)
               await queueService.updateVisitorStatus(queueId, v.id, {
                   status: 'waiting', isAlerting: false, isLate: true, calledAt: undefined, servedBy: undefined
               }, 'late', 'System');

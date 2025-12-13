@@ -8,6 +8,7 @@ import { queueService } from '../services/queue';
 import AdminPanel from './AdminPanel';
 import QueueManager from './QueueManager';
 import QueueList from './QueueList';
+import GlassCard from './GlassCard';
 
 const motion = m as any;
 
@@ -38,28 +39,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           setLocations(locs);
           
           if (locs.length > 0) {
-              // If we have locations but none selected, select the first one automatically
-              // This ensures the dashboard is never empty
               if (!selectedLocation) {
                   setSelectedLocation(locs[0]);
               }
           } else {
-              // SAFETY NET: If no locations exist (fresh account or migration), 
-              // automatically create 'Main Location' to bypass empty state.
+              // SAFETY NET: If no locations exist (fresh account), create 'Main Location'
               if (!creatingLocationRef.current) {
                   creatingLocationRef.current = true;
-                  console.log("Auto-initializing Main Location...");
                   queueService.createLocation(user.id, 'Main Location')
                       .then(() => { creatingLocationRef.current = false; })
-                      .catch(e => {
-                          console.error("Auto-creation failed", e);
-                          creatingLocationRef.current = false;
-                      });
+                      .catch(e => { creatingLocationRef.current = false; });
               }
           }
       });
       return () => unsub();
-  }, [user.id, selectedLocation]); // Depend on selectedLocation to re-eval if it becomes null
+  }, [user.id, selectedLocation]);
 
   const handleAddLocation = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -74,12 +68,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] animate-fade-in relative">
+    <div className="min-h-screen bg-[#F8FAFC] animate-fade-in relative font-sans">
       {/* Navbar */}
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-gray-100/50">
         <div className="container mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSelectedQueue(null)}>
-             <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-bold shadow-sm">
+             <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-primary-600/20">
                 <Store size={16} />
              </div>
              <span className="font-bold text-xl tracking-tight text-gray-900">Qblink</span>
@@ -101,9 +95,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               {isDropdownOpen && (
                 <motion.div 
                   initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 top-full mt-2 w-60 bg-white rounded-2xl shadow-soft border border-gray-100 py-2 z-50"
+                  className="absolute right-0 top-full mt-2 w-60 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 overflow-hidden"
                 >
-                    <div className="px-5 py-3 border-b border-gray-50 mb-1">
+                    <div className="px-5 py-3 border-b border-gray-50 mb-1 bg-gray-50/50">
                         <p className="text-sm font-bold text-gray-900 truncate">{user.businessName}</p>
                         <p className="text-xs text-gray-500 truncate">{user.email}</p>
                     </div>
@@ -132,7 +126,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   </motion.div>
               ) : (
                   <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                      {/* Location Tabs - Only show if > 1 location to keep it simple */}
+                      {/* Location Tabs - Only show if > 1 location */}
                       {locations.length > 1 && (
                           <div className="mb-8 overflow-x-auto pb-2 scrollbar-hide">
                               <div className="flex gap-3">
@@ -140,12 +134,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                       <button
                                         key={loc.id}
                                         onClick={() => setSelectedLocation(loc)}
-                                        className={`px-5 py-3 rounded-xl border font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${selectedLocation?.id === loc.id ? 'bg-gray-900 text-white border-gray-900 shadow-lg' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
+                                        className={`px-5 py-3 rounded-xl border font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${selectedLocation?.id === loc.id ? 'bg-gray-900 text-white border-gray-900 shadow-lg scale-105' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
                                       >
                                           <MapPin size={16} /> {loc.name}
                                       </button>
                                   ))}
-                                  <button onClick={() => setShowAddLocation(true)} className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-200 transition-colors">
+                                  <button onClick={() => setShowAddLocation(true)} className="px-4 py-3 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
                                       <Plus size={16} /> New Location
                                   </button>
                               </div>
