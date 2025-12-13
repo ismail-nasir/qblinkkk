@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
@@ -59,19 +59,30 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         try {
             setError(null);
             
-            // Initial fetch for static info
+            // 1. Initial Info Fetch
             const info = await queueService.getQueueInfo(queueId);
-            if (!info) throw new Error("Queue not found");
+            if (!info) {
+                // If info returns null, the queue definitely doesn't exist.
+                throw new Error("Queue not found or deleted");
+            }
             setQueueInfo(info);
 
-            // Start Listening
-            unsubscribe = queueService.streamQueueData(queueId, (data) => {
-                setQueueData(data);
+            // 2. Start Stream
+            unsubscribe = queueService.streamQueueData(queueId, (data, err) => {
+                if (err) {
+                    console.error("Stream Error:", err);
+                    // Only set error if we haven't loaded data yet, or if it's a critical 'not found'
+                    if (err === "Queue not found") {
+                        setError("This queue no longer exists.");
+                    }
+                } else if (data) {
+                    setQueueData(data);
+                }
                 setLoading(false);
             });
         } catch (e: any) {
-            console.error("Stream Error", e);
-            setError(e.message || "Unable to load queue");
+            console.error("Setup Error:", e);
+            setError("Queue not found. Please scan a valid QR code.");
             setLoading(false);
         }
     };
@@ -129,7 +140,8 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         } else {
              // Visitor ID exists in local storage but not in Queue Data (Removed by Admin)
              // Automatically log them out to prevent stuck state
-             if (loading === false) {
+             if (!loading && queueData.visitors.length > 0) {
+                 // Only clear if we actually loaded data and visitor is missing
                  setMyVisitorId(null);
                  setMyVisitor(null);
                  localStorage.removeItem(`qblink_visit_${queueId}`);
@@ -227,7 +239,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       if (pullY > 70) {
           setIsRefreshing(true);
           setPullY(70); 
-          // Re-fetch handled by stream
           setTimeout(() => {
               setIsRefreshing(false);
               setPullY(0);
@@ -426,7 +437,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-2">Queue Not Found</h2>
                   <p className="text-gray-500 text-sm mb-6">
-                      We couldn't find this queue. It may have been deleted or the link is invalid.
+                      {error}
                   </p>
                   <a href="/" className="block w-full py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors">
                       Go Home

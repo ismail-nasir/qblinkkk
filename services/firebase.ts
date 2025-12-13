@@ -1,6 +1,9 @@
 
+// @ts-ignore
 import { initializeApp } from 'firebase/app';
+// @ts-ignore
 import { getAuth } from 'firebase/auth';
+// @ts-ignore
 import { getDatabase, serverTimestamp } from 'firebase/database';
 
 const getEnv = (key: string) => {

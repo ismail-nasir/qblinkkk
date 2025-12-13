@@ -1,6 +1,7 @@
 
 import { User, AdminAuditLog } from '../types';
 import { firebaseService } from './firebase';
+// @ts-ignore
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -9,6 +10,7 @@ import {
   sendPasswordResetEmail,
   User as FirebaseUser
 } from 'firebase/auth';
+// @ts-ignore
 import { ref, get, set, child } from 'firebase/database';
 
 const USER_KEY = 'qblink_user';

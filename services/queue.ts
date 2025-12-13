@@ -1,6 +1,7 @@
 
 import { QueueData, QueueInfo, Visitor, QueueFeatures, BusinessType, LocationInfo } from '../types';
 import { firebaseService } from './firebase';
+// @ts-ignore
 import { 
     ref, 
     onValue, 
@@ -28,7 +29,7 @@ export const queueService = {
       if (!firebaseService.db) return () => {};
       const locationsRef = ref(firebaseService.db, `businesses/${businessId}/locations`);
       
-      return onValue(locationsRef, (snapshot) => {
+      return onValue(locationsRef, (snapshot: any) => {
           const locs = snapshotToArray(snapshot);
           // Sort by creation time
           locs.sort((a: any, b: any) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -55,7 +56,7 @@ export const queueService = {
       if (!firebaseService.db) return () => {};
       const queuesRef = ref(firebaseService.db, `businesses/${businessId}/locations/${locationId}/queues`);
       
-      return onValue(queuesRef, (snapshot) => {
+      return onValue(queuesRef, (snapshot: any) => {
           const queues = snapshotToArray(snapshot);
           queues.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
           callback(queues as QueueInfo[]);
@@ -153,18 +154,24 @@ export const queueService = {
 
   // --- REAL-TIME DATA ---
 
-  streamQueueData: (queueId: string, callback: (data: QueueData) => void) => {
-      if (!firebaseService.db) return () => {};
+  streamQueueData: (queueId: string, callback: (data: QueueData | null, error?: string) => void) => {
+      if (!firebaseService.db) {
+          callback(null, "Database unavailable");
+          return () => {};
+      }
 
       let unsubVisitors: any = null;
       
       queueService.findQueuePath(queueId).then((path) => {
-          if (!path) return;
+          if (!path) {
+              callback(null, "Queue not found");
+              return;
+          }
           const { businessId, locationId } = path;
           const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
 
           const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
-          unsubVisitors = onValue(visitorsRef, (snapshot) => {
+          unsubVisitors = onValue(visitorsRef, (snapshot: any) => {
               const visitors = snapshotToArray(snapshot) as Visitor[];
               
               const sorted = visitors.sort((a: Visitor, b: Visitor) => {
@@ -185,7 +192,7 @@ export const queueService = {
 
               // Use simple fetch for logs to save bandwidth in stream
               const logsRef = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'));
-              get(logsRef).then((lSnap) => {
+              get(logsRef).then((lSnap: any) => {
                   const logsRaw = snapshotToArray(lSnap) as any[];
                   const logs = logsRaw.sort((a,b) => b.timestamp - a.timestamp).slice(0, 20).map(l => ({
                       ...l,
