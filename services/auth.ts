@@ -1,18 +1,15 @@
 
 import { User, AdminAuditLog } from '../types';
+import { firebaseService } from './firebase';
 import { 
-  firebaseService, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged, 
+  onAuthStateChanged,
   sendPasswordResetEmail,
-  ref,
-  get,
-  set,
-  child,
   User as FirebaseUser
-} from './firebase';
+} from 'firebase/auth';
+import { ref, get, set, child } from 'firebase/database';
 
 const USER_KEY = 'qblink_user';
 

@@ -1,19 +1,17 @@
 
-import { QueueData, QueueInfo, Visitor, QueueFeatures, BusinessType, LocationInfo, ActivityLog } from '../types';
+import { QueueData, QueueInfo, Visitor, QueueFeatures, BusinessType, LocationInfo } from '../types';
+import { firebaseService } from './firebase';
 import { 
-    firebaseService,
-    ref,
-    onValue,
-    push,
-    set,
-    update,
-    get,
-    remove,
-    query,
-    orderByChild
-} from './firebase';
-
-const { db } = firebaseService;
+    ref, 
+    onValue, 
+    push, 
+    set, 
+    update, 
+    get, 
+    remove, 
+    query, 
+    orderByChild 
+} from 'firebase/database';
 
 // Helper to convert object snapshot to array
 const snapshotToArray = (snapshot: any) => {
@@ -27,20 +25,20 @@ export const queueService = {
   // --- LOCATIONS ---
 
   getLocations: (businessId: string, callback: (locs: LocationInfo[]) => void) => {
-      if (!db) return () => {};
-      const locationsRef = ref(db, `businesses/${businessId}/locations`);
+      if (!firebaseService.db) return () => {};
+      const locationsRef = ref(firebaseService.db, `businesses/${businessId}/locations`);
       
       return onValue(locationsRef, (snapshot) => {
           const locs = snapshotToArray(snapshot);
-          // Sort by creation time manually since RTDB sorting is limited
+          // Sort by creation time
           locs.sort((a: any, b: any) => (a.createdAt || 0) - (b.createdAt || 0));
           callback(locs as LocationInfo[]);
       });
   },
 
   createLocation: async (businessId: string, name: string) => {
-      if (!db) throw new Error("Firebase not initialized");
-      const locationsRef = ref(db, `businesses/${businessId}/locations`);
+      if (!firebaseService.db) throw new Error("Database not connected");
+      const locationsRef = ref(firebaseService.db, `businesses/${businessId}/locations`);
       const newLocRef = push(locationsRef);
       const newLoc = {
           id: newLocRef.key,
@@ -54,8 +52,8 @@ export const queueService = {
   // --- QUEUES ---
 
   getLocationQueues: (businessId: string, locationId: string, callback: (queues: QueueInfo[]) => void) => {
-      if (!db) return () => {};
-      const queuesRef = ref(db, `businesses/${businessId}/locations/${locationId}/queues`);
+      if (!firebaseService.db) return () => {};
+      const queuesRef = ref(firebaseService.db, `businesses/${businessId}/locations/${locationId}/queues`);
       
       return onValue(queuesRef, (snapshot) => {
           const queues = snapshotToArray(snapshot);
@@ -65,10 +63,9 @@ export const queueService = {
   },
 
   getUserQueues: async (businessId: string): Promise<QueueInfo[]> => {
-      if (!db) return [];
+      if (!firebaseService.db) return [];
       
-      // Fetch all locations to aggregate queues (RTDB doesn't have collectionGroup)
-      const locsRef = ref(db, `businesses/${businessId}/locations`);
+      const locsRef = ref(firebaseService.db, `businesses/${businessId}/locations`);
       const snapshot = await get(locsRef);
       const locations = snapshot.val();
       if (!locations) return [];
@@ -90,9 +87,9 @@ export const queueService = {
       features: QueueFeatures, 
       locationId: string 
   ) => {
-      if (!db) throw new Error("Firebase not initialized");
+      if (!firebaseService.db) throw new Error("Database not connected");
       
-      const queuesRef = ref(db, `businesses/${businessId}/locations/${locationId}/queues`);
+      const queuesRef = ref(firebaseService.db, `businesses/${businessId}/locations/${locationId}/queues`);
       const newQueueRef = push(queuesRef);
       const id = newQueueRef.key!;
       
@@ -122,23 +119,22 @@ export const queueService = {
 
       await set(newQueueRef, newQueue);
       
-      // Create a global lookup index for fast access by queueId
-      await set(ref(db, `queue_lookup/${id}`), { businessId, locationId });
+      // Create global lookup
+      await set(ref(firebaseService.db, `queue_lookup/${id}`), { businessId, locationId });
 
       return newQueue;
   },
 
-  // Helper to find where a queue is located in the tree
   findQueuePath: async (queueId: string): Promise<{ businessId: string, locationId: string, queue: QueueInfo } | null> => {
-      if (!db) return null;
+      if (!firebaseService.db) return null;
       
-      const lookupRef = ref(db, `queue_lookup/${queueId}`);
+      const lookupRef = ref(firebaseService.db, `queue_lookup/${queueId}`);
       const lookupSnap = await get(lookupRef);
       
       if (!lookupSnap.exists()) return null;
       const { businessId, locationId } = lookupSnap.val();
       
-      const queueRef = ref(db, `businesses/${businessId}/locations/${locationId}/queues/${queueId}`);
+      const queueRef = ref(firebaseService.db, `businesses/${businessId}/locations/${locationId}/queues/${queueId}`);
       const queueSnap = await get(queueRef);
       
       if (!queueSnap.exists()) return null;
@@ -158,17 +154,16 @@ export const queueService = {
   // --- REAL-TIME DATA ---
 
   streamQueueData: (queueId: string, callback: (data: QueueData) => void) => {
-      if (!db) return () => {};
+      if (!firebaseService.db) return () => {};
 
       let unsubVisitors: any = null;
       
-      // We need to resolve the path first
       queueService.findQueuePath(queueId).then((path) => {
           if (!path) return;
           const { businessId, locationId } = path;
           const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
 
-          const visitorsRef = ref(db, `${basePath}/visitors`);
+          const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
           unsubVisitors = onValue(visitorsRef, (snapshot) => {
               const visitors = snapshotToArray(snapshot) as Visitor[];
               
@@ -188,8 +183,8 @@ export const queueService = {
                   .filter((v: Visitor) => v.status === 'serving' || v.status === 'served')
                   .sort((a: Visitor, b: Visitor) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
 
-              // Fetch logs (separately or nested, using simple fetch here for logs to reduce bandwidth)
-              const logsRef = query(ref(db, `${basePath}/logs`), orderByChild('timestamp'));
+              // Use simple fetch for logs to save bandwidth in stream
+              const logsRef = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'));
               get(logsRef).then((lSnap) => {
                   const logsRaw = snapshotToArray(lSnap) as any[];
                   const logs = logsRaw.sort((a,b) => b.timestamp - a.timestamp).slice(0, 20).map(l => ({
@@ -224,7 +219,7 @@ export const queueService = {
       if (!path) throw new Error("Queue not found");
       const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}`;
       
-      const vSnap = await get(ref(db, `${basePath}/visitors`));
+      const vSnap = await get(ref(firebaseService.db!, `${basePath}/visitors`));
       const visitors = snapshotToArray(vSnap) as Visitor[];
       
       const waiting = visitors.filter((v: Visitor) => v.status === 'waiting').length;
@@ -250,14 +245,13 @@ export const queueService = {
       const { businessId, locationId } = path;
       const queueRefStr = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
       
-      // Simple atomic increment via get/update (Transaction preferred but this works for MVP)
-      const qSnap = await get(ref(db, queueRefStr));
+      const qSnap = await get(ref(firebaseService.db!, queueRefStr));
       let currentSeq = qSnap.val().currentTicketSequence || 0;
       currentSeq++;
       
-      await update(ref(db, queueRefStr), { currentTicketSequence: currentSeq });
+      await update(ref(firebaseService.db!, queueRefStr), { currentTicketSequence: currentSeq });
       
-      const visitorsRef = ref(db, `${queueRefStr}/visitors`);
+      const visitorsRef = ref(firebaseService.db!, `${queueRefStr}/visitors`);
       const newVisitorRef = push(visitorsRef);
       const newVisitorId = newVisitorRef.key!;
 
@@ -276,8 +270,7 @@ export const queueService = {
 
       await set(newVisitorRef, visitorData);
       
-      // Log it
-      await push(ref(db, `${queueRefStr}/logs`), {
+      await push(ref(firebaseService.db!, `${queueRefStr}/logs`), {
           timestamp: Date.now(),
           action: 'join',
           ticket: currentSeq,
@@ -292,13 +285,13 @@ export const queueService = {
       if (!path) return;
       const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}`;
       
-      const vRef = ref(db, `${basePath}/visitors/${visitorId}`);
+      const vRef = ref(firebaseService.db!, `${basePath}/visitors/${visitorId}`);
       await update(vRef, updates);
 
       if (logAction) {
           const vSnap = await get(vRef);
           const ticket = vSnap.val()?.ticketNumber || 0;
-          await push(ref(db, `${basePath}/logs`), {
+          await push(ref(firebaseService.db!, `${basePath}/logs`), {
               timestamp: Date.now(),
               action: logAction,
               ticket,
@@ -310,7 +303,6 @@ export const queueService = {
   callNext: async (queueId: string, counterName: string) => {
       const data = await queueService.getQueueData(queueId);
       
-      // 1. Complete current
       const current = data.visitors.find(v => v.status === 'serving' && (!v.servedBy || v.servedBy === counterName));
       if (current) {
           await queueService.updateVisitorStatus(queueId, current.id, {
@@ -321,7 +313,6 @@ export const queueService = {
           }, 'complete', counterName);
       }
       
-      // 2. Serve next
       const next = data.visitors
           .filter(v => v.status === 'waiting')
           .sort((a,b) => {
@@ -359,47 +350,15 @@ export const queueService = {
   deleteQueue: async (uid: string, qid: string) => {
       const path = await queueService.findQueuePath(qid);
       if(path) {
-          await remove(ref(db, `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`));
-          await remove(ref(db, `queue_lookup/${qid}`));
+          await remove(ref(firebaseService.db!, `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`));
+          await remove(ref(firebaseService.db!, `queue_lookup/${qid}`));
       }
   },
 
+  // HYDRATION REMOVED: No more demo mode
   hydrateQueue: async (qid: string, name: string, location?: string) => {
-      // Create a temporary mock queue in local DB so 'get' works
-      // This supports the offline/demo mode without 404
-      if (!db) return;
-      
-      // Auto-generate business/location/queue structure
-      const businessId = "demo_business";
-      const locationId = "demo_location";
-      
-      const lookupRef = ref(db, `queue_lookup/${qid}`);
-      await set(lookupRef, { businessId, locationId });
-      
-      const queueRef = ref(db, `businesses/${businessId}/locations/${locationId}/queues/${qid}`);
-      const mockQueue: QueueInfo = {
-          id: qid,
-          businessId,
-          locationId,
-          name: name || "Demo Queue",
-          code: "DEMO",
-          status: 'active',
-          createdAt: new Date().toISOString(),
-          estimatedWaitTime: 5,
-          businessType: 'general',
-          features: { vip: true, multiCounter: false, anonymousMode: false, sms: false },
-          settings: { 
-              soundEnabled: true, 
-              soundVolume: 1, 
-              soundType: 'beep', 
-              themeColor: '#3b82f6', 
-              gracePeriodMinutes: 2,
-              autoSkipMinutes: 0
-          },
-          location: location || "Demo Location",
-          currentTicketSequence: 0
-      };
-      await set(queueRef, mockQueue);
+      // Intentionally empty or throw error to force real usage
+      console.log("Hydration is disabled in Production Mode.");
   },
   
   getDefaultFeatures: (t: any) => ({ vip: false, multiCounter: false, anonymousMode: false, sms: false }),
@@ -407,18 +366,28 @@ export const queueService = {
   updateQueue: async (uid: string, qid: string, data: any) => {
       const path = await queueService.findQueuePath(qid);
       if(path) {
-          await update(ref(db, `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`), data);
+          await update(ref(firebaseService.db!, `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`), data);
           return { ...path.queue, ...data };
       }
       return null;
   },
   
-  handleGracePeriodExpiry: async (qid: string, minutes: number) => {
-      // Background check logic would go here
-  }, 
+  handleGracePeriodExpiry: async (qid: string, minutes: number) => {}, 
   autoSkipInactive: async (qid: string, minutes: number) => {},
+  
   exportStatsCSV: async (queueId: string, queueName: string) => {
-      console.log('Exporting stats for', queueName);
+      const data = await queueService.getQueueData(queueId);
+      const headers = "Ticket,Name,JoinTime,Status,ServedBy,Rating\n";
+      const rows = data.visitors.map(v => 
+          `${v.ticketNumber},"${v.name}",${v.joinTime},${v.status},${v.servedBy || ''},${v.rating || ''}`
+      ).join("\n");
+      
+      const blob = new Blob([headers + rows], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${queueName}_Stats.csv`;
+      a.click();
   },
   exportUserData: () => {},
   importUserData: async () => true,
@@ -447,7 +416,7 @@ export const queueService = {
       });
       
       if (Object.keys(updates).length > 0) {
-          await update(ref(db), updates);
+          await update(ref(firebaseService.db!), updates);
       }
   },
   
@@ -460,7 +429,7 @@ export const queueService = {
       visitors.forEach((v, idx) => {
           updates[`${basePath}/${v.id}/order`] = idx + 1;
       });
-      await update(ref(db), updates);
+      await update(ref(firebaseService.db!), updates);
   },
   
   getSystemLogs: async () => []

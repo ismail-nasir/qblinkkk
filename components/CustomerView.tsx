@@ -20,7 +20,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   // Loading & Error States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDemoMode, setIsDemoMode] = useState(false);
 
   // Join Form State
   const [joinName, setJoinName] = useState('');
@@ -56,28 +55,9 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         try {
             setError(null);
             
-            // Try fetching normally first
-            let data, info;
-            try {
-                data = await queueService.getQueueData(queueId);
-                info = await queueService.getQueueInfo(queueId);
-            } catch (e: any) {
-                // FALLBACK: HYDRATION LOGIC FOR DEMO
-                // If queue not found, check URL params to see if we can create a local mock
-                const params = new URLSearchParams(window.location.search);
-                const qName = params.get('qName');
-                const qLoc = params.get('qLoc') || undefined;
-                
-                // If explicit params exist, use them. If NOT, default to a generic demo queue to prevent 404
-                const effectiveName = qName || "Demo Queue";
-                
-                console.log("Hydrating local demo queue:", effectiveName);
-                await queueService.hydrateQueue(queueId, effectiveName, qLoc);
-                // Retry fetch immediately
-                data = await queueService.getQueueData(queueId);
-                info = await queueService.getQueueInfo(queueId);
-                setIsDemoMode(true);
-            }
+            // Only try to fetch from real backend
+            const data = await queueService.getQueueData(queueId);
+            const info = await queueService.getQueueInfo(queueId);
             
             if (!info) {
                 throw new Error("Queue not found");
@@ -639,20 +619,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 {isRefreshing ? 'Updating...' : 'Pull to Refresh'}
             </div>
         </motion.div>
-
-        {/* Demo Mode Banner */}
-        <AnimatePresence>
-            {isDemoMode && (
-                <motion.div 
-                    initial={{ y: -50, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    className="bg-yellow-100 text-yellow-800 px-4 py-2 text-center text-xs font-bold flex items-center justify-center gap-2 shadow-sm relative z-50 shrink-0 border-b border-yellow-200"
-                >
-                    <Zap size={14} />
-                    Demo Mode: Running locally. Actions will not sync to owner.
-                </motion.div>
-            )}
-        </AnimatePresence>
 
         {/* Announcement Banner */}
         <AnimatePresence>
