@@ -217,7 +217,6 @@ export const queueService = {
 
           // Visitors Listeners with Auto-Fallback
           const setupFallback = () => {
-              // console.log("Using Fallback Listener (Full Sync)");
               if (unsubWaiting) unsubWaiting();
               if (unsubServing) unsubServing();
               
@@ -237,7 +236,6 @@ export const queueService = {
                   waitingVisitors = snapshotToArray(snap) as Visitor[];
                   processData();
               }, (err: any) => {
-                  // Catch Index Error and Switch to Fallback
                   setupFallback();
               });
 
@@ -328,7 +326,6 @@ export const queueService = {
       const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}`;
       const vRef = ref(firebaseService.db!, `${basePath}/visitors/${visitorId}`);
       
-      // Fetch current state for counter logic
       const snap = await get(vRef);
       if (!snap.exists()) return;
       const current = snap.val();
@@ -371,12 +368,12 @@ export const queueService = {
           await queueService.updateVisitorStatus(queueId, current.id, {
               status: 'served',
               servedTime: new Date().toISOString(),
-              isAlerting: false
+              isAlerting: false,
+              calledAt: ''
           }, 'complete', counterName);
       }
       
-      // 3. Find Next
-      // Sort: Priority -> Normal -> Late. (Consistent with processData sort)
+      // 3. Find Next - Use ROBUST sorting (Priority -> Normal -> Late)
       const next = data.visitors
           .filter(v => v.status === 'waiting')
           .sort((a, b) => {
@@ -398,7 +395,7 @@ export const queueService = {
       }
   },
 
-  // --- AUTOMATION (Missing Logic Implemented) ---
+  // --- AUTOMATION (Grace Period & Auto-Skip) ---
 
   handleGracePeriodExpiry: async (queueId: string, minutes: number) => {
       const data = await queueService.getQueueData(queueId);
@@ -410,6 +407,7 @@ export const queueService = {
           .forEach(async (v) => {
               const calledTime = new Date(v.calledAt!).getTime();
               if (now - calledTime > expiryMs) {
+                  console.log(`Visitor ${v.ticketNumber} expired grace period. Moving to back.`);
                   // Expired! Move to back (waiting, isLate=true)
                   await queueService.updateVisitorStatus(queueId, v.id, {
                       status: 'waiting',
@@ -440,6 +438,7 @@ export const queueService = {
               const startTime = new Date(v.servingStartTime!).getTime();
               if (now - startTime > expiryMs) {
                   // Took too long -> Mark Served (Auto-Complete)
+                  console.log(`Visitor ${v.ticketNumber} auto-skipped due to inactivity.`);
                   await queueService.updateVisitorStatus(queueId, v.id, {
                       status: 'served',
                       servedTime: new Date().toISOString()
@@ -547,7 +546,6 @@ export const queueService = {
       await update(ref(firebaseService.db!), updates);
   },
   
-  // Bulk update
   bulkUpdateVisitorStatus: async (queueId: string, visitorIds: string[], status: 'served' | 'skipped' | 'cancelled') => {
       const path = await queueService.findQueuePath(queueId);
       if (!path) return;
@@ -564,7 +562,6 @@ export const queueService = {
           }
       });
 
-      // Simple counter update approximation
       if (status === 'served') {
           await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter`), (m) => {
               if(!m) m={waiting:0, served:0};
