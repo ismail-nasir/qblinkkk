@@ -139,7 +139,6 @@ export const queueService = {
           const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
           const metricsRef = ref(firebaseService.db!, `${basePath}/metrics_counter`);
 
-          // Combined listener for simpler syncing
           const unsubVisitors = onValue(visitorsRef, (snapshot: any) => {
               const visitors = snapshotToArray(snapshot) as Visitor[];
               
@@ -149,16 +148,26 @@ export const queueService = {
                   const waitingVisitors = visitors.filter(v => v.status === 'waiting');
                   const servingVisitors = visitors.filter(v => v.status === 'serving');
                   
-                  // Sorting Logic
+                  // SORTING LOGIC: Priority -> Order -> Late -> TicketNumber
                   const allActive = [...servingVisitors, ...waitingVisitors];
                   allActive.sort((a, b) => {
                       if (a.status === 'serving' && b.status !== 'serving') return -1;
                       if (a.status !== 'serving' && b.status === 'serving') return 1;
+                      
+                      // Explicit Reorder
+                      const orderA = a.order ?? 999999;
+                      const orderB = b.order ?? 999999;
+                      if (orderA !== orderB) return orderA - orderB;
+
+                      // VIP
                       if (a.isPriority && !b.isPriority) return -1;
                       if (!a.isPriority && b.isPriority) return 1;
+
+                      // Late
                       if (a.isLate && !b.isLate) return 1;
                       if (!a.isLate && b.isLate) return -1;
-                      if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+
+                      // FCFS
                       return a.ticketNumber - b.ticketNumber;
                   });
 
@@ -196,14 +205,13 @@ export const queueService = {
               });
           });
 
-          return unsubVisitors; // Return unsubscribe function
+          return unsubVisitors;
       });
 
-      return () => {}; // Initial cleanup before promise resolves (mostly no-op)
+      return () => {};
   },
 
   getQueueData: async (queueId: string): Promise<QueueData> => {
-      // One-off fetch
       const path = await queueService.findQueuePath(queueId);
       if (!path) throw new Error("Queue not found");
       const { businessId, locationId } = path;
@@ -223,8 +231,6 @@ export const queueService = {
           if (a.status !== 'serving' && b.status === 'serving') return 1;
           if (a.isPriority && !b.isPriority) return -1;
           if (!a.isPriority && b.isPriority) return 1;
-          if (a.isLate && !b.isLate) return 1;
-          if (!a.isLate && b.isLate) return -1;
           return a.ticketNumber - b.ticketNumber;
       });
 
@@ -253,7 +259,6 @@ export const queueService = {
       const { businessId, locationId } = path;
       const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
       
-      // Duplicate Check (Safe Mode)
       if (phoneNumber) {
           try {
               const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
@@ -263,9 +268,7 @@ export const queueService = {
                   const duplicate = all.find(v => v.phoneNumber === phoneNumber && v.status === 'waiting');
                   if (duplicate) return { visitor: duplicate, queueData: null, isDuplicate: true };
               }
-          } catch (e) {
-              console.warn("Duplicate check skipped due to error", e);
-          }
+          } catch (e) {}
       }
 
       const seqResult = await runTransaction(ref(firebaseService.db!, `${basePath}/currentTicketSequence`), (currentSeq) => (currentSeq || 0) + 1);
@@ -306,16 +309,10 @@ export const queueService = {
 
       await update(vRef, updates);
 
-      // Handle Counters
       if (logAction === 'complete' && current.status === 'serving') {
           await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter`), (m) => {
               if (!m) m = { served: 0, service_count: 0, total_service_time: 0 };
               m.served = (m.served || 0) + 1;
-              if (current.servingStartTime) {
-                  const duration = Date.now() - new Date(current.servingStartTime).getTime();
-                  m.total_service_time = (m.total_service_time || 0) + duration;
-                  m.service_count = (m.service_count || 0) + 1;
-              }
               return m;
           });
       } else if (logAction === 'call' && current.status === 'waiting') {
@@ -333,37 +330,44 @@ export const queueService = {
   },
 
   callNext: async (queueId: string, counterName: string) => {
-      // 1. Fetch Fresh Snapshot directly to avoid stale data
       const path = await queueService.findQueuePath(queueId);
       if (!path) return;
-      const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}`;
-      const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
-      const snapshot = await get(visitorsRef);
       
-      if (!snapshot.exists()) return;
-      const visitors = snapshotToArray(snapshot) as Visitor[];
+      // Fetch fresh data
+      const data = await queueService.getQueueData(queueId);
+      const { visitors } = data;
 
-      // 2. Mark current 'serving' as 'served' (for this counter)
+      // 1. Mark current 'serving' as 'served' (only if assigned to this counter OR unassigned)
       const current = visitors.find(v => v.status === 'serving' && (!v.servedBy || v.servedBy === counterName));
       if (current) {
           await queueService.updateVisitorStatus(queueId, current.id, {
               status: 'served',
               servedTime: new Date().toISOString(),
-              isAlerting: false,
-              calledAt: ''
+              isAlerting: false
           }, 'complete', counterName);
       }
       
-      // 3. Find Next - ROBUST sorting
-      const next = visitors
-          .filter(v => v.status === 'waiting')
-          .sort((a, b) => {
-              if (a.isPriority && !b.isPriority) return -1;
-              if (!a.isPriority && b.isPriority) return 1;
-              if (a.isLate && !b.isLate) return 1;
-              if (!a.isLate && b.isLate) return -1;
-              return a.ticketNumber - b.ticketNumber;
-          })[0];
+      // 2. Find Next - Sort fresh data locally to guarantee correctness
+      const waitingVisitors = visitors.filter(v => v.status === 'waiting');
+      waitingVisitors.sort((a, b) => {
+          // Explicit Reorder (Drag & Drop)
+          const orderA = a.order ?? 999999;
+          const orderB = b.order ?? 999999;
+          if (orderA !== orderB) return orderA - orderB;
+
+          // Priority
+          if (a.isPriority && !b.isPriority) return -1;
+          if (!a.isPriority && b.isPriority) return 1;
+
+          // Late
+          if (a.isLate && !b.isLate) return 1;
+          if (!a.isLate && b.isLate) return -1;
+
+          // FCFS
+          return a.ticketNumber - b.ticketNumber;
+      });
+
+      const next = waitingVisitors[0];
       
       if (next) {
           await queueService.updateVisitorStatus(queueId, next.id, {
@@ -376,56 +380,37 @@ export const queueService = {
       }
   },
 
-  // --- AUTOMATION (Grace Period & Auto-Skip) ---
+  // --- AUTOMATION ---
 
   handleGracePeriodExpiry: async (queueId: string, minutes: number) => {
       const path = await queueService.findQueuePath(queueId);
       if(!path) return;
-      // Fetch fresh to avoid acting on stale state
       const data = await queueService.getQueueData(queueId);
       const now = Date.now();
       const expiryMs = minutes * 60 * 1000;
 
-      data.visitors
-          .filter(v => v.status === 'serving' && v.isAlerting && v.calledAt)
-          .forEach(async (v) => {
-              const calledTime = new Date(v.calledAt!).getTime();
-              if (now - calledTime > expiryMs) {
-                  // Expired! Move to back (waiting, isLate=true)
-                  await queueService.updateVisitorStatus(queueId, v.id, {
-                      status: 'waiting',
-                      isAlerting: false,
-                      isLate: true,
-                      calledAt: undefined,
-                      servedBy: undefined
-                  }, 'late', 'System (Timeout)');
-                  
-                  // Increment waiting counter
-                  await runTransaction(ref(firebaseService.db!, `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}/metrics_counter/waiting`), (c) => (c || 0) + 1);
-              }
-          });
+      data.visitors.filter(v => v.status === 'serving' && v.isAlerting && v.calledAt).forEach(async (v) => {
+          if (now - new Date(v.calledAt!).getTime() > expiryMs) {
+              await queueService.updateVisitorStatus(queueId, v.id, {
+                  status: 'waiting', isAlerting: false, isLate: true, calledAt: undefined, servedBy: undefined
+              }, 'late', 'System');
+              await runTransaction(ref(firebaseService.db!, `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}/metrics_counter/waiting`), (c) => (c || 0) + 1);
+          }
+      });
   },
 
   autoSkipInactive: async (queueId: string, minutes: number) => {
       const data = await queueService.getQueueData(queueId);
       const now = Date.now();
       const expiryMs = minutes * 60 * 1000;
-
-      data.visitors
-          .filter(v => v.status === 'serving' && !v.isAlerting && v.servingStartTime)
-          .forEach(async (v) => {
-              const startTime = new Date(v.servingStartTime!).getTime();
-              if (now - startTime > expiryMs) {
-                  // Took too long -> Mark Served (Auto-Complete)
-                  await queueService.updateVisitorStatus(queueId, v.id, {
-                      status: 'served',
-                      servedTime: new Date().toISOString()
-                  }, 'complete', 'System (Auto-Skip)');
-              }
-          });
+      data.visitors.filter(v => v.status === 'serving' && !v.isAlerting && v.servingStartTime).forEach(async (v) => {
+          if (now - new Date(v.servingStartTime!).getTime() > expiryMs) {
+              await queueService.updateVisitorStatus(queueId, v.id, { status: 'served', servedTime: new Date().toISOString() }, 'complete', 'System');
+          }
+      });
   },
 
-  // --- OTHER ACTIONS ---
+  // --- ACTIONS ---
   
   leaveQueue: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { status: 'cancelled' }, 'leave'),
   confirmPresence: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { isAlerting: false }),

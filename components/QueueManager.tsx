@@ -4,7 +4,7 @@ import { User, QueueData, QueueInfo, Visitor, QueueSettings, BusinessType } from
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
 import { getQueueInsights, optimizeQueueOrder, analyzeCustomerFeedback } from '../services/geminiService';
-import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus, Quote, Zap, PieChart as PieChartIcon, TrendingUp, MapPin, Monitor, CheckSquare, Square, AlertTriangle, Volume2, Radio } from 'lucide-react';
+import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, ThumbsUp, ThumbsDown, Minus, Quote, Zap, PieChart as PieChartIcon, TrendingUp, MapPin, Monitor, CheckSquare, Square, AlertTriangle, Volume2, Radio, Loader2 } from 'lucide-react';
 import { motion as m, AnimatePresence, Reorder as ReorderM, useDragControls } from 'framer-motion';
 // @ts-ignore
 import QRCode from 'qrcode';
@@ -24,6 +24,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [activeTab, setActiveTab] = useState<'operations' | 'analytics' | 'settings'>('operations');
   const [queueData, setQueueData] = useState<QueueData | null>(null);
   const [currentQueue, setCurrentQueue] = useState<QueueInfo>(queue);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const queueDataRef = useRef<QueueData | null>(null);
   const [counterName, setCounterName] = useState(localStorage.getItem('qblink_counter_name') || 'Counter 1');
@@ -33,7 +34,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
   const [selectedVisitor, setSelectedVisitor] = useState<Visitor | null>(null);
-  const [showFeedbackModal, setShowFeedbackModal] = useState<Visitor | null>(null);
   
   // Bulk Action States
   const [selectedVisitorIds, setSelectedVisitorIds] = useState<Set<string>>(new Set());
@@ -81,9 +81,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       { type: 'retail', icon: ShoppingBag, label: 'Retail' },
   ];
 
-  const emojis = ['😡', '☹️', '😐', '🙂', '😍'];
-
-  // Setup Real-time Streaming
+  // REAL-TIME DATA STREAM
   useEffect(() => {
       // 1. Initial Queue Info
       queueService.getQueueInfo(queue.id).then(info => {
@@ -149,7 +147,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       setPieData(newPieData.length > 0 ? newPieData : [{ name: 'No Data', value: 1, color: '#e5e7eb' }]);
   };
 
-  // Dynamic Queue Logic: Grace Period & Auto-Skip Monitor (Client-side simulation of backend jobs)
+  // Dynamic Queue Logic: Grace Period & Auto-Skip Monitor (Client-side simulation)
   useEffect(() => {
       const gracePeriod = settings.gracePeriodMinutes || 2;
       const autoSkip = settings.autoSkipMinutes || 0;
@@ -190,16 +188,11 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       }
   };
 
-  // --- PREDICTIVE ANALYTICS LOGIC ---
+  // ... (Predictive Analytics Logic Omitted for brevity, logic remains same) ...
   const calculatePredictedWait = () => {
       if (!queueData) return { time: 0, activeStaff: 1 };
       const servedVisitors = queueData.visitors.filter(v => v.status === 'served' && v.servedTime && v.servingStartTime);
-      if (servedVisitors.length < 3) {
-          return { 
-              time: (currentQueue.estimatedWaitTime || 5) * queueData.metrics.waiting, 
-              activeStaff: 1 
-          };
-      }
+      if (servedVisitors.length < 3) return { time: (currentQueue.estimatedWaitTime || 5) * queueData.metrics.waiting, activeStaff: 1 };
       servedVisitors.sort((a,b) => new Date(b.servedTime!).getTime() - new Date(a.servedTime!).getTime());
       const recent = servedVisitors.slice(0, 10);
       const totalDuration = recent.reduce((acc, v) => {
@@ -209,32 +202,21 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       }, 0);
       const avgServiceTimeMs = totalDuration / recent.length;
       const avgServiceTimeMins = avgServiceTimeMs / 60000;
-      
       const oneHourAgo = Date.now() - (60 * 60 * 1000);
-      const activeStaffSet = new Set(
-          servedVisitors
-            .filter(v => new Date(v.servedTime!).getTime() > oneHourAgo)
-            .map(v => v.servedBy)
-            .filter(name => name && name !== 'System' && name !== 'Staff')
-      );
+      const activeStaffSet = new Set(servedVisitors.filter(v => new Date(v.servedTime!).getTime() > oneHourAgo).map(v => v.servedBy).filter(name => name && name !== 'System' && name !== 'Staff'));
       const activeCounters = activeStaffSet.size > 0 ? activeStaffSet.size : (new Set(recent.map(v => v.servedBy)).size || 1);
       const predicted = Math.ceil((avgServiceTimeMins * queueData.metrics.waiting) / activeCounters);
-      
-      return { 
-          time: Math.max(predicted, 1), 
-          activeStaff: activeCounters 
-      };
+      return { time: Math.max(predicted, 1), activeStaff: activeCounters };
   };
-
   const prediction = calculatePredictedWait();
 
-  // ... (Helpers omitted for brevity, same as before) ...
   const handleCounterNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setCounterName(e.target.value);
       localStorage.setItem('qblink_counter_name', e.target.value);
   };
 
   const playPreview = (type: string, vol: number) => {
+    // ... (Sound Preview Logic) ...
     try {
         if (!previewAudioContextRef.current) {
              previewAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -259,6 +241,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   }, [showQrModal, logoPreview]);
 
   const generateCustomQRCode = async () => {
+    // ... (QR Generation Logic) ...
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
@@ -370,15 +353,56 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   };
 
   // --- ACTIONS ---
-  // No need to manually fetch data after actions because streamQueueData handles updates
-  const handleCallNext = async () => { await queueService.callNext(queue.id, counterName); };
-  const handleCallByNumber = async (e: React.FormEvent) => { e.preventDefault(); const num = parseInt(callNumberInput); if (!isNaN(num)) { await queueService.callByNumber(queue.id, num, counterName); setShowCallModal(false); setCallNumberInput(''); } };
-  const handleAddVisitor = async (e: React.FormEvent) => { e.preventDefault(); await queueService.joinQueue(queue.id, newVisitorName, undefined, 'manual'); setNewVisitorName(''); setShowAddModal(false); };
-  const handleRemoveVisitors = async () => { if (confirm("Clear the entire waiting list?")) { await queueService.clearQueue(queue.id); } };
+  
+  const handleCallNext = async () => { 
+      setIsProcessing(true);
+      try {
+          await queueService.callNext(queue.id, counterName); 
+          // DO NOT call fetchData() here. Rely on stream.
+      } finally {
+          setIsProcessing(false);
+      }
+  };
+  
+  const handleCallByNumber = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      const num = parseInt(callNumberInput); 
+      if (!isNaN(num)) { 
+          await queueService.callByNumber(queue.id, num, counterName); 
+          setShowCallModal(false); 
+          setCallNumberInput(''); 
+      } 
+  };
+  
+  const handleAddVisitor = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      await queueService.joinQueue(queue.id, newVisitorName, undefined, 'manual'); 
+      setNewVisitorName(''); 
+      setShowAddModal(false); 
+  };
+  
+  const handleRemoveVisitors = async () => { 
+      if (confirm("Clear the entire waiting list?")) { 
+          await queueService.clearQueue(queue.id); 
+      } 
+  };
+  
   const handleTakeBack = async () => { await queueService.takeBack(queue.id, counterName); };
-  const handleNotifyCurrent = async () => { const v = queueData?.visitors.find(v => v.status === 'serving' && v.servedBy === counterName); if (v) { await queueService.triggerAlert(queue.id, v.id); } };
-  const handleBroadcast = async (e: React.FormEvent) => { e.preventDefault(); const updated = await queueService.updateQueue(user.id, queue.id, { announcement: announcementInput }); if (updated) { setCurrentQueue(updated); } };
-  const handleTogglePriority = async (visitorId: string, isPriority: boolean) => { await queueService.togglePriority(queue.id, visitorId, !isPriority); };
+  
+  const handleNotifyCurrent = async () => { 
+      const v = queueData?.visitors.find(v => v.status === 'serving' && v.servedBy === counterName); 
+      if (v) { await queueService.triggerAlert(queue.id, v.id); } 
+  };
+  
+  const handleBroadcast = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      const updated = await queueService.updateQueue(user.id, queue.id, { announcement: announcementInput }); 
+      if (updated) { setCurrentQueue(updated); } 
+  };
+  
+  const handleTogglePriority = async (visitorId: string, isPriority: boolean) => { 
+      await queueService.togglePriority(queue.id, visitorId, !isPriority); 
+  };
   
   const handleReorder = (newOrder: Visitor[]) => {
       const fullNewList = newOrder.map((v, idx) => ({ ...v, order: idx + 1 }));
@@ -404,8 +428,20 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       }
   };
 
-  const handleServeSpecific = async () => { if (selectedVisitor) { await queueService.callByNumber(queue.id, selectedVisitor.ticketNumber, counterName); setSelectedVisitor(null); } };
-  const handleRemoveSpecific = async () => { if (selectedVisitor && confirm(`Remove ${selectedVisitor.name}?`)) { await queueService.leaveQueue(queue.id, selectedVisitor.id); setSelectedVisitor(null); } };
+  const handleServeSpecific = async () => { 
+      if (selectedVisitor) { 
+          await queueService.callByNumber(queue.id, selectedVisitor.ticketNumber, counterName); 
+          setSelectedVisitor(null); 
+      } 
+  };
+  
+  const handleRemoveSpecific = async () => { 
+      if (selectedVisitor && confirm(`Remove ${selectedVisitor.name}?`)) { 
+          await queueService.leaveQueue(queue.id, selectedVisitor.id); 
+          setSelectedVisitor(null); 
+      } 
+  };
+  
   const handleExportCSV = () => { queueService.exportStatsCSV(queue.id, currentQueue.name); };
 
   // Custom Tooltip for charts
@@ -439,7 +475,6 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   const displayWaitingVisitors = searchQuery ? waitingVisitors.filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.ticketNumber.toString().includes(searchQuery)) : waitingVisitors;
   const myCurrentVisitor = queueData.visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
-  const recentFeedback = queueData.visitors.filter(v => (v.rating && v.rating > 0) || v.feedback).sort((a,b) => new Date(b.servedTime || b.joinTime).getTime() - new Date(a.servedTime || a.joinTime).getTime());
 
   const getCounterLabel = () => {
       if (currentQueue.businessType === 'restaurant') return 'Table / Station';
@@ -448,10 +483,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       return 'Counter Name';
   }
 
-  // ... (Rest of JSX is same but with activeTab logic rendering correct views) ...
   return (
     <div className="container mx-auto px-4 pb-20 max-w-5xl relative">
-      {/* ... (Existing Navbar & Tabs code) ... */}
+      {/* ... (Navbar and Top Section) ... */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-6 border-b border-gray-100 mb-6">
         <div className="flex items-center gap-4">
             <button onClick={onBack} className="p-2 -ml-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all">
@@ -567,10 +601,16 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                   )}
 
                   <div className="max-w-lg mx-auto grid grid-cols-4 gap-3">
-                      <button onClick={handleCallNext} className="col-span-3 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary-600/30 active:scale-95 transition-all flex items-center justify-center gap-3">
-                          <span className="hidden sm:inline">Call Next</span>
-                          <span className="sm:hidden">Next</span>
-                          <Phone size={20} />
+                      <button 
+                        onClick={handleCallNext} 
+                        disabled={isProcessing}
+                        className="col-span-3 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary-600/30 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+                      >
+                          {isProcessing ? <Loader2 className="animate-spin" /> : <>
+                            <span className="hidden sm:inline">Call Next</span>
+                            <span className="sm:hidden">Next</span>
+                            <Phone size={20} />
+                          </>}
                       </button>
                       <button onClick={handleNotifyCurrent} disabled={!myCurrentVisitor} className={`py-4 rounded-2xl font-bold text-lg shadow-sm border border-gray-200 flex items-center justify-center transition-all ${myCurrentVisitor?.isAlerting ? 'bg-yellow-400 text-white border-yellow-400 animate-pulse' : 'bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50'}`}>
                           <Bell size={24} fill={myCurrentVisitor?.isAlerting ? "currentColor" : "none"} />

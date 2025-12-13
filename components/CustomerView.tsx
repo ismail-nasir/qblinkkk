@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle, AlertCircle, Star, Loader2, Send, Wifi, Lock } from 'lucide-react';
+import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle, AlertCircle, Star, Loader2, Send, Wifi, Lock, WifiOff } from 'lucide-react';
 import { motion as m, AnimatePresence } from 'framer-motion';
 
 const motion = m as any;
@@ -21,6 +21,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   
   // Permissions & System State
   const [notificationPerm, setNotificationPerm] = useState<NotificationPermission>(Notification.permission);
@@ -65,6 +66,18 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       { id: 4, label: 'Happy', icon: '🙂' },
       { id: 5, label: 'Love', icon: '😍' },
   ];
+
+  // Network Status Monitor
+  useEffect(() => {
+      const handleOnline = () => setIsOffline(false);
+      const handleOffline = () => setIsOffline(true);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      return () => {
+          window.removeEventListener('online', handleOnline);
+          window.removeEventListener('offline', handleOffline);
+      };
+  }, []);
 
   // Wake Lock Implementation (Keeps screen awake)
   useEffect(() => {
@@ -128,6 +141,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 unsubStream = queueService.streamQueueData(queueId, (data, err) => {
                     if (err) {
                         console.warn("Stream error:", err);
+                        // Only set error if we have NO data at all
                         if (!queueData) setError(err);
                     } else if (data) {
                         setQueueData(data);
@@ -664,6 +678,20 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         onTouchEnd={handleTouchEnd}
         className="min-h-screen bg-[#F8FAFC] font-sans text-gray-900 flex flex-col relative overflow-hidden selection:bg-primary-100"
     >
+        {/* Offline Banner */}
+        <AnimatePresence>
+            {isOffline && (
+                <motion.div 
+                    initial={{ y: -50, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -50, opacity: 0 }}
+                    className="bg-red-500 text-white px-4 py-2 text-center text-xs font-bold flex items-center justify-center gap-2 shadow-md relative z-[60]"
+                >
+                    <WifiOff size={14} /> No Internet Connection. Updates Paused.
+                </motion.div>
+            )}
+        </AnimatePresence>
+
         {/* Pull to Refresh Indicator */}
         <motion.div 
             style={{ height: pullY }}
@@ -707,7 +735,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
         {/* Main Content Area */}
         <div className="flex-1 px-4 py-6 flex flex-col items-center justify-start space-y-6 overflow-y-auto no-scrollbar pb-24">
-            
             {/* Header */}
             <div className="text-center w-full max-w-sm">
                  <div className="flex items-center justify-center gap-1.5 text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
