@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, ActivityLog, QueueData, AdminAuditLog } from '../types';
-import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Shield, ClipboardList, CheckCircle, Plus } from 'lucide-react';
+import { X, Users, FileText, Search, ShieldAlert, Trash2, ArrowLeft, Clock, Activity, Shield, ClipboardList, CheckCircle, Plus, Star, MessageSquare, UserPlus } from 'lucide-react';
 import { motion as m, AnimatePresence } from 'framer-motion';
 import { authService } from '../services/auth';
 import { queueService } from '../services/queue';
@@ -69,8 +70,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
 
   const handleUserClick = async (user: User) => {
       try {
-        // NOTE: In the new API structure, getQueueData usually takes a queueId. 
-        // We might need to fetch the user's queues first, then get data for the first one.
         const userQueues = await queueService.getUserQueues(user.id);
         if (userQueues.length > 0) {
              const qData = await queueService.getQueueData(userQueues[0].id);
@@ -186,9 +185,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                      
                     <button 
                         onClick={() => setShowAdminModal(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-bold hover:bg-gray-50 transition-colors"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-primary-200 bg-white text-primary-700 text-xs font-bold hover:bg-primary-50 transition-colors shadow-sm"
                     >
-                        <Shield size={14} /> <span className="hidden sm:inline">Admins</span>
+                        <Shield size={14} /> <span className="hidden sm:inline">Manage Admins</span>
                     </button>
                 </div>
             </div>
@@ -272,11 +271,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                         </td>
                                         <td className="p-4 md:p-6">
                                             <span className="text-sm font-medium text-gray-600">
-                                                {new Date(user.joinedAt).toLocaleDateString('en-US', {
-                                                    year: 'numeric',
-                                                    month: 'short',
-                                                    day: 'numeric'
-                                                })}
+                                                {new Date(user.joinedAt).toLocaleDateString()}
                                             </span>
                                         </td>
                                         <td className="p-4 md:p-6">
@@ -299,17 +294,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                         </td>
                                     </tr>
                                 ))}
-                                {filteredUsers.length === 0 && (
-                                    <tr>
-                                        <td colSpan={4} className="p-12 text-center">
-                                            <div className="flex flex-col items-center justify-center text-gray-400">
-                                                <Users size={48} className="mb-4 opacity-20" />
-                                                <p className="text-lg font-medium text-gray-900">No users found</p>
-                                                <p className="text-sm">Try adjusting your search terms</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     ) : activeTab === 'audit' ? (
@@ -345,16 +329,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                         </td>
                                     </tr>
                                 ))}
-                                {filteredAuditLogs.length === 0 && (
-                                    <tr>
-                                        <td colSpan={4} className="p-12 text-center">
-                                             <div className="flex flex-col items-center justify-center text-gray-400">
-                                                <Shield size={48} className="mb-4 opacity-20" />
-                                                <p className="text-lg font-medium text-gray-900">No audit logs found</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     ) : (
@@ -393,17 +367,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                         </td>
                                     </tr>
                                 ))}
-                                {filteredLogs.length === 0 && (
-                                    <tr>
-                                        <td colSpan={4} className="p-12 text-center">
-                                             <div className="flex flex-col items-center justify-center text-gray-400">
-                                                <FileText size={48} className="mb-4 opacity-20" />
-                                                <p className="text-lg font-medium text-gray-900">No logs found</p>
-                                                <p className="text-sm">Filter by user, ticket number, or action</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     )}
@@ -447,12 +410,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                         <Clock size={14} /> Joined
                                     </div>
                                     <div className="font-semibold text-gray-900 text-sm">
-                                        {new Date(selectedUser.joinedAt).toLocaleDateString('en-US', {
-                                            month: 'short', day: 'numeric', year: 'numeric'
-                                        })}
+                                        {new Date(selectedUser.joinedAt).toLocaleDateString()}
                                     </div>
                                     <div className="text-xs text-gray-400 mt-1">
-                                        {new Date(selectedUser.joinedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        {new Date(selectedUser.joinedAt).toLocaleTimeString()}
                                     </div>
                                 </div>
                                 <div className="p-4 bg-green-50/50 rounded-2xl border border-green-100">
@@ -490,8 +451,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                                                             log.action === 'call' ? 'text-blue-600' :
                                                             log.action === 'complete' ? 'text-green-600' : 'text-gray-600'
                                                         }`}>
-                                                            {log.action === 'call' ? 'Called Customer' : 
-                                                             log.action === 'complete' ? 'Completed Service' : 'Skipped'}
+                                                            {log.action}
                                                         </span>
                                                     </div>
                                                     <span className="font-bold text-gray-900">#{log.ticket}</span>
@@ -537,9 +497,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                         className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/50"
                     >
                          <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                <Shield size={18} className="text-primary-600" /> Manage Admins
-                             </h3>
+                             <div className="flex items-center gap-3">
+                                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <Shield size={18} className="text-primary-600" /> Manage Admins
+                                 </h3>
+                                 <button 
+                                    onClick={() => adminInputRef.current?.focus()}
+                                    className="flex items-center gap-1 px-2 py-1 bg-primary-50 text-primary-700 rounded-md text-xs font-bold hover:bg-primary-100 transition-colors"
+                                 >
+                                     <Plus size={12} /> Add New
+                                 </button>
+                             </div>
                              <button onClick={() => setShowAdminModal(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100">
                                  <X size={18} />
                              </button>

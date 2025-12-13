@@ -2,7 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { QueueData, QueueInfo } from '../types';
 import { queueService } from '../services/queue';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as m, AnimatePresence } from 'framer-motion';
+
+const motion = m as any;
 
 interface DisplayViewProps {
   queueId: string;

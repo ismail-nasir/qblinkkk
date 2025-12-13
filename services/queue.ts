@@ -417,7 +417,9 @@ export const queueService = {
       // Background check logic would go here
   }, 
   autoSkipInactive: async (qid: string, minutes: number) => {},
-  exportStatsCSV: async () => {},
+  exportStatsCSV: async (queueId: string, queueName: string) => {
+      console.log('Exporting stats for', queueName);
+  },
   exportUserData: () => {},
   importUserData: async () => true,
   
