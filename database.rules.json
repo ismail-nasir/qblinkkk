@@ -1,0 +1,25 @@
+
+{
+  "rules": {
+    ".read": true,
+    ".write": true,
+    "businesses": {
+      "$businessId": {
+        "locations": {
+          "$locationId": {
+            "queues": {
+              "$queueId": {
+                "visitors": {
+                  ".indexOn": ["phoneNumber", "status", "ticketNumber"]
+                },
+                "logs": {
+                  ".indexOn": ["timestamp"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
