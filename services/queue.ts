@@ -344,6 +344,36 @@ export const queueService = {
       }
   },
 
+  // BULK UPDATE ACTION
+  bulkUpdateVisitorStatus: async (queueId: string, visitorIds: string[], status: 'served' | 'skipped' | 'cancelled') => {
+      const path = await queueService.findQueuePath(queueId);
+      if (!path) return;
+      const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}`;
+      
+      const updates: any = {};
+      const now = new Date().toISOString();
+
+      visitorIds.forEach(id => {
+          updates[`${basePath}/visitors/${id}/status`] = status;
+          if (status === 'served') {
+              updates[`${basePath}/visitors/${id}/servedTime`] = now;
+              updates[`${basePath}/visitors/${id}/isAlerting`] = false;
+          }
+      });
+
+      // Also log one entry for the bulk action
+      const logRef = push(ref(firebaseService.db!, `${basePath}/logs`));
+      updates[`${basePath}/logs/${logRef.key}`] = {
+          timestamp: Date.now(),
+          action: `bulk_${status}`,
+          ticket: 0, // General log
+          user: 'Staff',
+          details: `${visitorIds.length} visitors marked as ${status}`
+      };
+
+      await update(ref(firebaseService.db!), updates);
+  },
+
   callNext: async (queueId: string, counterName: string) => {
       const data = await queueService.getQueueData(queueId);
       
@@ -389,7 +419,7 @@ export const queueService = {
       if (current) queueService.updateVisitorStatus(qid, current.id, { status: 'waiting', isAlerting: false, servedBy: undefined });
   },
   
-  submitFeedback: (qid: string, vid: string, rating: number) => queueService.updateVisitorStatus(qid, vid, { rating }),
+  submitFeedback: (qid: string, vid: string, rating: number, feedback?: string) => queueService.updateVisitorStatus(qid, vid, { rating, feedback }),
   
   deleteQueue: async (uid: string, qid: string) => {
       const path = await queueService.findQueuePath(qid);
@@ -399,9 +429,7 @@ export const queueService = {
       }
   },
 
-  // HYDRATION REMOVED: No more demo mode
   hydrateQueue: async (qid: string, name: string, location?: string) => {
-      // Intentionally empty or throw error to force real usage
       console.log("Hydration is disabled in Production Mode.");
   },
   
@@ -421,9 +449,9 @@ export const queueService = {
   
   exportStatsCSV: async (queueId: string, queueName: string) => {
       const data = await queueService.getQueueData(queueId);
-      const headers = "Ticket,Name,JoinTime,Status,ServedBy,Rating\n";
+      const headers = "Ticket,Name,JoinTime,Status,ServedBy,Rating,Comments\n";
       const rows = data.visitors.map(v => 
-          `${v.ticketNumber},"${v.name}",${v.joinTime},${v.status},${v.servedBy || ''},${v.rating || ''}`
+          `${v.ticketNumber},"${v.name}",${v.joinTime},${v.status},${v.servedBy || ''},${v.rating || ''},"${v.feedback || ''}"`
       ).join("\n");
       
       const blob = new Blob([headers + rows], { type: 'text/csv' });

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle, AlertCircle, Star, Loader2 } from 'lucide-react';
+import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle, AlertCircle, Star, Loader2, Send, Wifi, Lock } from 'lucide-react';
 import { motion as m, AnimatePresence } from 'framer-motion';
 
 const motion = m as any;
@@ -22,6 +22,10 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [error, setError] = useState<string | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
   
+  // Permissions & System State
+  const [notificationPerm, setNotificationPerm] = useState<NotificationPermission>(Notification.permission);
+  const [isWakeLockActive, setIsWakeLockActive] = useState(false);
+
   // Join Form State
   const [joinName, setJoinName] = useState('');
   const [joinPhone, setJoinPhone] = useState('');
@@ -51,7 +55,50 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   // Feedback State
   const [rating, setRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
+  const emojis = [
+      { id: 1, label: 'Angry', icon: '😡' },
+      { id: 2, label: 'Sad', icon: '☹️' },
+      { id: 3, label: 'Neutral', icon: '😐' },
+      { id: 4, label: 'Happy', icon: '🙂' },
+      { id: 5, label: 'Love', icon: '😍' },
+  ];
+
+  // Wake Lock Implementation (Keeps screen awake)
+  useEffect(() => {
+      let wakeLock: any = null;
+
+      const requestWakeLock = async () => {
+          if ('wakeLock' in navigator && myVisitorId) {
+              try {
+                  // @ts-ignore
+                  wakeLock = await navigator.wakeLock.request('screen');
+                  setIsWakeLockActive(true);
+                  console.log('Wake Lock active');
+              } catch (err) {
+                  console.warn('Wake Lock failed:', err);
+                  setIsWakeLockActive(false);
+              }
+          }
+      };
+
+      requestWakeLock();
+
+      const handleVisibilityChange = () => {
+          if (document.visibilityState === 'visible' && myVisitorId) {
+              requestWakeLock();
+          }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+          if (wakeLock) wakeLock.release();
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+  }, [myVisitorId]);
 
   // Initial Data Fetch & Streaming Setup
   useEffect(() => {
@@ -81,15 +128,13 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 unsubStream = queueService.streamQueueData(queueId, (data, err) => {
                     if (err) {
                         console.warn("Stream error:", err);
-                        // Don't show error screen on stream fail if we have stale data, just keep showing stale data.
-                        // Only show error if we have NO data.
                         if (!queueData) setError(err);
                     } else if (data) {
                         setQueueData(data);
                         setLoading(false);
                         setError(null);
                     }
-                }, false); // <--- Pass false to skip fetching logs, making it much faster
+                }, false);
 
             } catch (e: any) {
                 console.error("Setup Error:", e);
@@ -113,14 +158,13 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
             if (unsubStream) unsubStream();
             socketService.off('alert:ack');
         };
-  }, [queueId, myVisitorId]); // Depend on myVisitorId to re-bind specific user events if needed
+  }, [queueId, myVisitorId]);
 
   // Handle Logic updates
   useEffect(() => {
     if (myVisitorId && queueData) {
         const visitor = queueData.visitors.find(v => v.id === myVisitorId);
         
-        // If we found the visitor in the update, keep syncing it
         if (visitor) {
             setMyVisitor(visitor);
             
@@ -128,6 +172,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
             if (visitor.rating && visitor.rating > 0) {
                 setFeedbackSubmitted(true);
                 setRating(visitor.rating);
+                if (visitor.feedback) setFeedbackComment(visitor.feedback);
             }
             
             // Check for Alert Trigger
@@ -159,13 +204,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                     sendNotification("It's Your Turn!", "Please proceed to the counter immediately.");
                 }
             }
-        } else {
-             // Visitor ID exists in local storage but not in Queue Data
-             // Only auto-logout if we aren't currently waiting for a fresh join
-             if (loading === false && !isJoining) {
-                 // Double check if we might have just joined and stream is lagging
-                 // This is handled by optimistic update in handleJoin
-             }
         }
     } else {
         document.title = "Join Queue - Qblink";
@@ -191,8 +229,13 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   const requestNotificationPermission = async () => {
      if ('Notification' in window) {
-         if (Notification.permission === 'default') {
-             await Notification.requestPermission();
+         const permission = await Notification.requestPermission();
+         setNotificationPerm(permission);
+         if (permission === 'granted') {
+             new Notification("Notifications Enabled", { 
+                 body: "We'll let you know when it's your turn!",
+                 icon: '/favicon.ico'
+             });
          }
      }
   };
@@ -258,8 +301,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       if (pullY > 70) {
           setIsRefreshing(true);
           setPullY(70); 
-          // Since we are streaming, "Refresh" just means maybe re-fetching info, but data is live.
-          // We can simulate a refresh for UX.
           await new Promise(r => setTimeout(r, 500));
           setIsRefreshing(false);
           setPullY(0);
@@ -321,7 +362,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   const handleJoin = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (isJoining) return; // Prevent double submission
+      if (isJoining) return;
 
       setJoinError('');
       setIsJoining(true);
@@ -335,7 +376,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       }
       
       try {
-        // Init Audio Context on user interaction to allow auto-play later
         if (!audioContextRef.current) {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
@@ -347,7 +387,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         
         if (!visitor) throw new Error("Server returned no ticket.");
         
-        // Optimistic Update
         setMyVisitor(visitor);
         setMyVisitorId(visitor.id);
         localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
@@ -355,7 +394,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         if (updatedQueueData) {
             setQueueData(updatedQueueData);
         } else if (queueData && !result.isDuplicate) {
-            // Manually append new visitor to current state if stream is slow
             setQueueData({
                 ...queueData,
                 visitors: [...queueData.visitors, visitor],
@@ -365,7 +403,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 }
             });
         }
-        
       } catch (e: any) {
         setJoinError(e.message || "Failed to join. Please try again.");
       } finally {
@@ -385,6 +422,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
               setIsAlerting(false);
               setFeedbackSubmitted(false);
               setRating(0);
+              setFeedbackComment('');
           }
       }
   };
@@ -400,6 +438,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       setIsAlerting(false);
       setFeedbackSubmitted(false);
       setRating(0);
+      setFeedbackComment('');
   };
 
   const handleImComing = () => {
@@ -414,9 +453,12 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   const submitFeedback = async (score: number) => {
       setRating(score);
+  };
+
+  const sendFullFeedback = async () => {
       setFeedbackSubmitted(true);
-      if (myVisitorId) {
-          await queueService.submitFeedback(queueId, myVisitorId, score);
+      if (myVisitorId && rating > 0) {
+          await queueService.submitFeedback(queueId, myVisitorId, rating, feedbackComment);
       }
   };
 
@@ -494,7 +536,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                                 value={joinName}
                                 onChange={(e) => setJoinName(e.target.value)}
                                 className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400 appearance-none"
-                                style={{ fontSize: '16px' }} // Prevent iOS zoom
+                                style={{ fontSize: '16px' }}
                                 disabled={isJoining}
                               />
                           </div>
@@ -543,7 +585,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       );
   }
 
-  // 4. Served / Cancelled View (Rejoin Logic)
+  // 4. Served / Cancelled View (Rejoin Logic & Feedback)
   if (myVisitor.status === 'served' || myVisitor.status === 'cancelled') {
       return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
@@ -565,21 +607,39 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                   {myVisitor.status === 'served' && (
                       <div className="mb-8">
                           <div className="flex justify-center gap-2 mb-4">
-                              {[1, 2, 3, 4, 5].map((star) => (
+                              {emojis.map((emoji) => (
                                   <motion.button
-                                    key={star}
+                                    key={emoji.id}
                                     whileHover={{ scale: 1.2 }}
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => !feedbackSubmitted && submitFeedback(star)}
-                                    className={`p-2 transition-colors ${star <= rating ? 'text-yellow-400' : 'text-gray-200'}`}
+                                    onClick={() => !feedbackSubmitted && setRating(emoji.id)}
+                                    className={`text-3xl p-2 transition-all ${emoji.id === rating ? 'scale-125 drop-shadow-md grayscale-0' : 'grayscale opacity-50'}`}
                                     disabled={feedbackSubmitted}
                                   >
-                                      <Star size={32} fill="currentColor" />
+                                      {emoji.icon}
                                   </motion.button>
                               ))}
                           </div>
+                          
+                          {rating > 0 && !feedbackSubmitted && (
+                              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
+                                  <textarea 
+                                      value={feedbackComment}
+                                      onChange={(e) => setFeedbackComment(e.target.value)}
+                                      placeholder="Tell us more (optional)..."
+                                      className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 resize-none h-24"
+                                  />
+                                  <button 
+                                      onClick={sendFullFeedback}
+                                      className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+                                  >
+                                      Submit Feedback <Send size={16} />
+                                  </button>
+                              </motion.div>
+                          )}
+
                           {feedbackSubmitted && (
-                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-600 font-bold text-sm">
+                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-600 font-bold text-sm bg-green-50 p-3 rounded-xl">
                                   Thank you for your feedback!
                               </motion.div>
                           )}
@@ -631,6 +691,37 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 >
                     <Zap size={14} />
                     Demo Mode: Running locally. Actions will not sync to owner.
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* Permissions & Wake Lock Banner */}
+        <AnimatePresence>
+            {(!isWakeLockActive || notificationPerm === 'default') && (
+                <motion.div 
+                    initial={{ y: -50, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between shadow-sm relative z-40"
+                >
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
+                        <Wifi size={12} className="text-green-500 animate-pulse" /> Live
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                        {notificationPerm === 'default' && (
+                            <button 
+                                onClick={requestNotificationPermission}
+                                className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold border border-blue-100 flex items-center gap-1"
+                            >
+                                <Bell size={10} /> Enable Alerts
+                            </button>
+                        )}
+                        {!isWakeLockActive && (
+                            <div className="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg text-[10px] font-bold border border-gray-200 flex items-center gap-1 opacity-50" title="Wake Lock Inactive">
+                                <Lock size={10} /> Screen Dim
+                            </div>
+                        )}
+                    </div>
                 </motion.div>
             )}
         </AnimatePresence>
