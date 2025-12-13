@@ -51,48 +51,38 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [rating, setRating] = useState(0);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  // STREAMING DATA LOGIC
+  useEffect(() => {
+    let unsubscribe: () => void;
+
+    const startStreaming = async () => {
         try {
             setError(null);
             
-            // Only try to fetch from real backend
-            const data = await queueService.getQueueData(queueId);
+            // Initial fetch for static info
             const info = await queueService.getQueueInfo(queueId);
-            
-            if (!info) {
-                throw new Error("Queue not found");
-            }
-
+            if (!info) throw new Error("Queue not found");
             setQueueInfo(info);
-            setQueueData(data);
+
+            // Start Listening
+            unsubscribe = queueService.streamQueueData(queueId, (data) => {
+                setQueueData(data);
+                setLoading(false);
+            });
         } catch (e: any) {
-            console.error("Fetch Error:", e);
+            console.error("Stream Error", e);
             setError(e.message || "Unable to load queue");
-        } finally {
             setLoading(false);
         }
-  }, [queueId]);
+    };
 
-  useEffect(() => {
-    fetchData();
-    socketService.joinQueue(queueId);
-
-    socketService.on('queue:update', () => {
-        fetchData();
-    });
-
-    socketService.on('alert:ack', (data: any) => {
-        if (data.visitorId === myVisitorId) {
-            stopAlertLoop();
-            setIsAlerting(false);
-        }
-    });
+    startStreaming();
 
     return () => {
-        socketService.off('queue:update');
+        if (unsubscribe) unsubscribe();
         socketService.off('alert:ack');
     };
-  }, [fetchData, queueId, myVisitorId]);
+  }, [queueId]);
 
   // Handle Logic updates
   useEffect(() => {
@@ -237,7 +227,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       if (pullY > 70) {
           setIsRefreshing(true);
           setPullY(70); 
-          await fetchData();
+          // Re-fetch handled by stream
           setTimeout(() => {
               setIsRefreshing(false);
               setPullY(0);
@@ -360,16 +350,16 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       } catch (err) {}
 
       try {
+        // Optimistic UI update logic handled by stream
         const { visitor, queueData: updatedQueueData } = await queueService.joinQueue(queueId, joinName, joinPhone);
         if (!visitor) throw new Error("Server returned no ticket.");
         
-        if (updatedQueueData) {
-            setQueueData(updatedQueueData);
-        }
-        
+        // Save ID locally
         setMyVisitorId(visitor.id);
         setMyVisitor(visitor);
         localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
+        
+        // Wait for stream to update queueData
       } catch (e: any) {
         setJoinError(e.message || "Failed to join. Please try again.");
       }
