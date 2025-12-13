@@ -1,6 +1,15 @@
 
 import { User, AdminAuditLog } from '../types';
 import { firebaseService } from './firebase';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { ref, get, set, child } from 'firebase/database';
 
 const USER_KEY = 'qblink_user';
 
@@ -14,15 +23,22 @@ export const authService = {
   initAuthListener: (callback: (user: User | null) => void) => {
       if (!firebaseService.auth) return;
       
-      firebaseService.auth.onAuthStateChanged(async (firebaseUser: any) => {
+      onAuthStateChanged(firebaseService.auth, async (firebaseUser: FirebaseUser | null) => {
           if (firebaseUser) {
-              // Fetch extra user details from Firestore
-              const userDoc = await firebaseService.db.collection('businesses').doc(firebaseUser.uid).get();
-              if (userDoc.exists) {
-                  const userData = userDoc.data() as User;
-                  localStorage.setItem(USER_KEY, JSON.stringify(userData));
-                  callback(userData);
-              } else {
+              // Fetch extra user details from Realtime Database
+              try {
+                  const dbRef = ref(firebaseService.db);
+                  const snapshot = await get(child(dbRef, `businesses/${firebaseUser.uid}`));
+                  if (snapshot.exists()) {
+                      const userData = snapshot.val() as User;
+                      localStorage.setItem(USER_KEY, JSON.stringify(userData));
+                      callback(userData);
+                  } else {
+                      // Fallback if profile doesn't exist in DB yet
+                      callback(null);
+                  }
+              } catch (e) {
+                  console.error("Auth Listener Error:", e);
                   callback(null);
               }
           } else {
@@ -35,12 +51,16 @@ export const authService = {
   login: async (email: string, password: string): Promise<User> => {
     if (!firebaseService.auth) throw new Error("Firebase not configured");
     
-    const credential = await firebaseService.auth.signInWithEmailAndPassword(email, password);
-    const userDoc = await firebaseService.db.collection('businesses').doc(credential.user.uid).get();
+    // Modular Auth Call
+    const credential = await signInWithEmailAndPassword(firebaseService.auth, email, password);
     
-    if (!userDoc.exists) throw new Error("User profile not found.");
+    // Modular Realtime DB Call
+    const dbRef = ref(firebaseService.db);
+    const snapshot = await get(child(dbRef, `businesses/${credential.user.uid}`));
     
-    const userData = userDoc.data() as User;
+    if (!snapshot.exists()) throw new Error("User profile not found.");
+    
+    const userData = snapshot.val() as User;
     localStorage.setItem(USER_KEY, JSON.stringify(userData));
     return userData;
   },
@@ -48,7 +68,8 @@ export const authService = {
   signup: async (email: string, password: string, businessName: string): Promise<User> => {
     if (!firebaseService.auth) throw new Error("Firebase not configured");
 
-    const credential = await firebaseService.auth.createUserWithEmailAndPassword(email, password);
+    // Modular Auth Call
+    const credential = await createUserWithEmailAndPassword(firebaseService.auth, email, password);
     const uid = credential.user.uid;
 
     const newUser: User = {
@@ -56,12 +77,12 @@ export const authService = {
         email,
         businessName,
         role: 'owner',
-        isVerified: true,
+        isVerified: true, // Auto-verify for MVP
         joinedAt: new Date().toISOString()
     };
 
-    // Save business profile to Firestore
-    await firebaseService.db.collection('businesses').doc(uid).set(newUser);
+    // Modular Realtime DB Call
+    await set(ref(firebaseService.db, `businesses/${uid}`), newUser);
     
     localStorage.setItem(USER_KEY, JSON.stringify(newUser));
     return newUser;
@@ -69,7 +90,8 @@ export const authService = {
 
   logout: async () => {
     if (firebaseService.auth) {
-        await firebaseService.auth.signOut();
+        // Modular Auth Call
+        await signOut(firebaseService.auth);
     }
     localStorage.removeItem(USER_KEY);
     window.location.href = '/';
@@ -80,10 +102,14 @@ export const authService = {
       await authService.logout();
   },
 
-  // Mock-compatible method stubs
+  // Stub methods for compatibility
   verifyEmail: async (email: string, code: string): Promise<User> => { return authService.getCurrentUser()!; },
   resendVerification: async (email: string) => {},
-  requestPasswordReset: async (email: string) => {},
+  requestPasswordReset: async (email: string) => {
+      if (firebaseService.auth) {
+          await sendPasswordResetEmail(firebaseService.auth, email);
+      }
+  },
   resetPassword: async (email: string, code: string, pass: string) => {},
   getAllUsers: async (): Promise<User[]> => [],
   getAdmins: async (): Promise<string[]> => [],
