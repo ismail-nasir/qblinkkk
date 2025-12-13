@@ -735,6 +735,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
         {/* Main Content Area */}
         <div className="flex-1 px-4 py-6 flex flex-col items-center justify-start space-y-6 overflow-y-auto no-scrollbar pb-24">
+            
             {/* Header */}
             <div className="text-center w-full max-w-sm">
                  <div className="flex items-center justify-center gap-1.5 text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">

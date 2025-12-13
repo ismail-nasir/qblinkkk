@@ -12,7 +12,6 @@ import {
     remove, 
     query, 
     orderByChild,
-    equalTo,
     limitToLast,
     runTransaction
 } from 'firebase/database';
@@ -121,7 +120,7 @@ export const queueService = {
       return result ? result.queue : null;
   },
 
-  // --- REAL-TIME DATA ---
+  // --- REAL-TIME DATA STREAM ---
 
   streamQueueData: (queueId: string, callback: (data: QueueData | null, error?: string) => void, includeLogs: boolean = true) => {
       if (!firebaseService.db) {
@@ -139,6 +138,7 @@ export const queueService = {
           const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
           const metricsRef = ref(firebaseService.db!, `${basePath}/metrics_counter`);
 
+          // Combined listener for simpler syncing
           const unsubVisitors = onValue(visitorsRef, (snapshot: any) => {
               const visitors = snapshotToArray(snapshot) as Visitor[];
               
@@ -148,7 +148,7 @@ export const queueService = {
                   const waitingVisitors = visitors.filter(v => v.status === 'waiting');
                   const servingVisitors = visitors.filter(v => v.status === 'serving');
                   
-                  // SORTING LOGIC: Priority -> Order -> Late -> TicketNumber
+                  // Sorting Logic: Serving > Priority > Time > Ticket
                   const allActive = [...servingVisitors, ...waitingVisitors];
                   allActive.sort((a, b) => {
                       if (a.status === 'serving' && b.status !== 'serving') return -1;
@@ -208,10 +208,11 @@ export const queueService = {
           return unsubVisitors;
       });
 
-      return () => {};
+      return () => {}; 
   },
 
   getQueueData: async (queueId: string): Promise<QueueData> => {
+      // One-off fetch useful for actions, but UI should prefer stream
       const path = await queueService.findQueuePath(queueId);
       if (!path) throw new Error("Queue not found");
       const { businessId, locationId } = path;
@@ -259,6 +260,7 @@ export const queueService = {
       const { businessId, locationId } = path;
       const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
       
+      // Duplicate Check
       if (phoneNumber) {
           try {
               const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
@@ -309,6 +311,7 @@ export const queueService = {
 
       await update(vRef, updates);
 
+      // Metric Updates
       if (logAction === 'complete' && current.status === 'serving') {
           await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter`), (m) => {
               if (!m) m = { served: 0, service_count: 0, total_service_time: 0 };
@@ -333,7 +336,7 @@ export const queueService = {
       const path = await queueService.findQueuePath(queueId);
       if (!path) return;
       
-      // Fetch fresh data
+      // CRITICAL: Fetch fresh data to avoid stale state issues
       const data = await queueService.getQueueData(queueId);
       const { visitors } = data;
 
@@ -343,14 +346,15 @@ export const queueService = {
           await queueService.updateVisitorStatus(queueId, current.id, {
               status: 'served',
               servedTime: new Date().toISOString(),
-              isAlerting: false
+              isAlerting: false,
+              calledAt: ''
           }, 'complete', counterName);
       }
       
       // 2. Find Next - Sort fresh data locally to guarantee correctness
       const waitingVisitors = visitors.filter(v => v.status === 'waiting');
       waitingVisitors.sort((a, b) => {
-          // Explicit Reorder (Drag & Drop)
+          // Explicit Reorder
           const orderA = a.order ?? 999999;
           const orderB = b.order ?? 999999;
           if (orderA !== orderB) return orderA - orderB;
@@ -385,6 +389,7 @@ export const queueService = {
   handleGracePeriodExpiry: async (queueId: string, minutes: number) => {
       const path = await queueService.findQueuePath(queueId);
       if(!path) return;
+      // Use fresh data for automated jobs
       const data = await queueService.getQueueData(queueId);
       const now = Date.now();
       const expiryMs = minutes * 60 * 1000;
