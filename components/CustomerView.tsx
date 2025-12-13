@@ -342,7 +342,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
         const osc = ctx.createOscillator();
         osc.type = soundType === 'chime' || soundType === 'ding' ? 'sine' : 'square';
-        
         const freq = soundType === 'ding' ? 1200 : 800;
         osc.frequency.setValueAtTime(freq, ctx.currentTime);
         
@@ -350,12 +349,10 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
              osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
         }
 
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + (soundType === 'chime' ? 1.5 : 0.3));
-        
         osc.connect(gainNode);
         osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + (soundType === 'chime' ? 1.5 : 0.3));
-    } catch (e) {
+        osc.stop(ctx.currentTime + 0.3);
+    } catch(e) {
         console.warn("Audio playback failed", e);
     }
   };
@@ -451,10 +448,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       }
   };
 
-  const submitFeedback = async (score: number) => {
-      setRating(score);
-  };
-
   const sendFullFeedback = async () => {
       setFeedbackSubmitted(true);
       if (myVisitorId && rating > 0) {
@@ -498,6 +491,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   // 3. Join Form (Not Joined)
   if (!myVisitorId || !myVisitor) {
+      // ... (Join Form JSX remains same, just ensure it uses correct handlers)
       return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans selection:bg-primary-100">
               <motion.div 
@@ -691,37 +685,6 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 >
                     <Zap size={14} />
                     Demo Mode: Running locally. Actions will not sync to owner.
-                </motion.div>
-            )}
-        </AnimatePresence>
-
-        {/* Permissions & Wake Lock Banner */}
-        <AnimatePresence>
-            {(!isWakeLockActive || notificationPerm === 'default') && (
-                <motion.div 
-                    initial={{ y: -50, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between shadow-sm relative z-40"
-                >
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                        <Wifi size={12} className="text-green-500 animate-pulse" /> Live
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                        {notificationPerm === 'default' && (
-                            <button 
-                                onClick={requestNotificationPermission}
-                                className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold border border-blue-100 flex items-center gap-1"
-                            >
-                                <Bell size={10} /> Enable Alerts
-                            </button>
-                        )}
-                        {!isWakeLockActive && (
-                            <div className="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg text-[10px] font-bold border border-gray-200 flex items-center gap-1 opacity-50" title="Wake Lock Inactive">
-                                <Lock size={10} /> Screen Dim
-                            </div>
-                        )}
-                    </div>
                 </motion.div>
             )}
         </AnimatePresence>
