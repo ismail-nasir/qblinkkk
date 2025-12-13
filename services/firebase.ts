@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getDatabase, serverTimestamp } from 'firebase/database';
 
-// Access environment variables safely to avoid TS errors with import.meta.env
+// Access environment variables safely
 const env = (import.meta as any).env || {};
 
 const firebaseConfig = {
@@ -22,7 +22,7 @@ let db;
 let isAvailable = false;
 
 try {
-  // Initialize Firebase (Modular SDK)
+  // Initialize Firebase
   app = initializeApp(firebaseConfig);
   
   // Initialize Services
@@ -35,10 +35,9 @@ try {
   console.error('Firebase Initialization Error:', error);
 }
 
-// Export services matching the existing app structure where possible
 export const firebaseService = {
   auth,
   db,
   isAvailable,
-  serverTimestamp // Exported to maintain potential compatibility with service calls
+  serverTimestamp
 };
