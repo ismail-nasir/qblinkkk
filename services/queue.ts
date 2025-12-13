@@ -11,7 +11,8 @@ import {
     get, 
     remove, 
     query, 
-    orderByChild 
+    orderByChild,
+    limitToLast 
 } from 'firebase/database';
 
 // Helper to convert object snapshot to array
@@ -208,32 +209,21 @@ export const queueService = {
                   return;
               }
 
-              // Helper to process logs
-              const processLogs = (lSnap: any) => {
+              // Fetch Logs
+              const logsRef = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'), limitToLast(20));
+              get(logsRef).then((lSnap) => {
                   const logsRaw = snapshotToArray(lSnap) as any[];
                   const logs = logsRaw
-                      .sort((a,b) => b.timestamp - a.timestamp) // Sort in JS since DB index might be missing
-                      .slice(0, 20)
+                      .sort((a,b) => b.timestamp - a.timestamp)
                       .map(l => ({
                           ...l,
                           time: l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''
                       }));
-
                   callback({ ...baseData, recentActivity: logs });
-              };
-
-              // Try fetching sorted logs first
-              const logsQuery = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'));
-              
-              get(logsQuery)
-                  .then(processLogs)
-                  .catch((err: any) => {
-                      // If index is missing, fetch ALL logs and sort client-side
-                      console.warn("Firebase Index missing for logs. Falling back to client-side sort.", err.message);
-                      get(ref(firebaseService.db!, `${basePath}/logs`))
-                          .then(processLogs)
-                          .catch((e: any) => callback(null, "Failed to load logs"));
-                  });
+              }).catch(() => {
+                  // If logs fail, return base data at least
+                  callback({ ...baseData, recentActivity: [] });
+              });
           });
       });
 
@@ -252,16 +242,35 @@ export const queueService = {
       
       const waiting = visitors.filter((v: Visitor) => v.status === 'waiting').length;
       const served = visitors.filter((v: Visitor) => v.status === 'served').length;
+      const rated = visitors.filter((v: Visitor) => v.rating && v.rating > 0);
+      const avgRating = rated.length ? (rated.reduce((a: number, b: Visitor) => a + (b.rating || 0), 0) / rated.length) : 0;
+
       const lastCalled = visitors.filter((v: Visitor) => ['serving','served'].includes(v.status))
           .sort((a: Visitor, b: Visitor) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
+
+      // Fetch logs for analytics consistency
+      const logsRef = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'), limitToLast(20));
+      const lSnap = await get(logsRef);
+      const logsRaw = snapshotToArray(lSnap) as any[];
+      const logs = logsRaw
+          .sort((a,b) => b.timestamp - a.timestamp)
+          .map(l => ({
+              ...l,
+              time: l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''
+          }));
 
       return {
           queueId,
           currentTicket: lastCalled,
           lastCalledNumber: lastCalled,
-          metrics: { waiting, served, avgWaitTime: path.queue.estimatedWaitTime || 5, averageRating: 0 },
+          metrics: { 
+              waiting, 
+              served, 
+              avgWaitTime: path.queue.estimatedWaitTime || 5, 
+              averageRating: parseFloat(avgRating.toFixed(1)) 
+          },
           visitors,
-          recentActivity: []
+          recentActivity: logs
       };
   },
 
