@@ -18,10 +18,11 @@ const DisplayView: React.FC<DisplayViewProps> = ({ queueId }) => {
       // 1. Get Info
       queueService.getQueueInfo(queueId).then(setQueueInfo);
       
-      // 2. Stream Data
+      // 2. Stream Data (No logs required for display)
       const unsub = queueService.streamQueueData(queueId, (data) => {
           setQueueData(data);
-      });
+      }, false);
+      
       return () => unsub();
   }, [queueId]);
 

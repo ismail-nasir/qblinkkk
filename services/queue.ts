@@ -154,7 +154,7 @@ export const queueService = {
 
   // --- REAL-TIME DATA ---
 
-  streamQueueData: (queueId: string, callback: (data: QueueData | null, error?: string) => void) => {
+  streamQueueData: (queueId: string, callback: (data: QueueData | null, error?: string) => void, includeLogs: boolean = true) => {
       if (!firebaseService.db) {
           callback(null, "Database unavailable");
           return () => {};
@@ -190,6 +190,24 @@ export const queueService = {
                   .filter((v: Visitor) => v.status === 'serving' || v.status === 'served')
                   .sort((a: Visitor, b: Visitor) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
 
+              const baseData = {
+                  queueId,
+                  currentTicket: lastCalled,
+                  lastCalledNumber: lastCalled,
+                  metrics: {
+                      waiting,
+                      served,
+                      avgWaitTime: path.queue.estimatedWaitTime || 5,
+                      averageRating: parseFloat(avgRating.toFixed(1))
+                  },
+                  visitors: sorted,
+              };
+
+              if (!includeLogs) {
+                  callback({ ...baseData, recentActivity: [] });
+                  return;
+              }
+
               // Helper to process logs
               const processLogs = (lSnap: any) => {
                   const logsRaw = snapshotToArray(lSnap) as any[];
@@ -201,19 +219,7 @@ export const queueService = {
                           time: l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''
                       }));
 
-                  callback({
-                      queueId,
-                      currentTicket: lastCalled,
-                      lastCalledNumber: lastCalled,
-                      metrics: {
-                          waiting,
-                          served,
-                          avgWaitTime: path.queue.estimatedWaitTime || 5,
-                          averageRating: parseFloat(avgRating.toFixed(1))
-                      },
-                      visitors: sorted,
-                      recentActivity: logs
-                  });
+                  callback({ ...baseData, recentActivity: logs });
               };
 
               // Try fetching sorted logs first

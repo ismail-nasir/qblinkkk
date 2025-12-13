@@ -53,65 +53,67 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [rating, setRating] = useState(0);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
-  const fetchData = useCallback(async () => {
-        try {
-            setError(null);
-            
-            // Try fetching normally first
-            let data, info;
-            try {
-                data = await queueService.getQueueData(queueId);
-                info = await queueService.getQueueInfo(queueId);
-            } catch (e: any) {
-                // FALLBACK: HYDRATION LOGIC FOR DEMO
-                const params = new URLSearchParams(window.location.search);
-                const qName = params.get('qName');
-                const qLoc = params.get('qLoc') || undefined;
-                
-                const effectiveName = qName || "Demo Queue";
-                
-                console.log("Hydrating local demo queue:", effectiveName);
-                await queueService.hydrateQueue(queueId, effectiveName, qLoc);
-                // Retry fetch immediately
-                data = await queueService.getQueueData(queueId);
-                info = await queueService.getQueueInfo(queueId);
-                setIsDemoMode(true);
-            }
-            
-            if (!info) {
-                throw new Error("Queue not found");
-            }
-
-            setQueueInfo(info);
-            setQueueData(data);
-        } catch (e: any) {
-            console.error("Fetch Error:", e);
-            setError(e.message || "Unable to load queue");
-        } finally {
-            setLoading(false);
-        }
-  }, [queueId]);
-
+  // Initial Data Fetch & Streaming Setup
   useEffect(() => {
-    fetchData();
-    socketService.joinQueue(queueId);
+        let unsubStream: () => void;
 
-    socketService.on('queue:update', () => {
-        fetchData();
-    });
+        const init = async () => {
+            try {
+                // 1. Fetch Static Info (Name, Settings)
+                const info = await queueService.getQueueInfo(queueId);
+                
+                if (info) {
+                    setQueueInfo(info);
+                } else {
+                    // Fallback for Demo/Local testing if DB is empty or disconnected
+                    const params = new URLSearchParams(window.location.search);
+                    const qName = params.get('qName') || "Demo Queue";
+                    const qLoc = params.get('qLoc') || undefined;
+                    
+                    console.log("Hydrating local demo queue:", qName);
+                    await queueService.hydrateQueue(queueId, qName, qLoc);
+                    const updatedInfo = await queueService.getQueueInfo(queueId);
+                    if(updatedInfo) setQueueInfo(updatedInfo);
+                    setIsDemoMode(true);
+                }
 
-    socketService.on('alert:ack', (data: any) => {
-        if (data.visitorId === myVisitorId) {
-            stopAlertLoop();
-            setIsAlerting(false);
-        }
-    });
+                // 2. Start Real-time Stream (Optimized: No Logs)
+                unsubStream = queueService.streamQueueData(queueId, (data, err) => {
+                    if (err) {
+                        console.warn("Stream error:", err);
+                        // Don't show error screen on stream fail if we have stale data, just keep showing stale data.
+                        // Only show error if we have NO data.
+                        if (!queueData) setError(err);
+                    } else if (data) {
+                        setQueueData(data);
+                        setLoading(false);
+                        setError(null);
+                    }
+                }, false); // <--- Pass false to skip fetching logs, making it much faster
 
-    return () => {
-        socketService.off('queue:update');
-        socketService.off('alert:ack');
-    };
-  }, [fetchData, queueId, myVisitorId]);
+            } catch (e: any) {
+                console.error("Setup Error:", e);
+                setError(e.message || "Unable to load queue");
+                setLoading(false);
+            }
+        };
+
+        init();
+        socketService.joinQueue(queueId);
+
+        // Listen for specific acknowledgments
+        socketService.on('alert:ack', (data: any) => {
+            if (data.visitorId === myVisitorId) {
+                stopAlertLoop();
+                setIsAlerting(false);
+            }
+        });
+
+        return () => {
+            if (unsubStream) unsubStream();
+            socketService.off('alert:ack');
+        };
+  }, [queueId, myVisitorId]); // Depend on myVisitorId to re-bind specific user events if needed
 
   // Handle Logic updates
   useEffect(() => {
@@ -256,11 +258,11 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       if (pullY > 70) {
           setIsRefreshing(true);
           setPullY(70); 
-          await fetchData();
-          setTimeout(() => {
-              setIsRefreshing(false);
-              setPullY(0);
-          }, 500);
+          // Since we are streaming, "Refresh" just means maybe re-fetching info, but data is live.
+          // We can simulate a refresh for UX.
+          await new Promise(r => setTimeout(r, 500));
+          setIsRefreshing(false);
+          setPullY(0);
       } else {
           setPullY(0);
       }
