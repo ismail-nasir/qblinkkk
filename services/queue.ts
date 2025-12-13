@@ -190,14 +190,16 @@ export const queueService = {
                   .filter((v: Visitor) => v.status === 'serving' || v.status === 'served')
                   .sort((a: Visitor, b: Visitor) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
 
-              // Use simple fetch for logs to save bandwidth in stream
-              const logsRef = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'));
-              get(logsRef).then((lSnap: any) => {
+              // Helper to process logs
+              const processLogs = (lSnap: any) => {
                   const logsRaw = snapshotToArray(lSnap) as any[];
-                  const logs = logsRaw.sort((a,b) => b.timestamp - a.timestamp).slice(0, 20).map(l => ({
-                      ...l,
-                      time: l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''
-                  }));
+                  const logs = logsRaw
+                      .sort((a,b) => b.timestamp - a.timestamp) // Sort in JS since DB index might be missing
+                      .slice(0, 20)
+                      .map(l => ({
+                          ...l,
+                          time: l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''
+                      }));
 
                   callback({
                       queueId,
@@ -212,7 +214,20 @@ export const queueService = {
                       visitors: sorted,
                       recentActivity: logs
                   });
-              });
+              };
+
+              // Try fetching sorted logs first
+              const logsQuery = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'));
+              
+              get(logsQuery)
+                  .then(processLogs)
+                  .catch((err: any) => {
+                      // If index is missing, fetch ALL logs and sort client-side
+                      console.warn("Firebase Index missing for logs. Falling back to client-side sort.", err.message);
+                      get(ref(firebaseService.db!, `${basePath}/logs`))
+                          .then(processLogs)
+                          .catch((e: any) => callback(null, "Failed to load logs"));
+                  });
           });
       });
 
