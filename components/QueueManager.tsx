@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, QueueData, QueueInfo, Visitor, QueueSettings, BusinessType } from '../types';
-import { queueService } from '../services/queue';
+import { queueService, sortVisitors } from '../services/queue'; // Import sortVisitors
 import { socketService } from '../services/socket';
 import { getQueueInsights, optimizeQueueOrder, analyzeCustomerFeedback } from '../services/geminiService';
 import { Phone, Users, UserPlus, Trash2, RotateCcw, QrCode, Share2, Download, Search, X, ArrowLeft, Bell, Image as ImageIcon, CheckCircle, GripVertical, Settings, Play, Save, PauseCircle, Megaphone, Star, Clock, Store, Palette, Sliders, BarChart2, ToggleLeft, ToggleRight, MessageSquare, Pipette, LayoutGrid, Utensils, Stethoscope, Scissors, Building2, ShoppingBag, Sparkles, BrainCircuit, CheckSquare, Loader2, MapPin } from 'lucide-react';
@@ -152,10 +152,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
   const handleDragEnd = async () => {
       const currentData = queueDataRef.current;
       if (currentData) {
-          const waiting = currentData.visitors.filter(v => v.status === 'waiting').sort((a, b) => {
-              if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1;
-              return (a.order || 999999) - (b.order || 999999);
-          });
+          const waiting = currentData.visitors.filter(v => v.status === 'waiting');
+          // Important: We must not apply default sort here, we respect the current drag order
+          // But we need to save the order index to firebase
           await queueService.reorderQueue(queue.id, waiting);
       }
   };
@@ -201,12 +200,9 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
 
   if (!queueData) return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]"><Loader2 className="w-8 h-8 text-primary-600 animate-spin" /></div>;
 
-  const waitingVisitors = queueData.visitors.filter(v => v.status === 'waiting').sort((a, b) => { 
-      const orderA = a.order ?? 999999; const orderB = b.order ?? 999999;
-      if (orderA !== orderB) return orderA - orderB;
-      if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1;
-      return a.ticketNumber - b.ticketNumber; 
-  });
+  // USE SHARED SORTING FOR VISUAL CONSISTENCY
+  const waitingVisitors = sortVisitors(queueData.visitors.filter(v => v.status === 'waiting'));
+  
   const displayWaiting = searchQuery ? waitingVisitors.filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.ticketNumber.toString().includes(searchQuery)) : waitingVisitors;
   const myCurrentVisitor = queueData.visitors.find(v => v.status === 'serving' && v.servedBy === counterName);
 
