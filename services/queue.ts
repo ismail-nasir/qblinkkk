@@ -113,7 +113,9 @@ export const queueService = {
               soundType: 'beep', 
               themeColor: '#3b82f6', 
               gracePeriodMinutes: 2,
-              autoSkipMinutes: 0
+              autoSkipMinutes: 0,
+              enableSMS: false,
+              smsTemplate: "Hello {name}, it's your turn at {queueName}!"
           },
           isPaused: false,
           announcement: '',

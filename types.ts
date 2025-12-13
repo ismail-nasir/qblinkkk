@@ -44,6 +44,7 @@ export interface QueueSettings {
   gracePeriodMinutes?: number;
   themeColor?: string;
   enableSMS?: boolean;
+  smsTemplate?: string;
 }
 
 export type BusinessType = 'general' | 'restaurant' | 'clinic' | 'salon' | 'bank' | 'retail';

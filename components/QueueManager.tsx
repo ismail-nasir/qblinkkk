@@ -59,7 +59,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
       autoSkipMinutes: 0,
       gracePeriodMinutes: 2,
       themeColor: '#3b82f6',
-      enableSMS: false
+      enableSMS: false,
+      smsTemplate: "Hello {name}, it's your turn at {queueName}!"
   });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -918,8 +919,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
           </motion.div>
       )}
 
-      {/* Settings Tab (Unchanged) */}
-      {activeTab === 'settings' && (/* ... Same Settings Panel Content ... */
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Queue Configuration</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1037,11 +1038,40 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                                   {currentQueue.features.anonymousMode ? <ToggleRight size={24} className="text-primary-600" /> : <ToggleLeft size={24} className="text-gray-400" />}
                               </button>
                           </div>
-                          <div className="flex justify-between items-center">
-                              <label className="text-sm font-bold text-gray-700 flex items-center gap-1"><MessageSquare size={14} /> SMS Notifications</label>
-                              <button onClick={() => setSettings({...settings, enableSMS: !settings.enableSMS})}>
-                                  {settings.enableSMS ? <ToggleRight size={24} className="text-primary-600" /> : <ToggleLeft size={24} className="text-gray-400" />}
-                              </button>
+                          
+                          {/* SMS Toggle with Configuration */}
+                          <div className="border-t border-gray-200 pt-3 mt-1">
+                              <div className="flex justify-between items-center">
+                                  <label className="text-sm font-bold text-gray-700 flex items-center gap-1">
+                                      <MessageSquare size={14} /> SMS Notifications
+                                  </label>
+                                  <button onClick={() => setSettings({...settings, enableSMS: !settings.enableSMS})}>
+                                      {settings.enableSMS ? <ToggleRight size={24} className="text-primary-600" /> : <ToggleLeft size={24} className="text-gray-400" />}
+                                  </button>
+                              </div>
+                              <AnimatePresence>
+                                  {settings.enableSMS && (
+                                      <motion.div 
+                                          initial={{ opacity: 0, height: 0 }} 
+                                          animate={{ opacity: 1, height: 'auto' }} 
+                                          exit={{ opacity: 0, height: 0 }} 
+                                          className="mt-3 overflow-hidden"
+                                      >
+                                          <div className="p-3 bg-white rounded-xl border border-gray-100">
+                                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Message Template</label>
+                                              <textarea 
+                                                  value={settings.smsTemplate || "Hello {name}, it's your turn!"}
+                                                  onChange={(e) => setSettings({...settings, smsTemplate: e.target.value})}
+                                                  className="w-full text-sm p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-100 resize-y min-h-[60px]"
+                                                  placeholder="Hello {name}, it's your turn!"
+                                              />
+                                              <p className="text-[10px] text-gray-400 mt-1">
+                                                  Use <strong>{'{name}'}</strong>, <strong>{'{ticket}'}</strong>, <strong>{'{queue}'}</strong> as placeholders.
+                                              </p>
+                                          </div>
+                                      </motion.div>
+                                  )}
+                              </AnimatePresence>
                           </div>
                       </div>
 
@@ -1153,7 +1183,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({ user, queue, onBack }) => {
                       )}
 
                       <div className="text-xs text-gray-400 border-t border-gray-100 pt-4">
-                          Served at: {new Date(showFeedbackModal.servedTime || showFeedbackModal.joinTime).toLocaleString()}
+                          Served at: {new Date(showFeedbackModal.servedTime || showFeedbackModal.joinTime).toLocaleDateString()}
                       </div>
                   </motion.div>
               </div>
@@ -1204,31 +1234,10 @@ const DraggableVisitorListItem: React.FC<{
     );
 };
 
-const VisitorListItem: React.FC<{ 
-    visitor: Visitor; 
-    queueData: QueueData; 
-    onTogglePriority: () => void; 
-    onClick: () => void; 
-    isDraggable?: boolean; 
-    onDragStart?: (e: React.PointerEvent) => void; 
-    features: any;
-    isSelectionMode?: boolean;
-    isSelected?: boolean;
-    onSelect?: () => void;
-}> = ({ visitor, queueData, onTogglePriority, onClick, isDraggable, onDragStart, features, isSelectionMode, isSelected, onSelect }) => (
-    <div 
-        onClick={onClick} 
-        className={`p-4 flex items-center justify-between rounded-2xl mb-1 border transition-all cursor-pointer select-none ${isSelected ? 'bg-blue-50 border-blue-200' : visitor.isPriority ? 'bg-gradient-to-r from-amber-50 to-white border-amber-200' : 'bg-white border-transparent border-b-gray-50'}`}
-    >
+const VisitorListItem: React.FC<{ visitor: Visitor; queueData: QueueData; onTogglePriority: () => void; onClick: () => void; isDraggable?: boolean; onDragStart?: (e: React.PointerEvent) => void; features: any }> = ({ visitor, queueData, onTogglePriority, onClick, isDraggable, onDragStart, features }) => (
+    <div onClick={onClick} className={`p-4 flex items-center justify-between rounded-2xl mb-1 border transition-all cursor-pointer select-none ${visitor.isPriority ? 'bg-gradient-to-r from-amber-50 to-white border-amber-200' : 'bg-white border-transparent border-b-gray-50'}`}>
         <div className="flex items-center gap-4">
-             {isSelectionMode ? (
-                 <div onClick={(e) => { e.stopPropagation(); onSelect && onSelect(); }} className={`text-2xl ${isSelected ? 'text-blue-600' : 'text-gray-300'}`}>
-                     {isSelected ? <CheckSquare /> : <Square />}
-                 </div>
-             ) : (
-                 isDraggable && <div className="text-gray-300 hover:text-gray-500 cursor-grab p-1 active:cursor-grabbing" onPointerDown={onDragStart} onClick={(e) => e.stopPropagation()}><GripVertical size={20} /></div>
-             )}
-             
+             {isDraggable && <div className="text-gray-300 hover:text-gray-500 cursor-grab p-1 active:cursor-grabbing" onPointerDown={onDragStart} onClick={(e) => e.stopPropagation()}><GripVertical size={20} /></div>}
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-sm ${visitor.isPriority ? 'bg-amber-400 text-white' : 'bg-blue-600 text-white'}`}>
                 {String(visitor.ticketNumber).padStart(3, '0')}
             </div>
@@ -1240,7 +1249,7 @@ const VisitorListItem: React.FC<{
                 </div>
             </div>
         </div>
-        {!isSelectionMode && features.vip && (
+        {features.vip && (
             <button onClick={(e) => { e.stopPropagation(); onTogglePriority(); }} className={`p-2 rounded-full ${visitor.isPriority ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}`}><Star size={20} fill={visitor.isPriority ? "currentColor" : "none"} /></button>
         )}
      </div>
