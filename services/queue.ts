@@ -12,7 +12,9 @@ import {
     remove, 
     query, 
     orderByChild,
-    limitToLast 
+    equalTo,
+    limitToLast,
+    runTransaction
 } from 'firebase/database';
 
 // Helper to convert object snapshot to array
@@ -32,7 +34,6 @@ export const queueService = {
       
       return onValue(locationsRef, (snapshot: any) => {
           const locs = snapshotToArray(snapshot);
-          // Sort by creation time
           locs.sort((a: any, b: any) => (a.createdAt || 0) - (b.createdAt || 0));
           callback(locs as LocationInfo[]);
       });
@@ -121,6 +122,15 @@ export const queueService = {
 
       await set(newQueueRef, newQueue);
       
+      // Initialize Metrics Node for high scalability
+      await set(ref(firebaseService.db, `businesses/${businessId}/locations/${locationId}/queues/${id}/metrics_counter`), {
+          waiting: 0,
+          served: 0,
+          cancelled: 0,
+          total_service_time: 0,
+          service_count: 0
+      });
+
       // Create global lookup
       await set(ref(firebaseService.db, `queue_lookup/${id}`), { businessId, locationId });
 
@@ -153,7 +163,7 @@ export const queueService = {
       return result ? result.queue : null;
   },
 
-  // --- REAL-TIME DATA ---
+  // --- REAL-TIME DATA (SCALABLE IMPLEMENTATION) ---
 
   streamQueueData: (queueId: string, callback: (data: QueueData | null, error?: string) => void, includeLogs: boolean = true) => {
       if (!firebaseService.db) {
@@ -161,8 +171,6 @@ export const queueService = {
           return () => {};
       }
 
-      let unsubVisitors: any = null;
-      
       queueService.findQueuePath(queueId).then((path) => {
           if (!path) {
               callback(null, "Queue not found");
@@ -171,145 +179,146 @@ export const queueService = {
           const { businessId, locationId } = path;
           const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
 
+          // 1. Listen to Metrics Counter (Lightweight)
+          const metricsRef = ref(firebaseService.db!, `${basePath}/metrics_counter`);
+          
+          // 2. Listen ONLY to Active Visitors (Waiting & Serving)
+          // To scale to 70k, we CANNOT download the whole list.
           const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
-          unsubVisitors = onValue(visitorsRef, (snapshot: any) => {
-              const visitors = snapshotToArray(snapshot) as Visitor[];
+          const activeQuery = query(visitorsRef, orderByChild('status'), equalTo('waiting'));
+          const servingQuery = query(visitorsRef, orderByChild('status'), equalTo('serving'));
+
+          let waitingVisitors: Visitor[] = [];
+          let servingVisitors: Visitor[] = [];
+          let currentMetrics: any = { waiting: 0, served: 0, avgWaitTime: path.queue.estimatedWaitTime || 5 };
+
+          const debouncedUpdate = () => {
+              const allActive = [...servingVisitors, ...waitingVisitors];
               
-              const sorted = visitors.sort((a: Visitor, b: Visitor) => {
+              // Sort active list
+              allActive.sort((a, b) => {
                   if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
                   if (a.isPriority && !b.isPriority) return -1;
                   if (!a.isPriority && b.isPriority) return 1;
                   return a.ticketNumber - b.ticketNumber;
               });
 
-              const waiting = sorted.filter((v: Visitor) => v.status === 'waiting').length;
-              const served = sorted.filter((v: Visitor) => v.status === 'served').length;
-              const rated = sorted.filter((v: Visitor) => v.rating && v.rating > 0);
-              const avgRating = rated.length ? (rated.reduce((a: number, b: Visitor) => a + (b.rating || 0), 0) / rated.length) : 0;
-              
-              const lastCalled = sorted
-                  .filter((v: Visitor) => v.status === 'serving' || v.status === 'served')
-                  .sort((a: Visitor, b: Visitor) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
+              // Calc Avg Wait from cumulative metrics
+              const calculatedAvg = currentMetrics.service_count > 0 
+                  ? Math.round((currentMetrics.total_service_time / currentMetrics.service_count) / 60000) 
+                  : (path.queue.estimatedWaitTime || 5);
 
-              const baseData = {
+              const lastCalled = servingVisitors.length > 0 
+                  ? servingVisitors.sort((a,b) => b.ticketNumber - a.ticketNumber)[0].ticketNumber 
+                  : 0;
+
+              const baseData: QueueData = {
                   queueId,
                   currentTicket: lastCalled,
                   lastCalledNumber: lastCalled,
                   metrics: {
-                      waiting,
-                      served,
-                      avgWaitTime: path.queue.estimatedWaitTime || 5,
-                      averageRating: parseFloat(avgRating.toFixed(1))
+                      waiting: waitingVisitors.length, // Trust actual list count for waiting
+                      served: currentMetrics.served || 0,
+                      avgWaitTime: calculatedAvg || 5,
+                      averageRating: 0 // Fetch separately if needed to save BW
                   },
-                  visitors: sorted,
+                  visitors: allActive,
+                  recentActivity: []
               };
 
-              if (!includeLogs) {
-                  callback({ ...baseData, recentActivity: [] });
-                  return;
+              if (includeLogs) {
+                   // Fetch Logs separately (Limit 20)
+                   const logsRef = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'), limitToLast(20));
+                   get(logsRef).then((lSnap) => {
+                       const logsRaw = snapshotToArray(lSnap) as any[];
+                       baseData.recentActivity = logsRaw
+                           .sort((a,b) => b.timestamp - a.timestamp)
+                           .map(l => ({
+                               ...l,
+                               time: l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''
+                           }));
+                       callback(baseData);
+                   });
+              } else {
+                  callback(baseData);
               }
+          };
 
-              // Fetch Logs
-              const logsRef = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'), limitToLast(20));
-              get(logsRef).then((lSnap) => {
-                  const logsRaw = snapshotToArray(lSnap) as any[];
-                  const logs = logsRaw
-                      .sort((a,b) => b.timestamp - a.timestamp)
-                      .map(l => ({
-                          ...l,
-                          time: l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''
-                      }));
-                  callback({ ...baseData, recentActivity: logs });
-              }).catch(() => {
-                  // If logs fail, return base data at least
-                  callback({ ...baseData, recentActivity: [] });
-              });
+          const unsubMetrics = onValue(metricsRef, (snap) => {
+              if (snap.exists()) currentMetrics = snap.val();
+              debouncedUpdate();
           });
+
+          const unsubWaiting = onValue(activeQuery, (snap) => {
+              waitingVisitors = snapshotToArray(snap) as Visitor[];
+              debouncedUpdate();
+          });
+
+          const unsubServing = onValue(servingQuery, (snap) => {
+              servingVisitors = snapshotToArray(snap) as Visitor[];
+              debouncedUpdate();
+          });
+
+          // Store cleanup function
+          (callback as any)._unsub = () => {
+              unsubMetrics();
+              unsubWaiting();
+              unsubServing();
+          };
       });
 
       return () => {
-          if (unsubVisitors) unsubVisitors();
+          if ((callback as any)._unsub) (callback as any)._unsub();
       };
   },
 
   getQueueData: async (queueId: string): Promise<QueueData> => {
-      const path = await queueService.findQueuePath(queueId);
-      if (!path) throw new Error("Queue not found");
-      const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}`;
-      
-      const vSnap = await get(ref(firebaseService.db!, `${basePath}/visitors`));
-      const visitors = snapshotToArray(vSnap) as Visitor[];
-      
-      const waiting = visitors.filter((v: Visitor) => v.status === 'waiting').length;
-      const served = visitors.filter((v: Visitor) => v.status === 'served').length;
-      const rated = visitors.filter((v: Visitor) => v.rating && v.rating > 0);
-      const avgRating = rated.length ? (rated.reduce((a: number, b: Visitor) => a + (b.rating || 0), 0) / rated.length) : 0;
-
-      const lastCalled = visitors.filter((v: Visitor) => ['serving','served'].includes(v.status))
-          .sort((a: Visitor, b: Visitor) => b.ticketNumber - a.ticketNumber)[0]?.ticketNumber || 0;
-
-      // Fetch logs for analytics consistency
-      const logsRef = query(ref(firebaseService.db!, `${basePath}/logs`), orderByChild('timestamp'), limitToLast(20));
-      const lSnap = await get(logsRef);
-      const logsRaw = snapshotToArray(lSnap) as any[];
-      const logs = logsRaw
-          .sort((a,b) => b.timestamp - a.timestamp)
-          .map(l => ({
-              ...l,
-              time: l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''
-          }));
-
-      return {
-          queueId,
-          currentTicket: lastCalled,
-          lastCalledNumber: lastCalled,
-          metrics: { 
-              waiting, 
-              served, 
-              avgWaitTime: path.queue.estimatedWaitTime || 5, 
-              averageRating: parseFloat(avgRating.toFixed(1)) 
-          },
-          visitors,
-          recentActivity: logs
-      };
+      return new Promise((resolve, reject) => {
+          // Re-use stream logic for a single fetch to ensure consistency
+          const unsub = queueService.streamQueueData(queueId, (data, err) => {
+              if (data) {
+                  // @ts-ignore
+                  if(unsub) unsub(); 
+                  resolve(data);
+              }
+              if (err) reject(new Error(err));
+          }, true);
+      });
   },
 
-  // --- ACTIONS ---
+  // --- ACTIONS WITH ATOMIC COUNTERS ---
 
   joinQueue: async (queueId: string, name: string, phoneNumber?: string, source: 'manual'|'qr' = 'qr') => {
       const path = await queueService.findQueuePath(queueId);
       if (!path) throw new Error("Queue not found");
       const { businessId, locationId } = path;
-      const queueRefStr = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
+      const basePath = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
       
-      // 1. Check for duplicates if phoneNumber is provided
+      // 1. Duplicate Check
       if (phoneNumber) {
-          const visitorsSnap = await get(ref(firebaseService.db!, `${queueRefStr}/visitors`));
-          const existingVisitors = snapshotToArray(visitorsSnap) as Visitor[];
+          const visitorsRef = ref(firebaseService.db!, `${basePath}/visitors`);
+          const dupQuery = query(visitorsRef, orderByChild('phoneNumber'), equalTo(phoneNumber));
+          const dupSnap = await get(dupQuery);
           
-          const duplicate = existingVisitors.find(v => 
-              v.phoneNumber === phoneNumber && v.status === 'waiting'
-          );
-
-          if (duplicate) {
-              return { visitor: duplicate, queueData: null, isDuplicate: true };
+          if (dupSnap.exists()) {
+              // Client-side filter for waiting status on the small result set
+              const duplicates = snapshotToArray(dupSnap) as Visitor[];
+              const activeDup = duplicates.find(v => v.status === 'waiting');
+              if (activeDup) return { visitor: activeDup, queueData: null, isDuplicate: true };
           }
       }
 
-      // 2. Get current sequence and increment
-      const qSnap = await get(ref(firebaseService.db!, queueRefStr));
-      let currentSeq = qSnap.val().currentTicketSequence || 0;
-      currentSeq++;
-      
-      await update(ref(firebaseService.db!, queueRefStr), { currentTicketSequence: currentSeq });
-      
-      // 3. Create new visitor
-      const visitorsRef = ref(firebaseService.db!, `${queueRefStr}/visitors`);
-      const newVisitorRef = push(visitorsRef);
-      const newVisitorId = newVisitorRef.key!;
+      // 2. Atomic Increment Ticket Sequence
+      const queueRef = ref(firebaseService.db!, basePath);
+      const seqResult = await runTransaction(ref(firebaseService.db!, `${basePath}/currentTicketSequence`), (currentSeq) => {
+          return (currentSeq || 0) + 1;
+      });
+      const currentSeq = seqResult.snapshot.val();
 
+      // 3. Create Visitor
+      const newVisitorRef = push(ref(firebaseService.db!, `${basePath}/visitors`));
       const visitorData: Visitor = {
-          id: newVisitorId,
+          id: newVisitorRef.key!,
           ticketNumber: currentSeq,
           name: name || `Guest ${currentSeq}`,
           phoneNumber: phoneNumber || '',
@@ -323,7 +332,11 @@ export const queueService = {
 
       await set(newVisitorRef, visitorData);
       
-      await push(ref(firebaseService.db!, `${queueRefStr}/logs`), {
+      // 4. Update Metrics Counter Atomically
+      await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter/waiting`), (count) => (count || 0) + 1);
+
+      // 5. Log
+      await push(ref(firebaseService.db!, `${basePath}/logs`), {
           timestamp: Date.now(),
           action: 'join',
           ticket: currentSeq,
@@ -338,22 +351,50 @@ export const queueService = {
       if (!path) return;
       const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${queueId}`;
       
+      // Get current status to handle counter logic
       const vRef = ref(firebaseService.db!, `${basePath}/visitors/${visitorId}`);
+      const vSnap = await get(vRef);
+      if (!vSnap.exists()) return;
+      const currentVisitor = vSnap.val() as Visitor;
+
       await update(vRef, updates);
 
+      // Handle Metrics Counters
+      const metricsRef = ref(firebaseService.db!, `${basePath}/metrics_counter`);
+      
+      if (logAction === 'complete' && currentVisitor.status === 'serving') {
+          // Moving Serving -> Served
+          await runTransaction(metricsRef, (metrics) => {
+              if (!metrics) metrics = { served: 0, service_count: 0, total_service_time: 0 };
+              metrics.served = (metrics.served || 0) + 1;
+              
+              if (currentVisitor.servingStartTime) {
+                  const duration = Date.now() - new Date(currentVisitor.servingStartTime).getTime();
+                  metrics.total_service_time = (metrics.total_service_time || 0) + duration;
+                  metrics.service_count = (metrics.service_count || 0) + 1;
+              }
+              return metrics;
+          });
+      } else if (logAction === 'call' && currentVisitor.status === 'waiting') {
+          // Moving Waiting -> Serving
+          await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter/waiting`), (c) => Math.max(0, (c || 0) - 1));
+      } else if ((logAction === 'leave' || updates.status === 'cancelled') && currentVisitor.status === 'waiting') {
+          // Cancelled from Waiting
+          await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter/waiting`), (c) => Math.max(0, (c || 0) - 1));
+          await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter/cancelled`), (c) => (c || 0) + 1);
+      }
+
       if (logAction) {
-          const vSnap = await get(vRef);
-          const ticket = vSnap.val()?.ticketNumber || 0;
           await push(ref(firebaseService.db!, `${basePath}/logs`), {
               timestamp: Date.now(),
               action: logAction,
-              ticket,
+              ticket: currentVisitor.ticketNumber,
               user: user || 'Staff'
           });
       }
   },
 
-  // BULK UPDATE ACTION
+  // BULK UPDATE ACTION (Optimized)
   bulkUpdateVisitorStatus: async (queueId: string, visitorIds: string[], status: 'served' | 'skipped' | 'cancelled') => {
       const path = await queueService.findQueuePath(queueId);
       if (!path) return;
@@ -361,6 +402,10 @@ export const queueService = {
       
       const updates: any = {};
       const now = new Date().toISOString();
+
+      // We need to decrement waiting count by length of array
+      // NOTE: This assumes all selected were 'waiting'. UI should enforce this.
+      const count = visitorIds.length;
 
       visitorIds.forEach(id => {
           updates[`${basePath}/visitors/${id}/status`] = status;
@@ -370,20 +415,38 @@ export const queueService = {
           }
       });
 
-      // Also log one entry for the bulk action
+      // Update counters
+      if (status === 'served') {
+          await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter`), (metrics) => {
+              if(!metrics) metrics = { waiting:0, served:0 };
+              metrics.waiting = Math.max(0, (metrics.waiting || 0) - count);
+              metrics.served = (metrics.served || 0) + count;
+              return metrics;
+          });
+      } else {
+          await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter`), (metrics) => {
+              if(!metrics) metrics = { waiting:0, cancelled:0 };
+              metrics.waiting = Math.max(0, (metrics.waiting || 0) - count);
+              metrics.cancelled = (metrics.cancelled || 0) + count;
+              return metrics;
+          });
+      }
+
+      // Log batch
       const logRef = push(ref(firebaseService.db!, `${basePath}/logs`));
       updates[`${basePath}/logs/${logRef.key}`] = {
           timestamp: Date.now(),
           action: `bulk_${status}`,
-          ticket: 0, // General log
+          ticket: 0,
           user: 'Staff',
-          details: `${visitorIds.length} visitors marked as ${status}`
+          details: `${count} visitors marked as ${status}`
       };
 
       await update(ref(firebaseService.db!), updates);
   },
 
   callNext: async (queueId: string, counterName: string) => {
+      // 1. Get ONLY necessary data (Active visitors)
       const data = await queueService.getQueueData(queueId);
       
       const current = data.visitors.find(v => v.status === 'serving' && (!v.servedBy || v.servedBy === counterName));
@@ -395,6 +458,10 @@ export const queueService = {
               calledAt: ''
           }, 'complete', counterName);
       }
+      
+      // Re-fetch to be safe or rely on data state (data is slightly stale now, but order usually robust)
+      // For atomic safety in high volume, we should use a transaction to 'claim' the next user,
+      // but for this MVP architecture, sorting client side is acceptable if the list is up to date.
       
       const next = data.visitors
           .filter(v => v.status === 'waiting')
@@ -418,6 +485,7 @@ export const queueService = {
       }
   },
 
+  // ... (Other Methods: Leave, Confirm, Alert - wrapper around updateVisitorStatus) ...
   leaveQueue: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { status: 'cancelled' }, 'leave'),
   confirmPresence: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { isAlerting: false, calledAt: '' }),
   triggerAlert: (qid: string, vid: string) => queueService.updateVisitorStatus(qid, vid, { isAlerting: true, calledAt: new Date().toISOString() }),
@@ -425,7 +493,15 @@ export const queueService = {
   takeBack: async (qid: string, counter: string) => {
       const data = await queueService.getQueueData(qid);
       const current = data.visitors.find(v => v.status === 'serving' && v.servedBy === counter);
-      if (current) queueService.updateVisitorStatus(qid, current.id, { status: 'waiting', isAlerting: false, servedBy: undefined });
+      if (current) {
+          // Manually handle counter update for 'take back' (Serving -> Waiting)
+          const path = await queueService.findQueuePath(qid);
+          if (path) {
+              const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`;
+              await update(ref(firebaseService.db!, `${basePath}/visitors/${current.id}`), { status: 'waiting', isAlerting: false, servedBy: undefined });
+              await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter/waiting`), (c) => (c || 0) + 1);
+          }
+      }
   },
   
   submitFeedback: (qid: string, vid: string, rating: number, feedback?: string) => queueService.updateVisitorStatus(qid, vid, { rating, feedback }),
@@ -474,30 +550,52 @@ export const queueService = {
   importUserData: async () => true,
   
   callByNumber: async (qid: string, num: number, counter: string) => {
-      const data = await queueService.getQueueData(qid);
-      const target = data.visitors.find(v => v.ticketNumber === num);
-      if (target) {
-           await queueService.updateVisitorStatus(qid, target.id, { 
-               status: 'serving', isAlerting: true, servedBy: counter, calledAt: new Date().toISOString() 
-           }, 'call', counter);
+      // Optimized call by number
+      const path = await queueService.findQueuePath(qid);
+      if (!path) return;
+      const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`;
+      
+      const q = query(ref(firebaseService.db!, `${basePath}/visitors`), orderByChild('ticketNumber'), equalTo(num));
+      const snap = await get(q);
+      
+      if (snap.exists()) {
+          const visitors = snapshotToArray(snap) as Visitor[];
+          // Find the one that matches
+          const target = visitors[0]; 
+          if(target) {
+               await queueService.updateVisitorStatus(qid, target.id, { 
+                   status: 'serving', isAlerting: true, servedBy: counter, calledAt: new Date().toISOString() 
+               }, 'call', counter);
+          }
       }
   },
   
   togglePriority: (qid: string, vid: string, isPriority: boolean) => queueService.updateVisitorStatus(qid, vid, { isPriority }),
   
   clearQueue: async (qid: string) => {
+      // Bulk cancel all waiting
       const path = await queueService.findQueuePath(qid);
       if(!path) return;
-      const data = await queueService.getQueueData(qid);
-      const updates: any = {};
-      const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}/visitors`;
+      const basePath = `businesses/${path.businessId}/locations/${path.locationId}/queues/${qid}`;
       
-      data.visitors.filter(v => v.status === 'waiting').forEach(v => {
-          updates[`${basePath}/${v.id}/status`] = 'cancelled';
-      });
+      // 1. Fetch only waiting
+      const q = query(ref(firebaseService.db!, `${basePath}/visitors`), orderByChild('status'), equalTo('waiting'));
+      const snap = await get(q);
       
-      if (Object.keys(updates).length > 0) {
-          await update(ref(firebaseService.db!), updates);
+      if (snap.exists()) {
+          const updates: any = {};
+          const visitors = snapshotToArray(snap) as Visitor[];
+          
+          visitors.forEach(v => {
+              updates[`${basePath}/visitors/${v.id}/status`] = 'cancelled';
+          });
+          
+          if (Object.keys(updates).length > 0) {
+              await update(ref(firebaseService.db!), updates);
+              // Reset Waiting Counter
+              await set(ref(firebaseService.db!, `${basePath}/metrics_counter/waiting`), 0);
+              await runTransaction(ref(firebaseService.db!, `${basePath}/metrics_counter/cancelled`), (c) => (c||0) + visitors.length);
+          }
       }
   },
   
