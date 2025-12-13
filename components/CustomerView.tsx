@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QueueData, QueueInfo, Visitor } from '../types';
 import { queueService } from '../services/queue';
 import { socketService } from '../services/socket';
-import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle, AlertCircle, Star } from 'lucide-react';
+import { LogOut, Zap, Users, Bell, CheckCircle, Megaphone, PauseCircle, RefreshCw, Clock, MapPin, Phone, RotateCcw, AlertTriangle, AlertCircle, Star, Loader2 } from 'lucide-react';
 import { motion as m, AnimatePresence } from 'framer-motion';
 
 const motion = m as any;
@@ -19,11 +20,13 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   // Loading & Error States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  
   // Join Form State
   const [joinName, setJoinName] = useState('');
   const [joinPhone, setJoinPhone] = useState('');
   const [joinError, setJoinError] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
   
   const [queueInfo, setQueueInfo] = useState<QueueInfo | null>(null);
   const [alertShown, setAlertShown] = useState(false);
@@ -50,71 +53,82 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   const [rating, setRating] = useState(0);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
-  // --- 1. INITIALIZATION & STREAMING ---
-  useEffect(() => {
-    let unsubscribe: () => void;
-
-    const initQueue = async () => {
+  const fetchData = useCallback(async () => {
         try {
-            setLoading(true);
             setError(null);
-
-            // Step A: Check if queue exists
-            const info = await queueService.getQueueInfo(queueId);
-            if (!info) {
-                throw new Error("Queue not found. Please check the link or QR code.");
+            
+            // Try fetching normally first
+            let data, info;
+            try {
+                data = await queueService.getQueueData(queueId);
+                info = await queueService.getQueueInfo(queueId);
+            } catch (e: any) {
+                // FALLBACK: HYDRATION LOGIC FOR DEMO
+                const params = new URLSearchParams(window.location.search);
+                const qName = params.get('qName');
+                const qLoc = params.get('qLoc') || undefined;
+                
+                const effectiveName = qName || "Demo Queue";
+                
+                console.log("Hydrating local demo queue:", effectiveName);
+                await queueService.hydrateQueue(queueId, effectiveName, qLoc);
+                // Retry fetch immediately
+                data = await queueService.getQueueData(queueId);
+                info = await queueService.getQueueInfo(queueId);
+                setIsDemoMode(true);
             }
+            
+            if (!info) {
+                throw new Error("Queue not found");
+            }
+
             setQueueInfo(info);
-
-            // Step B: Start Real-time Stream
-            unsubscribe = queueService.streamQueueData(queueId, (data, err) => {
-                if (err) {
-                    console.error("Stream Error:", err);
-                    // Only set main error if we have NO data yet
-                    if (!queueData) setError(err); 
-                } else if (data) {
-                    setQueueData(data);
-                    // Clear error if we successfully got data
-                    setError(null);
-                }
-                // Always stop loading once we get a response (error or data)
-                setLoading(false);
-            });
-
+            setQueueData(data);
         } catch (e: any) {
-            console.error("Init Error:", e);
-            setError(e.message || "Unable to load queue.");
+            console.error("Fetch Error:", e);
+            setError(e.message || "Unable to load queue");
+        } finally {
             setLoading(false);
         }
-    };
-
-    initQueue();
-
-    return () => {
-        if (unsubscribe) unsubscribe();
-        socketService.off('alert:ack');
-        stopAlertLoop();
-        stopTitleBlink();
-    };
   }, [queueId]);
 
-  // --- 2. LOCAL USER LOGIC ---
   useEffect(() => {
-    if (loading) return; // Wait for data
+    fetchData();
+    socketService.joinQueue(queueId);
 
+    socketService.on('queue:update', () => {
+        fetchData();
+    });
+
+    socketService.on('alert:ack', (data: any) => {
+        if (data.visitorId === myVisitorId) {
+            stopAlertLoop();
+            setIsAlerting(false);
+        }
+    });
+
+    return () => {
+        socketService.off('queue:update');
+        socketService.off('alert:ack');
+    };
+  }, [fetchData, queueId, myVisitorId]);
+
+  // Handle Logic updates
+  useEffect(() => {
     if (myVisitorId && queueData) {
         const visitor = queueData.visitors.find(v => v.id === myVisitorId);
         
+        // If we found the visitor in the update, keep syncing it
         if (visitor) {
             setMyVisitor(visitor);
             
-            // Restore feedback state if already rated
+            // Restore feedback state
             if (visitor.rating && visitor.rating > 0) {
                 setFeedbackSubmitted(true);
                 setRating(visitor.rating);
             }
-
-            // Alert Logic
+            
+            // Check for Alert Trigger
             if (visitor.isAlerting && !isAlerting) {
                  setIsAlerting(true);
                  startAlertLoop();
@@ -125,33 +139,36 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                  stopTitleBlink();
             }
             
-            // Proximity Alert
             const peopleAhead = queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < visitor.ticketNumber).length;
+
+            // 1. Proximity Alert
             if (peopleAhead <= 2 && peopleAhead > 0 && !alertShown && visitor.status === 'waiting') {
                 setShowNotificationPopup(true);
                 setAlertShown(true);
-                sendNotification("Get Ready!", `Only ${peopleAhead} people ahead of you.`);
+                sendNotification("Get Ready!", `Only ${peopleAhead} people ahead of you in ${queueInfo?.name || 'the queue'}.`);
             }
             
-            // Title Updates
+            // 2. Title Updates
             if (!visitor.isAlerting) {
                 if (visitor.status === 'waiting') {
                     document.title = `(${peopleAhead + 1}) Position - Qblink`;
-                } else {
-                    document.title = "Qblink";
+                } else if (visitor.status === 'serving') {
+                    document.title = `🔔 IT'S YOUR TURN!`;
+                    sendNotification("It's Your Turn!", "Please proceed to the counter immediately.");
                 }
             }
         } else {
-             // Visitor ID in local storage is no longer in DB (Removed by Admin)
-             // Force logout
-             setMyVisitorId(null);
-             setMyVisitor(null);
-             localStorage.removeItem(`qblink_visit_${queueId}`);
+             // Visitor ID exists in local storage but not in Queue Data
+             // Only auto-logout if we aren't currently waiting for a fresh join
+             if (loading === false && !isJoining) {
+                 // Double check if we might have just joined and stream is lagging
+                 // This is handled by optimistic update in handleJoin
+             }
         }
     } else {
         document.title = "Join Queue - Qblink";
     }
-  }, [queueData, myVisitorId, alertShown, loading, isAlerting]);
+  }, [queueData, myVisitorId, alertShown, queueInfo?.name, loading, isJoining]);
 
   // Countdown Timer Logic
   useEffect(() => {
@@ -171,8 +188,10 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
   }, [isAlerting, myVisitor?.calledAt, queueInfo?.settings?.gracePeriodMinutes]);
 
   const requestNotificationPermission = async () => {
-     if ('Notification' in window && Notification.permission === 'default') {
-         await Notification.requestPermission();
+     if ('Notification' in window) {
+         if (Notification.permission === 'default') {
+             await Notification.requestPermission();
+         }
      }
   };
 
@@ -183,10 +202,16 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                   const notification = new Notification(title, { 
                       body, 
                       icon: '/favicon.ico',
-                      tag: 'qblink-update'
+                      tag: 'qblink-update', 
+                      requireInteraction: true 
                   });
-                  notification.onclick = () => { window.focus(); notification.close(); };
-              } catch (e) {}
+                  notification.onclick = () => {
+                      window.focus();
+                      notification.close();
+                  };
+              } catch (e) {
+                  console.warn("Notification error:", e);
+              }
           }
       }
   };
@@ -231,6 +256,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       if (pullY > 70) {
           setIsRefreshing(true);
           setPullY(70); 
+          await fetchData();
           setTimeout(() => {
               setIsRefreshing(false);
               setPullY(0);
@@ -256,10 +282,13 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   const playBeep = () => {
     if (queueInfo?.settings?.soundEnabled === false) return;
+
     try {
         const volume = queueInfo?.settings?.soundVolume || 1.0;
+        const soundType = queueInfo?.settings?.soundType || 'beep';
+
         if (!audioContextRef.current) {
-             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 44100});
+             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
         const ctx = audioContextRef.current;
         if (ctx.state === 'suspended') ctx.resume();
@@ -269,30 +298,76 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
         gainNode.gain.setValueAtTime(volume, ctx.currentTime);
 
         const osc = ctx.createOscillator();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(800, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        osc.type = soundType === 'chime' || soundType === 'ding' ? 'sine' : 'square';
+        
+        const freq = soundType === 'ding' ? 1200 : 800;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        
+        if (soundType === 'beep') {
+             osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+        }
+
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + (soundType === 'chime' ? 1.5 : 0.3));
+        
         osc.connect(gainNode);
         osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.3);
-    } catch (e) {}
+        osc.stop(ctx.currentTime + (soundType === 'chime' ? 1.5 : 0.3));
+    } catch (e) {
+        console.warn("Audio playback failed", e);
+    }
   };
 
   const handleJoin = async (e: React.FormEvent) => {
       e.preventDefault();
+      if (isJoining) return; // Prevent double submission
+
       setJoinError('');
+      setIsJoining(true);
+      
       await requestNotificationPermission();
       
+      if (joinPhone && joinPhone.length < 7) {
+          setJoinError("Please enter a valid phone number.");
+          setIsJoining(false);
+          return;
+      }
+      
       try {
-        const { visitor } = await queueService.joinQueue(queueId, joinName, joinPhone);
+        // Init Audio Context on user interaction to allow auto-play later
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+      } catch (err) {}
+
+      try {
+        const result: any = await queueService.joinQueue(queueId, joinName, joinPhone);
+        const { visitor, queueData: updatedQueueData } = result;
+        
         if (!visitor) throw new Error("Server returned no ticket.");
         
-        setMyVisitorId(visitor.id);
+        // Optimistic Update
         setMyVisitor(visitor);
+        setMyVisitorId(visitor.id);
         localStorage.setItem(`qblink_visit_${queueId}`, visitor.id);
+
+        if (updatedQueueData) {
+            setQueueData(updatedQueueData);
+        } else if (queueData && !result.isDuplicate) {
+            // Manually append new visitor to current state if stream is slow
+            setQueueData({
+                ...queueData,
+                visitors: [...queueData.visitors, visitor],
+                metrics: {
+                    ...queueData.metrics,
+                    waiting: queueData.metrics.waiting + 1
+                }
+            });
+        }
+        
       } catch (e: any) {
         setJoinError(e.message || "Failed to join. Please try again.");
+      } finally {
+        setIsJoining(false);
       }
   };
 
@@ -347,7 +422,7 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
 
   // --- RENDER STATES ---
 
-  // 1. Error State (Blocking)
+  // 1. Error State
   if (error) {
       return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -356,7 +431,9 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                       <AlertCircle size={32} />
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-2">Queue Not Found</h2>
-                  <p className="text-gray-500 text-sm mb-6">{error}</p>
+                  <p className="text-gray-500 text-sm mb-6">
+                      We couldn't find this queue. It may have been deleted or the link is invalid.
+                  </p>
                   <a href="/" className="block w-full py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors">
                       Go Home
                   </a>
@@ -365,8 +442,8 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
       );
   }
 
-  // 2. Loading State (Only if no data yet)
-  if (loading || !queueInfo) {
+  // 2. Loading State
+  if (loading || !queueData || !queueInfo) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
               <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mb-4" style={{borderTopColor: themeColor}}></div>
@@ -384,10 +461,15 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white w-full max-w-md rounded-[40px] shadow-xl shadow-blue-900/5 p-8 relative overflow-hidden"
               >
-                  {/* ... Header & Join Form ... */}
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-50 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+
                   <div className="text-center mb-8 relative z-10">
                       <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-primary-600 shadow-inner overflow-hidden">
-                          {queueInfo.logo ? <img src={queueInfo.logo} className="w-full h-full object-cover" /> : <Users size={40} style={{color: themeColor}} />}
+                          {queueInfo.logo ? (
+                              <img src={queueInfo.logo} alt="Logo" className="w-full h-full object-cover rounded-3xl" />
+                          ) : (
+                              <Users size={40} style={{color: themeColor}} />
+                          )}
                       </div>
                       <h1 className="text-3xl font-black text-gray-900 tracking-tight">{queueInfo.name}</h1>
                       <p className="text-gray-500 mt-2 font-medium">Join the line effortlessly.</p>
@@ -397,119 +479,339 @@ const CustomerView: React.FC<CustomerViewProps> = ({ queueId }) => {
                        <div className="bg-red-50 border border-red-100 rounded-3xl p-8 text-center relative z-10">
                            <PauseCircle size={48} className="text-red-500 mx-auto mb-4" />
                            <h3 className="text-xl font-bold text-red-700 mb-2">Queue Paused</h3>
-                           <p className="text-sm text-red-600 leading-relaxed">The queue is currently taking a break.</p>
+                           <p className="text-sm text-red-600 leading-relaxed">The queue is currently taking a break. Please check back shortly.</p>
                        </div>
                   ) : (
                       <form onSubmit={handleJoin} className="relative z-10 space-y-4">
                           <div className="space-y-1">
                               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Name</label>
-                              <input required type="text" placeholder="Enter your name" value={joinName} onChange={(e) => setJoinName(e.target.value)} className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400 appearance-none" style={{ fontSize: '16px' }} />
+                              <input 
+                                required
+                                type="text" 
+                                placeholder="Enter your name" 
+                                value={joinName}
+                                onChange={(e) => setJoinName(e.target.value)}
+                                className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400 appearance-none"
+                                style={{ fontSize: '16px' }} // Prevent iOS zoom
+                                disabled={isJoining}
+                              />
                           </div>
                           <div className="space-y-1">
                               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Phone Number</label>
                               <div className="relative">
                                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                                  <input type="tel" inputMode="numeric" pattern="[0-9]*" placeholder="Required for updates" value={joinPhone} onChange={(e) => setJoinPhone(e.target.value)} className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400 appearance-none" style={{ fontSize: '16px' }} required />
+                                  <input 
+                                    type="tel"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*" 
+                                    placeholder="Required for updates" 
+                                    value={joinPhone}
+                                    onChange={(e) => setJoinPhone(e.target.value)}
+                                    className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:outline-none focus:bg-white focus:border-gray-300 transition-all text-lg font-bold text-gray-900 placeholder:font-medium placeholder:text-gray-400 appearance-none"
+                                    style={{ fontSize: '16px' }}
+                                    required
+                                    disabled={isJoining}
+                                  />
                               </div>
+                              <p className="text-[10px] text-gray-400 font-medium ml-1">Used to prevent duplicate entries.</p>
                           </div>
-                          {joinError && <div className="p-3 bg-red-50 text-red-600 text-sm font-bold rounded-xl text-center flex items-center justify-center gap-2"><AlertCircle size={16} /> {joinError}</div>}
-                          <motion.button whileTap={{ scale: 0.98 }} type="submit" style={{ backgroundColor: themeColor }} className="w-full py-5 text-white rounded-2xl font-bold text-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-2 hover:opacity-90 active:scale-95">Get Ticket <Zap size={20} fill="currentColor" /></motion.button>
+                          
+                          {joinError && (
+                              <div className="p-3 bg-red-50 text-red-600 text-sm font-bold rounded-xl text-center flex items-center justify-center gap-2">
+                                  <AlertCircle size={16} /> {joinError}
+                              </div>
+                          )}
+
+                          <motion.button 
+                            whileTap={isJoining ? {} : { scale: 0.98 }}
+                            type="submit"
+                            disabled={isJoining}
+                            style={{ backgroundColor: isJoining ? '#ccc' : themeColor }}
+                            className="w-full py-5 text-white rounded-2xl font-bold text-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-2 hover:opacity-90 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+                          >
+                              {isJoining ? <Loader2 className="animate-spin" /> : <>Get Ticket <Zap size={20} fill="currentColor" /></>}
+                          </motion.button>
                       </form>
                   )}
-                  <div className="mt-8 flex justify-center items-center gap-2 text-gray-400 opacity-60"><p className="text-[10px] font-bold uppercase tracking-widest">Powered by Qblink</p></div>
+                  <div className="mt-8 flex justify-center items-center gap-2 text-gray-400 opacity-60">
+                      <p className="text-[10px] font-bold uppercase tracking-widest">Powered by Qblink</p>
+                  </div>
               </motion.div>
           </div>
       );
   }
 
-  // 4. Served / Cancelled View
+  // 4. Served / Cancelled View (Rejoin Logic)
   if (myVisitor.status === 'served' || myVisitor.status === 'cancelled') {
       return (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white w-full max-w-md rounded-[40px] shadow-xl p-8 text-center">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white w-full max-w-md rounded-[40px] shadow-xl p-8 text-center"
+              >
                   <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 ${myVisitor.status === 'served' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
                       {myVisitor.status === 'served' ? <CheckCircle size={48} /> : <LogOut size={48} />}
                   </div>
-                  <h2 className="text-2xl font-black text-gray-900 mb-2">{myVisitor.status === 'served' ? 'You have been served!' : 'You left the queue'}</h2>
-                  <p className="text-gray-500 mb-8 font-medium">{myVisitor.status === 'served' ? 'Thanks for visiting. How was your experience?' : 'We hope to see you again soon.'}</p>
+                  <h2 className="text-2xl font-black text-gray-900 mb-2">
+                      {myVisitor.status === 'served' ? 'You have been served!' : 'You left the queue'}
+                  </h2>
+                  <p className="text-gray-500 mb-8 font-medium">
+                      {myVisitor.status === 'served' ? 'Thanks for visiting. How was your experience?' : 'We hope to see you again soon.'}
+                  </p>
                   
                   {myVisitor.status === 'served' && (
                       <div className="mb-8">
                           <div className="flex justify-center gap-2 mb-4">
                               {[1, 2, 3, 4, 5].map((star) => (
-                                  <motion.button key={star} whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }} onClick={() => !feedbackSubmitted && submitFeedback(star)} className={`p-2 transition-colors ${star <= rating ? 'text-yellow-400' : 'text-gray-200'}`} disabled={feedbackSubmitted}><Star size={32} fill="currentColor" /></motion.button>
+                                  <motion.button
+                                    key={star}
+                                    whileHover={{ scale: 1.2 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => !feedbackSubmitted && submitFeedback(star)}
+                                    className={`p-2 transition-colors ${star <= rating ? 'text-yellow-400' : 'text-gray-200'}`}
+                                    disabled={feedbackSubmitted}
+                                  >
+                                      <Star size={32} fill="currentColor" />
+                                  </motion.button>
                               ))}
                           </div>
-                          {feedbackSubmitted && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-600 font-bold text-sm">Thank you for your feedback!</motion.div>}
+                          {feedbackSubmitted && (
+                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-600 font-bold text-sm">
+                                  Thank you for your feedback!
+                              </motion.div>
+                          )}
                       </div>
                   )}
-                  <button onClick={handleRejoin} className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-transform"><RotateCcw size={20} /> Join Again</button>
+                  
+                  <button 
+                      onClick={handleRejoin}
+                      className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-transform"
+                  >
+                      <RotateCcw size={20} /> Join Again
+                  </button>
               </motion.div>
           </div>
       );
   }
 
   // 5. Active Queue View
-  const peopleAhead = queueData ? queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < myVisitor.ticketNumber).length : 0;
-  const waitTime = Math.max(1, peopleAhead * (queueData?.metrics.avgWaitTime || 5));
+  const peopleAhead = queueData.visitors.filter(v => v.status === 'waiting' && v.ticketNumber < myVisitor.ticketNumber).length;
+  const waitTime = Math.max(1, peopleAhead * queueData.metrics.avgWaitTime);
   const isOnTime = myVisitor.status === 'serving' || (peopleAhead === 0 && myVisitor.status === 'waiting');
 
   return (
-    <div ref={containerRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} className="min-h-screen bg-[#F8FAFC] font-sans text-gray-900 flex flex-col relative overflow-hidden selection:bg-primary-100">
-        <motion.div style={{ height: pullY }} className="w-full flex items-end justify-center overflow-hidden bg-gray-100">
-            <div className="mb-4 flex items-center gap-2 text-gray-500 text-sm font-bold"><RefreshCw size={18} className={`${isRefreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${pullY * 2}deg)` }} />{isRefreshing ? 'Updating...' : 'Pull to Refresh'}</div>
+    <div 
+        ref={containerRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className="min-h-screen bg-[#F8FAFC] font-sans text-gray-900 flex flex-col relative overflow-hidden selection:bg-primary-100"
+    >
+        {/* Pull to Refresh Indicator */}
+        <motion.div 
+            style={{ height: pullY }}
+            className="w-full flex items-end justify-center overflow-hidden bg-gray-100"
+        >
+            <div className="mb-4 flex items-center gap-2 text-gray-500 text-sm font-bold">
+                <RefreshCw size={18} className={`${isRefreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${pullY * 2}deg)` }} />
+                {isRefreshing ? 'Updating...' : 'Pull to Refresh'}
+            </div>
         </motion.div>
 
+        {/* Demo Mode Banner */}
         <AnimatePresence>
-            {queueInfo?.announcement && (
-                <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -50, opacity: 0 }} className="text-white px-4 py-3 text-center text-sm font-bold flex items-center justify-center gap-2 shadow-sm relative z-50 shrink-0" style={{ backgroundColor: themeColor }}>
-                    <Megaphone size={16} className="fill-white/20" />{queueInfo.announcement}
+            {isDemoMode && (
+                <motion.div 
+                    initial={{ y: -50, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="bg-yellow-100 text-yellow-800 px-4 py-2 text-center text-xs font-bold flex items-center justify-center gap-2 shadow-sm relative z-50 shrink-0 border-b border-yellow-200"
+                >
+                    <Zap size={14} />
+                    Demo Mode: Running locally. Actions will not sync to owner.
                 </motion.div>
             )}
         </AnimatePresence>
 
+        {/* Announcement Banner */}
+        <AnimatePresence>
+            {queueInfo?.announcement && (
+                <motion.div 
+                    initial={{ y: -50, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -50, opacity: 0 }}
+                    className="text-white px-4 py-3 text-center text-sm font-bold flex items-center justify-center gap-2 shadow-sm relative z-50 shrink-0"
+                    style={{ backgroundColor: themeColor }}
+                >
+                    <Megaphone size={16} className="fill-white/20" />
+                    {queueInfo.announcement}
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* Main Content Area */}
         <div className="flex-1 px-4 py-6 flex flex-col items-center justify-start space-y-6 overflow-y-auto no-scrollbar pb-24">
+            
+            {/* Header */}
             <div className="text-center w-full max-w-sm">
-                 <div className="flex items-center justify-center gap-1.5 text-gray-400 text-xs font-bold uppercase tracking-widest mb-1"><MapPin size={12} /> {queueInfo?.name || 'Queue'}</div>
+                 <div className="flex items-center justify-center gap-1.5 text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
+                    <MapPin size={12} /> {queueInfo?.name || 'Queue'}
+                 </div>
                  <h1 className="text-2xl font-black text-gray-900 break-words">{myVisitor.name}</h1>
             </div>
 
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-xs bg-white rounded-[40px] p-8 pb-10 flex flex-col items-center relative overflow-hidden shadow-2xl shadow-blue-900/10 border border-white">
-                <div className={`absolute top-0 left-0 right-0 h-3 ${isOnTime ? 'bg-green-500' : ''}`} style={{ backgroundColor: isOnTime ? undefined : themeColor }}></div>
+            {/* Ticket Card (Hero) */}
+            <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="w-full max-w-xs bg-white rounded-[40px] p-8 pb-10 flex flex-col items-center relative overflow-hidden shadow-2xl shadow-blue-900/10 border border-white"
+            >
+                {/* Decorative Elements */}
+                <div 
+                    className={`absolute top-0 left-0 right-0 h-3 ${isOnTime ? 'bg-green-500' : ''}`} 
+                    style={{ backgroundColor: isOnTime ? undefined : themeColor }}
+                ></div>
                 <div className="absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full blur-2xl opacity-50 pointer-events-none"></div>
+
                 <span className="text-gray-400 text-xs font-extrabold uppercase tracking-[0.2em] mb-4 mt-2">Your Number</span>
+                
                 <div className="relative">
-                    <div className="text-[100px] leading-none font-black text-gray-900 tracking-tighter z-10 relative">{myVisitor.ticketNumber}</div>
-                    <div className="absolute top-4 left-0 w-full text-[100px] leading-none font-black text-black opacity-5 blur-sm tracking-tighter z-0 select-none">{myVisitor.ticketNumber}</div>
+                    <div className="text-[100px] leading-none font-black text-gray-900 tracking-tighter z-10 relative">
+                        {myVisitor.ticketNumber}
+                    </div>
+                    {/* Shadow for depth */}
+                    <div className="absolute top-4 left-0 w-full text-[100px] leading-none font-black text-black opacity-5 blur-sm tracking-tighter z-0 select-none">
+                        {myVisitor.ticketNumber}
+                    </div>
                 </div>
-                {myVisitor.isLate && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 w-full bg-red-50 text-red-600 border border-red-100 p-3 rounded-2xl text-center text-xs font-bold leading-relaxed"><div className="flex justify-center mb-1"><AlertTriangle size={20} /></div>You missed your turn and were moved to the back of the queue.</motion.div>}
+                
+                {/* Visual Alert for Late Status */}
+                {myVisitor.isLate && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-4 w-full bg-red-50 text-red-600 border border-red-100 p-3 rounded-2xl text-center text-xs font-bold leading-relaxed"
+                    >
+                        <div className="flex justify-center mb-1"><AlertTriangle size={20} /></div>
+                        You missed your turn and were moved to the back of the queue.
+                    </motion.div>
+                )}
+
                 <div className="mt-8 w-full">
-                    <motion.div animate={isOnTime ? { scale: [1, 1.02, 1], boxShadow: ["0 0 0px rgba(34,197,94,0)", "0 0 20px rgba(34,197,94,0.3)", "0 0 0px rgba(34,197,94,0)"] } : {}} transition={{ repeat: Infinity, duration: 2 }} className={`flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl text-sm font-bold shadow-sm border transition-colors ${myVisitor.status === 'serving' ? 'bg-green-500 text-white border-green-500 shadow-green-500/30' : isOnTime ? 'bg-green-50 text-green-700 border-green-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-                        {myVisitor.status === 'serving' ? (<><CheckCircle size={18} /> IT'S YOUR TURN </>) : isOnTime ? (<><Zap size={18} fill="currentColor" /> GET READY </>) : (<><Clock size={18} /> WAITING </>)}
+                    <motion.div 
+                        animate={isOnTime ? { scale: [1, 1.02, 1], boxShadow: ["0 0 0px rgba(34,197,94,0)", "0 0 20px rgba(34,197,94,0.3)", "0 0 0px rgba(34,197,94,0)"] } : {}}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className={`flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl text-sm font-bold shadow-sm border transition-colors ${
+                            myVisitor.status === 'serving' 
+                            ? 'bg-green-50 text-white border-green-50 shadow-green-500/30' 
+                            : isOnTime 
+                                ? 'bg-green-50 text-green-700 border-green-100' 
+                                : 'bg-blue-50 text-blue-700 border-blue-100'
+                        }`}
+                    >
+                        {myVisitor.status === 'serving' ? (
+                            <> <CheckCircle size={18} /> IT'S YOUR TURN </>
+                        ) : isOnTime ? (
+                            <> <Zap size={18} fill="currentColor" /> GET READY </>
+                        ) : (
+                            <> <Clock size={18} /> WAITING </>
+                        )}
                     </motion.div>
                 </div>
             </motion.div>
 
+            {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-4 w-full max-w-xs">
-                <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center"><span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Est. Wait</span><span className="text-2xl font-black text-gray-900 flex items-baseline gap-0.5">{waitTime}<span className="text-sm font-bold text-gray-400">m</span></span></div>
-                <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center"><span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Ahead</span><span className="text-2xl font-black text-gray-900">{peopleAhead}</span></div>
+                <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                    <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Est. Wait</span>
+                    <span className="text-2xl font-black text-gray-900 flex items-baseline gap-0.5">
+                        {waitTime}<span className="text-sm font-bold text-gray-400">m</span>
+                    </span>
+                </div>
+                <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                    <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Ahead</span>
+                    <span className="text-2xl font-black text-gray-900">{peopleAhead}</span>
+                </div>
             </div>
         </div>
 
+        {/* ALERT OVERLAY (I'm Coming) */}
         <AnimatePresence>
             {isAlerting && (
-                <motion.div initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-0 z-[60] flex flex-col items-center justify-center p-8 text-center" style={{ backgroundColor: themeColor }}>
-                    <motion.div animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }} transition={{ repeat: Infinity, duration: 1 }} className="w-28 h-28 bg-white rounded-full flex items-center justify-center mb-8 shadow-2xl"><Bell size={56} style={{ color: themeColor }} fill="currentColor" /></motion.div>
+                <motion.div 
+                    initial={{ opacity: 0, scale: 1.1 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="fixed inset-0 z-[60] flex flex-col items-center justify-center p-8 text-center"
+                    style={{ backgroundColor: themeColor }}
+                >
+                    <motion.div 
+                        animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }} 
+                        transition={{ repeat: Infinity, duration: 1 }}
+                        className="w-28 h-28 bg-white rounded-full flex items-center justify-center mb-8 shadow-2xl"
+                    >
+                        <Bell size={56} style={{ color: themeColor }} fill="currentColor" />
+                    </motion.div>
+                    
                     <h2 className="text-4xl font-black text-white mb-4 leading-tight">It's Your Turn!</h2>
-                    {timeLeft !== null && <div className="mb-8"><span className="text-blue-100 font-bold text-sm uppercase tracking-widest">Confirm in</span><div className="text-6xl font-black text-white font-mono mt-2">{timeLeft}s</div></div>}
-                    <p className="text-white/80 text-lg mb-12 max-w-xs font-medium leading-relaxed">Please confirm you are here, or you will be moved to the back of the queue.</p>
-                    <motion.button whileTap={{ scale: 0.9 }} onClick={handleImComing} className="w-full max-w-xs py-5 bg-white rounded-3xl font-black text-xl shadow-xl flex items-center justify-center gap-3 min-h-[64px]" style={{ color: themeColor }}><CheckCircle size={24} fill="currentColor" /> I'M COMING</motion.button>
+                    
+                    {timeLeft !== null && (
+                        <div className="mb-8">
+                            <span className="text-blue-100 font-bold text-sm uppercase tracking-widest">Confirm in</span>
+                            <div className="text-6xl font-black text-white font-mono mt-2">{timeLeft}s</div>
+                        </div>
+                    )}
+
+                    <p className="text-white/80 text-lg mb-12 max-w-xs font-medium leading-relaxed">
+                        Please confirm you are here, or you will be moved to the back of the queue.
+                    </p>
+                    
+                    <motion.button 
+                        whileTap={{ scale: 0.9 }}
+                        onClick={handleImComing}
+                        className="w-full max-w-xs py-5 bg-white rounded-3xl font-black text-xl shadow-xl flex items-center justify-center gap-3 min-h-[64px]"
+                        style={{ color: themeColor }}
+                    >
+                        <CheckCircle size={24} fill="currentColor" /> I'M COMING
+                    </motion.button>
                 </motion.div>
             )}
         </AnimatePresence>
 
+        {/* Pop-up Notification for "2 Ahead" */}
+        <AnimatePresence>
+            {showNotificationPopup && !isAlerting && (
+                <motion.div 
+                    initial={{ y: 100, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 100, opacity: 0 }}
+                    className="fixed bottom-28 left-4 right-4 bg-gray-900/90 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between z-40 border border-gray-800"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-yellow-500 rounded-xl text-black">
+                            <Zap size={20} fill="currentColor" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-sm">Almost there!</p>
+                            <p className="text-xs text-gray-400">Only {peopleAhead} people ahead of you.</p>
+                        </div>
+                    </div>
+                    <button onClick={() => setShowNotificationPopup(false)} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition-colors">
+                        OK
+                    </button>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* Footer Actions */}
         <div className="p-6 pt-2 pb-8 z-10 shrink-0">
-            <motion.button whileTap={{ scale: 0.98 }} onClick={handleLeave} className="w-full py-4 bg-white text-red-500 border border-red-100 rounded-2xl font-bold text-base flex items-center justify-center gap-2 hover:bg-red-50 transition-all shadow-sm min-h-[56px]"><LogOut size={18} /> Leave Queue</motion.button>
+            <motion.button 
+                whileTap={{ scale: 0.98 }}
+                onClick={handleLeave}
+                className="w-full py-4 bg-white text-red-500 border border-red-100 rounded-2xl font-bold text-base flex items-center justify-center gap-2 hover:bg-red-50 transition-all shadow-sm min-h-[56px]"
+            >
+                <LogOut size={18} /> Leave Queue
+            </motion.button>
         </div>
     </div>
   );

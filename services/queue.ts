@@ -267,12 +267,28 @@ export const queueService = {
       const { businessId, locationId } = path;
       const queueRefStr = `businesses/${businessId}/locations/${locationId}/queues/${queueId}`;
       
+      // 1. Check for duplicates if phoneNumber is provided
+      if (phoneNumber) {
+          const visitorsSnap = await get(ref(firebaseService.db!, `${queueRefStr}/visitors`));
+          const existingVisitors = snapshotToArray(visitorsSnap) as Visitor[];
+          
+          const duplicate = existingVisitors.find(v => 
+              v.phoneNumber === phoneNumber && v.status === 'waiting'
+          );
+
+          if (duplicate) {
+              return { visitor: duplicate, queueData: null, isDuplicate: true };
+          }
+      }
+
+      // 2. Get current sequence and increment
       const qSnap = await get(ref(firebaseService.db!, queueRefStr));
       let currentSeq = qSnap.val().currentTicketSequence || 0;
       currentSeq++;
       
       await update(ref(firebaseService.db!, queueRefStr), { currentTicketSequence: currentSeq });
       
+      // 3. Create new visitor
       const visitorsRef = ref(firebaseService.db!, `${queueRefStr}/visitors`);
       const newVisitorRef = push(visitorsRef);
       const newVisitorId = newVisitorRef.key!;
